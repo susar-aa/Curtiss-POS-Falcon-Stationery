@@ -433,9 +433,14 @@ class ProductImportEngine
                     }
                 }
                 if ($brandId <= 0) {
-                    // Fallback to first brand
                     $firstB = Brand::all(true);
-                    $brandId = !empty($firstB) ? (int)$firstB[0]['id'] : 1;
+                    if (!empty($firstB)) {
+                        $brandId = (int)$firstB[0]['id'];
+                    } else {
+                        $bRes = Brand::create('General', 'active');
+                        $brandId = !empty($bRes['id']) ? (int)$bRes['id'] : 1;
+                        $brandMap['general'] = $brandId;
+                    }
                 }
 
                 // Resolve Category ID
@@ -454,7 +459,13 @@ class ProductImportEngine
                 }
                 if ($categoryId <= 0) {
                     $firstC = Category::all(true);
-                    $categoryId = !empty($firstC) ? (int)$firstC[0]['id'] : 1;
+                    if (!empty($firstC)) {
+                        $categoryId = (int)$firstC[0]['id'];
+                    } else {
+                        $cRes = Category::create('General', 'active');
+                        $categoryId = !empty($cRes['id']) ? (int)$cRes['id'] : 1;
+                        $categoryMap['general'] = $categoryId;
+                    }
                 }
 
                 // Resolve Supplier ID
@@ -473,7 +484,13 @@ class ProductImportEngine
                 }
                 if ($supplierId <= 0) {
                     $firstS = Supplier::all(true);
-                    $supplierId = !empty($firstS) ? (int)$firstS[0]['id'] : 1;
+                    if (!empty($firstS)) {
+                        $supplierId = (int)$firstS[0]['id'];
+                    } else {
+                        $sRes = Supplier::create('General Supplier', null, null, null, 'active');
+                        $supplierId = !empty($sRes['id']) ? (int)$sRes['id'] : 1;
+                        $supplierMap['general supplier'] = $supplierId;
+                    }
                 }
 
                 // Find existing product by SKU or Barcode
@@ -552,8 +569,19 @@ class ProductImportEngine
                         $createdCount++;
                     } else {
                         $failedCount++;
+                        $lastError = $resCreate['message'] ?? 'Validation failure';
+                        Logger::warning("Product Import row failed: " . $lastError);
                     }
                 }
+            }
+
+            // If ALL rows failed, rollback and alert with the exact reason
+            if ($totalRows > 0 && $createdCount === 0 && $updatedCount === 0 && $failedCount > 0) {
+                $db->rollBack();
+                return [
+                    'success' => false,
+                    'message' => "Import failed: All {$failedCount} products failed to create. Reason: " . ($lastError ?? 'Unknown validation error')
+                ];
             }
 
             // Insert Batch History Record

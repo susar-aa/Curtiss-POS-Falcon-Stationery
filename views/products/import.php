@@ -771,7 +771,12 @@ function commitImportBatch() {
     .then(r => r.json())
     .then(res => {
         if (!res.success) {
-            completeImportProgressModal('Import Execution Error: ' + res.message, true);
+            completeImportProgressModal('Import Error: ' + res.message, true);
+            return;
+        }
+
+        if (res.summary && res.summary.created_count === 0 && res.summary.updated_count === 0) {
+            completeImportProgressModal('Warning: 0 products were created or updated. Please check for errors.', true);
             return;
         }
 
