@@ -105,7 +105,7 @@ class Auth
 
         } catch (Throwable $e) {
             Logger::error("Authentication Attempt Failed: " . $e->getMessage(), $e);
-            return ['success' => false, 'message' => 'Authentication service error. Please try again.'];
+            return ['success' => false, 'message' => 'Authentication service error: ' . $e->getMessage()];
         }
     }
 
