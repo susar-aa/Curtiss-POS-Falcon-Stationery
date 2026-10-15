@@ -25,8 +25,13 @@ class Database
             $this->pdo = new PDO($dsn, DB_USER, DB_PASS, $options);
         } catch (PDOException $e) {
             Logger::error("Database Connection Failure: " . $e->getMessage(), $e);
-            throw new Exception("Database Connection Failed. Please check logs.");
+            throw new Exception("Database Connection Failed: " . $e->getMessage());
         }
+    }
+
+    public static function hasActiveConnection(): bool
+    {
+        return self::$instance !== null && self::$instance->pdo !== null;
     }
 
     public static function getInstance(): Database
@@ -37,7 +42,7 @@ class Database
         return self::$instance;
     }
 
-    public function getConnection(): PDO
+    public function getConnection(): ?PDO
     {
         return $this->pdo;
     }
