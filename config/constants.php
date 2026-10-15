@@ -21,7 +21,7 @@ if ($isProductionVPS) {
     define('DB_HOST', 'localhost');
     define('DB_PORT', '3306');
     define('DB_NAME', 'falcon_pos');
-    define('DB_USER', 'susar.aa');
+    define('DB_USER', 'root');
     define('DB_PASS', 'Susara@200611003614');
 } else {
     // Local XAMPP Environment Credentials
