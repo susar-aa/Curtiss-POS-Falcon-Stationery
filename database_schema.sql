@@ -1,12 +1,12 @@
 -- ============================================================================
 -- CURTISS POS - DATABASE SCHEMA (STAGE 1 + STAGE 2 + STAGE 3 + STAGE 4 PURCHASING & GRN + STAGE 5 CUSTOMERS + STAGE 6 POS BILLING + STAGE 7 PAYMENTS & VOUCHERS)
--- Brand: Curtiss POS
+-- Brand: Falcon POS
 -- Target: MySQL / MariaDB (XAMPP & VPS aaPanel Compatible)
--- Last Updated: 2026-09-24
+-- Last Updated: 2026-10-16
 -- ============================================================================
 
-CREATE DATABASE IF NOT EXISTS `curtiss_pos` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-USE `curtiss_pos`;
+CREATE DATABASE IF NOT EXISTS `falcon_pos` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE `falcon_pos`;
 
 SET FOREIGN_KEY_CHECKS = 0;
 
