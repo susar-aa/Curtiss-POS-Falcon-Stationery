@@ -1,0 +1,38 @@
+<?php
+/**
+ * Curtiss POS - Audit Logs Controller
+ * System compliance & security audit log viewer
+ */
+
+require_once __DIR__ . '/config/config.php';
+require_once __DIR__ . '/core/Audit.php';
+
+Auth::requireAuth();
+
+if (!Auth::hasRole(ROLE_SUPER_ADMIN, ROLE_ADMIN, ROLE_MANAGER, ROLE_ACCOUNTANT)) {
+    View::renderBlank('errors/403');
+    exit();
+}
+
+// Active session branch filter
+$activeBranchId = (int)($_SESSION['branch_id'] ?? $_SESSION['active_branch_id'] ?? 1);
+
+$filters = [
+    'module'    => $_GET['module'] ?? '',
+    'action'    => $_GET['action'] ?? '',
+    'date_from' => $_GET['date_from'] ?? '',
+    'date_to'   => $_GET['date_to'] ?? '',
+    'search'    => $_GET['search'] ?? '',
+    'branch_id' => !empty($_GET['branch_id']) ? $_GET['branch_id'] : (Auth::hasRole(ROLE_SUPER_ADMIN) ? '' : $activeBranchId)
+];
+
+$auditLogs = Audit::all($filters);
+$modules = Audit::getModules();
+$actions = Audit::getActions();
+
+View::render('audit_logs/index', [
+    'auditLogs' => $auditLogs,
+    'modules'   => $modules,
+    'actions'   => $actions,
+    'filters'   => $filters
+], 'Audit Logs - Curtiss POS');

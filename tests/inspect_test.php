@@ -1,0 +1,3 @@
+<?php
+// Scratch inspection test
+
