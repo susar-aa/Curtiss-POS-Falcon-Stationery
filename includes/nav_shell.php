@@ -147,6 +147,8 @@ $prodModules = [];
 if (Auth::hasRole(ROLE_SUPER_ADMIN, ROLE_ADMIN, ROLE_MANAGER, ROLE_ACCOUNTANT, ROLE_CASHIER, ROLE_SPECIAL_USER)) {
     $prodModules[] = ['label' => 'Product Master', 'url' => 'products', 'scripts' => ['products', 'products.php', 'product_create', 'product_create.php', 'product_edit', 'product_edit.php'], 'desc' => 'Product catalogue',
         'icon' => navIcon('<circle cx="12" cy="12" r="10"/>') ];
+    $prodModules[] = ['label' => 'Quick Product Editor', 'url' => 'quick_products', 'scripts' => ['quick_products', 'quick_products.php'], 'desc' => 'Quick inline catalog & stock editor',
+        'icon' => navIcon('<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>') ];
 }
 if (Auth::hasRole(ROLE_SUPER_ADMIN, ROLE_ADMIN, ROLE_MANAGER)) {
     $prodModules[] = ['label' => 'Brands', 'url' => 'brands', 'scripts' => ['brands', 'brands.php'], 'desc' => 'Brand management',
@@ -297,6 +299,8 @@ $pageLabelMap = [
     'stock_audits.php'      => 'Physical Audit',
     'products'              => 'Product Master',
     'products.php'          => 'Product Master',
+    'quick_products'        => 'Quick Product Editor',
+    'quick_products.php'    => 'Quick Product Editor',
     'brands'                => 'Brands',
     'brands.php'            => 'Brands',
     'categories'            => 'Categories',
@@ -342,6 +346,8 @@ $contextMap = [
     'inventory.php'         => ['placeholder' => 'Search products or barcode...', 'targetSelector' => '#searchInput, #productSearch, input[name="search"]'],
     'products'              => ['placeholder' => 'Search products...', 'targetSelector' => '#searchInput, input[name="search"]'],
     'products.php'          => ['placeholder' => 'Search products...', 'targetSelector' => '#searchInput, input[name="search"]'],
+    'quick_products'        => ['placeholder' => 'Search products or barcode...', 'targetSelector' => '#quickSearchInput'],
+    'quick_products.php'    => ['placeholder' => 'Search products or barcode...', 'targetSelector' => '#quickSearchInput'],
     'customers'             => ['placeholder' => 'Search customers...', 'targetSelector' => '#searchInput, input[name="search"]'],
     'customers.php'         => ['placeholder' => 'Search customers...', 'targetSelector' => '#searchInput, input[name="search"]'],
     'suppliers'             => ['placeholder' => 'Search suppliers...', 'targetSelector' => '#searchInput, input[name="search"]'],
