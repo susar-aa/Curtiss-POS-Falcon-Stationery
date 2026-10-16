@@ -1,9 +1,21 @@
 <?php
 /**
  * Falcon POS - Quick Product & Stock Editor View
+ * Enhanced with 3-Up Thermal Barcode Label Printing (30mm x 15mm / 3 stickers in row)
  */
 ?>
+<script src="assets/js/code128.js"></script>
+
 <style>
+/* CSS Variables for 3-Up Label Calibration */
+:root {
+    --lbl-width: 31.5mm;
+    --lbl-height: 16mm;
+    --lbl-row-width: 100mm;
+    --lbl-gap-x: 2mm;
+    --lbl-gap-y: 2mm;
+}
+
 /* Quick Editor Specific Styles */
 .qe-container {
     width: 100%;
@@ -145,7 +157,7 @@
     justify-content: center;
     gap: 6px;
     height: 36px;
-    padding: 0 16px;
+    padding: 0 14px;
     border-radius: 7px;
     background: #0f172a;
     color: #ffffff;
@@ -171,9 +183,258 @@
     background: #dc2626 !important;
 }
 
+/* Label Print Button & Quantity Field */
+.qe-btn-print {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    height: 36px;
+    padding: 0 12px;
+    border-radius: 7px;
+    background: #0284c7;
+    color: #ffffff;
+    font-size: 0.82rem;
+    font-weight: 700;
+    border: none;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+}
+.qe-btn-print:hover {
+    background: #0369a1;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(2, 132, 199, 0.25);
+}
+.qe-btn-print:active {
+    transform: translateY(0);
+}
+.field-label-qty {
+    width: 50px !important;
+    height: 36px !important;
+    padding: 0 4px !important;
+    text-align: center !important;
+    font-weight: 800 !important;
+    color: #0f172a !important;
+    border-radius: 7px !important;
+}
+
 @keyframes flashGreen {
     0% { background: #dcfce7; }
     100% { background: #ffffff; }
+}
+
+/* Modal Overlay & Styling */
+.qe-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(15, 23, 42, 0.55);
+    backdrop-filter: blur(4px);
+    z-index: 10000;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    box-sizing: border-box;
+}
+.qe-modal-overlay.active {
+    display: flex;
+}
+.qe-modal-box {
+    background: #ffffff;
+    border-radius: 16px;
+    width: 720px;
+    max-width: 96vw;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 20px 48px -10px rgba(15, 23, 42, 0.35);
+    overflow: hidden;
+    animation: modalPop 0.2s ease-out;
+}
+@keyframes modalPop {
+    from { transform: scale(0.96); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+}
+.qe-modal-header {
+    padding: 1.1rem 1.4rem;
+    border-bottom: 1.5px solid #e2e8f0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #ffffff;
+}
+.qe-modal-body {
+    padding: 1.25rem 1.4rem;
+    overflow-y: auto;
+    flex: 1;
+    background: #f8fafc;
+}
+.qe-modal-footer {
+    padding: 0.9rem 1.4rem;
+    border-top: 1.5px solid #e2e8f0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #ffffff;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   3-UP THERMAL LABEL PRINTING ENGINE (3 STICKERS PER ROW)
+   Roll width: ~100mm, each sticker ~31.5mm x 16mm
+   ══════════════════════════════════════════════════════════════ */
+#printLabelContainer {
+    display: none;
+}
+
+@media print {
+    body * {
+        visibility: hidden !important;
+    }
+    .no-print, header, nav, #curtiss-nav, #curtiss-floating-header-right, .qe-container, .qe-modal-overlay, .qe-toast {
+        display: none !important;
+    }
+
+    @page {
+        size: auto;
+        margin: 0mm !important;
+    }
+
+    html, body {
+        width: 100% !important;
+        height: auto !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        background: #ffffff !important;
+        overflow: visible !important;
+    }
+
+    #printLabelContainer {
+        visibility: visible !important;
+        display: block !important;
+        position: absolute !important;
+        top: 0 !important;
+        left: 0 !important;
+        width: var(--lbl-row-width, 100mm) !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    #printLabelContainer * {
+        visibility: visible !important;
+    }
+
+    .label-row-3 {
+        display: flex !important;
+        flex-direction: row !important;
+        width: var(--lbl-row-width, 100mm) !important;
+        height: var(--lbl-height, 16mm) !important;
+        margin-bottom: var(--lbl-gap-y, 2mm) !important;
+        page-break-inside: avoid !important;
+        page-break-after: always !important;
+        box-sizing: border-box !important;
+        justify-content: space-between !important;
+        gap: var(--lbl-gap-x, 2mm) !important;
+    }
+
+    .label-item-3 {
+        width: var(--lbl-width, 31.5mm) !important;
+        height: var(--lbl-height, 16mm) !important;
+        padding: 0.6mm 0.8mm !important;
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        text-align: center !important;
+        box-sizing: border-box !important;
+        overflow: hidden !important;
+        background: #ffffff !important;
+        color: #000000 !important;
+        border: none !important;
+    }
+
+    .label-blank-3 {
+        width: var(--lbl-width, 31.5mm) !important;
+        height: var(--lbl-height, 16mm) !important;
+        visibility: hidden !important;
+    }
+
+    .lbl-company {
+        font-family: Arial, Helvetica, sans-serif !important;
+        font-size: 5.5pt !important;
+        font-weight: 900 !important;
+        letter-spacing: 0.15px !important;
+        text-transform: uppercase !important;
+        line-height: 1 !important;
+        margin: 0 !important;
+        color: #000000 !important;
+        width: 100% !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
+
+    .lbl-name {
+        font-family: Arial, Helvetica, sans-serif !important;
+        font-size: 5.8pt !important;
+        font-weight: 700 !important;
+        line-height: 1.05 !important;
+        margin: 0.2mm 0 !important;
+        max-height: 2.8mm !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+        white-space: nowrap !important;
+        width: 100% !important;
+        color: #000000 !important;
+    }
+
+    .lbl-barcode {
+        width: 100% !important;
+        max-height: 6.8mm !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        margin: 0.2mm 0 !important;
+        overflow: hidden !important;
+    }
+
+    .lbl-barcode svg {
+        width: 100% !important;
+        height: 6.5mm !important;
+    }
+
+    .lbl-bottom {
+        width: 100% !important;
+        display: flex !important;
+        flex-direction: row !important;
+        justify-content: space-between !important;
+        align-items: baseline !important;
+        line-height: 1 !important;
+        margin-top: 0.1mm !important;
+    }
+
+    .lbl-code {
+        font-family: 'Courier New', Courier, monospace !important;
+        font-size: 5.5pt !important;
+        font-weight: 800 !important;
+        color: #000000 !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+        max-width: 50% !important;
+    }
+
+    .lbl-price {
+        font-family: Arial, Helvetica, sans-serif !important;
+        font-size: 7.5pt !important;
+        font-weight: 900 !important;
+        color: #000000 !important;
+        white-space: nowrap !important;
+        text-align: right !important;
+    }
 }
 
 /* Toast alert */
@@ -214,7 +475,11 @@
                 Edit product names, barcodes, prices, and update <strong>live branch inventory</strong> directly in real time.
             </p>
         </div>
-        <div style="display: flex; gap: 10px;">
+        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+            <button type="button" onclick="openLabelConfigModal()" class="btn btn-secondary" style="display: inline-flex; align-items: center; gap: 6px; padding: 0.5rem 1rem; font-size: 0.85rem; font-weight: 700; border-radius: 8px; border: 1px solid #cbd5e1; background: #ffffff; color: #334155; cursor: pointer;" title="Configure Label Calibration (3-up roll sizing)">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2v-.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                Label Setup (3-Up)
+            </button>
             <a href="products.php" class="btn btn-secondary" style="display: inline-flex; align-items: center; gap: 6px; text-decoration: none; padding: 0.5rem 1rem; font-size: 0.85rem; font-weight: 700; border-radius: 8px; border: 1px solid #cbd5e1; background: #ffffff; color: #334155;">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
                 Product Master
@@ -258,12 +523,12 @@
                 <thead>
                     <tr>
                         <th style="width: 70px;"># ID</th>
-                        <th style="min-width: 260px;">Product Name *</th>
-                        <th style="width: 170px;">Barcode *</th>
-                        <th style="width: 130px; text-align: right;">Cost (LKR)</th>
-                        <th style="width: 140px; text-align: right;">Selling Price (LKR)</th>
-                        <th style="width: 130px; text-align: right;">Stock (Live)</th>
-                        <th style="width: 110px; text-align: center;">Action</th>
+                        <th style="min-width: 240px;">Product Name *</th>
+                        <th style="width: 160px;">Barcode *</th>
+                        <th style="width: 120px; text-align: right;">Cost (LKR)</th>
+                        <th style="width: 130px; text-align: right;">Selling Price (LKR)</th>
+                        <th style="width: 110px; text-align: right;">Stock (Live)</th>
+                        <th style="width: 230px; text-align: center;">Action &amp; Print (3-Up)</th>
                     </tr>
                 </thead>
                 <tbody id="qeTableBody">
@@ -276,12 +541,12 @@
                         </tr>
                     <?php else: ?>
                         <?php foreach ($products as $p): ?>
-                            <tr id="row_<?= (int)$p['id'] ?>" data-id="<?= (int)$p['id'] ?>">
+                            <tr id="row_<?= (int)$p['id'] ?>" data-id="<?= (int)$p['id'] ?>" data-sku="<?= View::escape($p['sku'] ?? '') ?>">
                                 <!-- ID / SKU -->
                                 <td>
                                     <span style="font-weight: 800; color: #475569;">#<?= (int)$p['id'] ?></span>
                                     <?php if (!empty($p['sku']) && $p['sku'] !== $p['barcode']): ?>
-                                        <div style="font-size: 0.7rem; color: #94a3b8; font-family: monospace;"><?= View::escape($p['sku']) ?></div>
+                                        <div style="font-size: 0.7rem; color: #94a3b8; font-family: monospace;" class="field-sku-display"><?= View::escape($p['sku']) ?></div>
                                     <?php endif; ?>
                                 </td>
 
@@ -315,11 +580,21 @@
                                            data-original="<?= (float)$p['stock'] ?>" oninput="markDirty(<?= (int)$p['id'] ?>)" onkeydown="checkEnter(event, <?= (int)$p['id'] ?>)">
                                 </td>
 
-                                <!-- Action Button -->
+                                <!-- Action & Label Print Buttons -->
                                 <td style="text-align: center;">
-                                    <button type="button" class="qe-btn-update" id="btn_<?= (int)$p['id'] ?>" onclick="saveProduct(<?= (int)$p['id'] ?>)">
-                                        Update
-                                    </button>
+                                    <div style="display: flex; align-items: center; justify-content: center; gap: 6px;">
+                                        <button type="button" class="qe-btn-update" id="btn_<?= (int)$p['id'] ?>" onclick="saveProduct(<?= (int)$p['id'] ?>)">
+                                            Update
+                                        </button>
+                                        <div style="display: flex; align-items: center; gap: 4px; border-left: 1px solid #e2e8f0; padding-left: 6px;">
+                                            <input type="number" step="1" min="1" max="999" class="qe-input field-label-qty" value="3" 
+                                                   title="Label Quantity to print (3 per row)" onkeydown="if(event.key==='Enter') printRowLabel(<?= (int)$p['id'] ?>)">
+                                            <button type="button" class="qe-btn-print" onclick="printRowLabel(<?= (int)$p['id'] ?>)" title="Print Barcode Labels (3 stickers in row)">
+                                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+                                                Print
+                                            </button>
+                                        </div>
+                                    </div>
                                 </td>
                             </tr>
                         <?php endforeach; ?>
@@ -562,10 +837,10 @@ function renderSearchResults(products, query) {
     products.forEach(p => {
         const isDirty = modifiedRows.has(parseInt(p.id));
         html += `
-            <tr id="row_${p.id}" data-id="${p.id}" class="${isDirty ? 'row-dirty' : ''}">
+            <tr id="row_${p.id}" data-id="${p.id}" data-sku="${escapeHtml(p.sku || '')}" class="${isDirty ? 'row-dirty' : ''}">
                 <td>
                     <span style="font-weight: 800; color: #475569;">#${p.id}</span>
-                    ${p.sku && p.sku !== p.barcode ? `<div style="font-size: 0.7rem; color: #94a3b8; font-family: monospace;">${escapeHtml(p.sku)}</div>` : ''}
+                    ${p.sku && p.sku !== p.barcode ? `<div style="font-size: 0.7rem; color: #94a3b8; font-family: monospace;" class="field-sku-display">${escapeHtml(p.sku)}</div>` : ''}
                 </td>
                 <td>
                     <input type="text" class="qe-input field-name" value="${escapeHtml(p.name)}" 
@@ -588,9 +863,19 @@ function renderSearchResults(products, query) {
                            data-original="${parseFloat(p.stock || 0)}" oninput="markDirty(${p.id})" onkeydown="checkEnter(event, ${p.id})">
                 </td>
                 <td style="text-align: center;">
-                    <button type="button" class="qe-btn-update" id="btn_${p.id}" onclick="saveProduct(${p.id})">
-                        Update
-                    </button>
+                    <div style="display: flex; align-items: center; justify-content: center; gap: 6px;">
+                        <button type="button" class="qe-btn-update" id="btn_${p.id}" onclick="saveProduct(${p.id})">
+                            Update
+                        </button>
+                        <div style="display: flex; align-items: center; gap: 4px; border-left: 1px solid #e2e8f0; padding-left: 6px;">
+                            <input type="number" step="1" min="1" max="999" class="qe-input field-label-qty" value="3" 
+                                   title="Label Quantity to print (3 per row)" onkeydown="if(event.key==='Enter') printRowLabel(${p.id})">
+                            <button type="button" class="qe-btn-print" onclick="printRowLabel(${p.id})" title="Print Barcode Labels (3 stickers in row)">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+                                Print
+                            </button>
+                        </div>
+                    </div>
                 </td>
             </tr>
         `;
@@ -628,4 +913,500 @@ function escapeHtml(text) {
         .replace(/"/g, "&quot;")
         .replace(/'/g, "&#039;");
 }
+
+// ════════════════════════════════════════════════════════════════════════════
+// 3-UP BARCODE LABEL PRINTING LOGIC (FALCON STATIONERY)
+// ════════════════════════════════════════════════════════════════════════════
+
+const DEFAULT_LABEL_CONFIG = {
+    company_name: 'Falcon Stationery (PVT) LTD',
+    show_company: true,
+    show_code: true,
+    price_prefix: 'Rs.',
+    label_width_mm: 31.5,
+    label_height_mm: 16.0,
+    row_width_mm: 100.0,
+    gap_x_mm: 2.0,
+    gap_y_mm: 2.0,
+    direct_print: false
+};
+
+function getLabelConfig() {
+    try {
+        const stored = localStorage.getItem('falcon_3up_label_cfg');
+        if (stored) {
+            return Object.assign({}, DEFAULT_LABEL_CONFIG, JSON.parse(stored));
+        }
+    } catch (e) {}
+    return Object.assign({}, DEFAULT_LABEL_CONFIG);
+}
+
+function applyLabelConfigCss() {
+    const cfg = getLabelConfig();
+    const root = document.documentElement;
+    root.style.setProperty('--lbl-width', cfg.label_width_mm + 'mm');
+    root.style.setProperty('--lbl-height', cfg.label_height_mm + 'mm');
+    root.style.setProperty('--lbl-row-width', cfg.row_width_mm + 'mm');
+    root.style.setProperty('--lbl-gap-x', cfg.gap_x_mm + 'mm');
+    root.style.setProperty('--lbl-gap-y', cfg.gap_y_mm + 'mm');
+}
+
+// Apply on initial load
+applyLabelConfigCss();
+
+let currentPrintPayload = null;
+
+function printRowLabel(id) {
+    const row = document.getElementById('row_' + id);
+    if (!row) return;
+
+    const name = row.querySelector('.field-name').value.trim();
+    const barcode = row.querySelector('.field-barcode').value.trim();
+    const price = parseFloat(row.querySelector('.field-price').value) || 0;
+    const qtyInput = row.querySelector('.field-label-qty');
+    const qty = Math.max(1, parseInt(qtyInput ? qtyInput.value : 3) || 3);
+    const sku = row.dataset.sku || String(id).padStart(5, '0');
+
+    if (!barcode) {
+        showToast('Cannot print label: Product has no barcode!', true);
+        return;
+    }
+
+    currentPrintPayload = {
+        id: id,
+        name: name,
+        barcode: barcode,
+        price: price,
+        code: sku,
+        quantity: qty
+    };
+
+    const cfg = getLabelConfig();
+    if (cfg.direct_print) {
+        buildPrintDom(currentPrintPayload);
+        setTimeout(() => { window.print(); }, 120);
+    } else {
+        openLabelPreviewModal(currentPrintPayload);
+    }
+}
+
+function buildPrintDom(payload) {
+    const container = document.getElementById('printLabelContainer');
+    container.innerHTML = '';
+
+    const cfg = getLabelConfig();
+    applyLabelConfigCss();
+
+    const totalQty = payload.quantity;
+    const rowsNeeded = Math.ceil(totalQty / 3);
+
+    let labelsCreated = 0;
+    for (let r = 0; r < rowsNeeded; r++) {
+        const rowDiv = document.createElement('div');
+        rowDiv.className = 'label-row-3';
+
+        for (let col = 0; col < 3; col++) {
+            if (labelsCreated < totalQty) {
+                rowDiv.appendChild(createSinglePrintLabelElement(payload, cfg));
+                labelsCreated++;
+            } else {
+                // Blank spacer to preserve 3-column physical thermal alignment
+                const blank = document.createElement('div');
+                blank.className = 'label-blank-3';
+                rowDiv.appendChild(blank);
+            }
+        }
+
+        container.appendChild(rowDiv);
+    }
+}
+
+function createSinglePrintLabelElement(item, cfg) {
+    const el = document.createElement('div');
+    el.className = 'label-item-3';
+
+    // 1. Company Name
+    const companyHtml = cfg.show_company 
+        ? `<div class="lbl-company">${escapeHtml(cfg.company_name)}</div>` 
+        : '';
+
+    // 2. Product Name
+    const nameHtml = `<div class="lbl-name" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</div>`;
+
+    // 3. SVG Barcode (Code 128)
+    let barcodeSvg = '';
+    if (window.CurtissCode128 && typeof CurtissCode128.generateSVG === 'function') {
+        barcodeSvg = CurtissCode128.generateSVG(item.barcode, {
+            width: 0.95,
+            height: 18,
+            fontSize: 7.5,
+            showText: true
+        });
+    } else {
+        barcodeSvg = `<div style="font-family:monospace; font-weight:800; font-size:7pt;">*${escapeHtml(item.barcode)}*</div>`;
+    }
+
+    // 4. Code & Price
+    const priceFormatted = `${cfg.price_prefix} ${item.price.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+    const codeHtml = cfg.show_code 
+        ? `<span class="lbl-code">CD: ${escapeHtml(item.code)}</span>` 
+        : `<span></span>`;
+
+    el.innerHTML = `
+        ${companyHtml}
+        ${nameHtml}
+        <div class="lbl-barcode">${barcodeSvg}</div>
+        <div class="lbl-bottom">
+            ${codeHtml}
+            <span class="lbl-price">${priceFormatted}</span>
+        </div>
+    `;
+
+    return el;
+}
+
+// ── Preview Modal Handler ─────────────────────────────────────────────────────
+function openLabelPreviewModal(payload) {
+    const modal = document.getElementById('modalLabelPreview');
+    const container = document.getElementById('previewSheetWrapper');
+    const cfg = getLabelConfig();
+
+    document.getElementById('prevProdName').textContent = payload.name;
+    document.getElementById('prevProdBarcode').textContent = payload.barcode;
+    document.getElementById('prevModalQty').value = payload.quantity;
+
+    renderPreviewSheet(payload, cfg);
+    modal.classList.add('active');
+}
+
+function renderPreviewSheet(payload, cfg) {
+    const container = document.getElementById('previewSheetWrapper');
+    container.innerHTML = '';
+
+    const totalQty = parseInt(document.getElementById('prevModalQty').value) || payload.quantity || 3;
+    payload.quantity = totalQty;
+
+    const rowsNeeded = Math.ceil(totalQty / 3);
+    document.getElementById('prevStatsText').innerHTML = 
+        `Layout: <strong>3 stickers per row</strong> &bull; Total Labels: <strong>${totalQty}</strong> &bull; Total Rows: <strong>${rowsNeeded}</strong>`;
+
+    let labelsRendered = 0;
+    for (let r = 0; r < rowsNeeded; r++) {
+        const rowDiv = document.createElement('div');
+        rowDiv.style.display = 'flex';
+        rowDiv.style.gap = '8px';
+        rowDiv.style.justifyContent = 'center';
+        rowDiv.style.marginBottom = '8px';
+
+        for (let col = 0; col < 3; col++) {
+            if (labelsRendered < totalQty) {
+                rowDiv.appendChild(createPreviewCardElement(payload, cfg));
+                labelsRendered++;
+            } else {
+                const blankCard = document.createElement('div');
+                blankCard.style.width = '160px';
+                blankCard.style.height = '85px';
+                blankCard.style.border = '1.5px dashed #cbd5e1';
+                blankCard.style.borderRadius = '6px';
+                blankCard.style.display = 'flex';
+                blankCard.style.alignItems = 'center';
+                blankCard.style.justifyContent = 'center';
+                blankCard.style.color = '#94a3b8';
+                blankCard.style.fontSize = '10px';
+                blankCard.style.fontWeight = '700';
+                blankCard.textContent = '[Blank Spacer]';
+                rowDiv.appendChild(blankCard);
+            }
+        }
+        container.appendChild(rowDiv);
+    }
+}
+
+function createPreviewCardElement(item, cfg) {
+    const card = document.createElement('div');
+    card.style.width = '160px';
+    card.style.height = '85px';
+    card.style.background = '#ffffff';
+    card.style.border = '1px solid #0f172a';
+    card.style.borderRadius = '6px';
+    card.style.padding = '4px 6px';
+    card.style.display = 'flex';
+    card.style.flexDirection = 'column';
+    card.style.justifyContent = 'space-between';
+    card.style.alignItems = 'center';
+    card.style.textAlign = 'center';
+    card.style.boxSizing = 'border-box';
+    card.style.boxShadow = '0 1px 4px rgba(0,0,0,0.06)';
+
+    let barcodeSvg = '';
+    if (window.CurtissCode128 && typeof CurtissCode128.generateSVG === 'function') {
+        barcodeSvg = CurtissCode128.generateSVG(item.barcode, {
+            width: 0.95,
+            height: 18,
+            fontSize: 7.5,
+            showText: true
+        });
+    }
+
+    const priceFormatted = `${cfg.price_prefix} ${item.price.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+
+    card.innerHTML = `
+        <div style="width: 100%; font-size: 8.5px; font-weight: 900; letter-spacing: 0.2px; text-transform: uppercase; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1;">
+            ${escapeHtml(cfg.company_name)}
+        </div>
+        <div style="width: 100%; font-size: 8px; font-weight: 700; margin: 1px 0; max-height: 18px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #1e293b;">
+            ${escapeHtml(item.name)}
+        </div>
+        <div style="width: 100%; max-height: 38px; display: flex; align-items: center; justify-content: center; overflow: hidden;">
+            ${barcodeSvg}
+        </div>
+        <div style="width: 100%; display: flex; justify-content: space-between; align-items: baseline; font-size: 8px; line-height: 1;">
+            <span style="font-family: monospace; font-weight: 800; color: #475569;">CD: ${escapeHtml(item.code)}</span>
+            <span style="font-weight: 900; color: #0f172a; font-size: 9.5px;">${priceFormatted}</span>
+        </div>
+    `;
+
+    return card;
+}
+
+function updateModalPreviewQty() {
+    if (!currentPrintPayload) return;
+    const cfg = getLabelConfig();
+    const qty = parseInt(document.getElementById('prevModalQty').value) || 1;
+    currentPrintPayload.quantity = Math.max(1, qty);
+    renderPreviewSheet(currentPrintPayload, cfg);
+}
+
+function adjustModalQty(delta) {
+    const input = document.getElementById('prevModalQty');
+    let q = parseInt(input.value) || 3;
+    q = Math.max(1, q + delta);
+    input.value = q;
+    updateModalPreviewQty();
+}
+
+function executeModalPrint() {
+    if (!currentPrintPayload) return;
+    const qty = parseInt(document.getElementById('prevModalQty').value) || currentPrintPayload.quantity || 3;
+    currentPrintPayload.quantity = qty;
+
+    // Check direct print checkbox
+    const directChk = document.getElementById('chkSkipPreview');
+    if (directChk && directChk.checked) {
+        const cfg = getLabelConfig();
+        cfg.direct_print = true;
+        localStorage.setItem('falcon_3up_label_cfg', JSON.stringify(cfg));
+    }
+
+    buildPrintDom(currentPrintPayload);
+    closeQeModal('modalLabelPreview');
+
+    setTimeout(() => {
+        window.print();
+    }, 150);
+}
+
+// ── Configuration Modal ───────────────────────────────────────────────────────
+function openLabelConfigModal() {
+    const cfg = getLabelConfig();
+    document.getElementById('cfgCompanyName').value = cfg.company_name;
+    document.getElementById('cfgShowCompany').checked = cfg.show_company;
+    document.getElementById('cfgShowCode').checked = cfg.show_code;
+    document.getElementById('cfgPricePrefix').value = cfg.price_prefix;
+    document.getElementById('cfgLabelWidth').value = cfg.label_width_mm;
+    document.getElementById('cfgLabelHeight').value = cfg.label_height_mm;
+    document.getElementById('cfgRowWidth').value = cfg.row_width_mm;
+    document.getElementById('cfgGapX').value = cfg.gap_x_mm;
+    document.getElementById('cfgGapY').value = cfg.gap_y_mm;
+    document.getElementById('cfgDirectPrint').checked = cfg.direct_print;
+
+    document.getElementById('modalLabelConfig').classList.add('active');
+}
+
+function saveLabelConfigFromModal() {
+    const cfg = {
+        company_name: document.getElementById('cfgCompanyName').value.trim() || 'Falcon Stationery (PVT) LTD',
+        show_company: document.getElementById('cfgShowCompany').checked,
+        show_code: document.getElementById('cfgShowCode').checked,
+        price_prefix: document.getElementById('cfgPricePrefix').value.trim() || 'Rs.',
+        label_width_mm: parseFloat(document.getElementById('cfgLabelWidth').value) || 31.5,
+        label_height_mm: parseFloat(document.getElementById('cfgLabelHeight').value) || 16.0,
+        row_width_mm: parseFloat(document.getElementById('cfgRowWidth').value) || 100.0,
+        gap_x_mm: parseFloat(document.getElementById('cfgGapX').value) || 2.0,
+        gap_y_mm: parseFloat(document.getElementById('cfgGapY').value) || 2.0,
+        direct_print: document.getElementById('cfgDirectPrint').checked
+    };
+
+    localStorage.setItem('falcon_3up_label_cfg', JSON.stringify(cfg));
+    applyLabelConfigCss();
+    closeQeModal('modalLabelConfig');
+    showToast('Label setup calibrated successfully!');
+}
+
+function resetLabelConfigDefaults() {
+    if (confirm('Reset label dimensions and settings back to factory defaults (30x15mm, 3 per row)?')) {
+        localStorage.removeItem('falcon_3up_label_cfg');
+        applyLabelConfigCss();
+        openLabelConfigModal();
+        showToast('Reset to 3-Up thermal defaults!');
+    }
+}
+
+function closeQeModal(modalId) {
+    const modal = document.getElementById(modalId);
+    if (modal) modal.classList.remove('active');
+}
+
+// Close modals on Escape key
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        closeQeModal('modalLabelPreview');
+        closeQeModal('modalLabelConfig');
+    }
+});
 </script>
+
+<!-- Hidden Container for Printing Thermal 3-Up Labels -->
+<div id="printLabelContainer"></div>
+
+<!-- ══════════════════════════════════════════════════════════════
+     MODAL: LIVE PRINT PREVIEW (3 STICKERS PER ROW)
+     ══════════════════════════════════════════════════════════════ -->
+<div class="qe-modal-overlay" id="modalLabelPreview">
+    <div class="qe-modal-box">
+        <div class="qe-modal-header">
+            <div>
+                <div style="font-weight: 800; font-size: 1.1rem; color: #0f172a;">3-Up Barcode Label Preview</div>
+                <div style="font-size: 0.8rem; color: #64748b; margin-top: 2px;">
+                    <span id="prevProdName" style="font-weight: 700; color: #0f172a;"></span> &bull; BC: <code id="prevProdBarcode" style="color:#0284c7;"></code>
+                </div>
+            </div>
+            <button type="button" onclick="closeQeModal('modalLabelPreview')" style="background:none; border:none; font-size:1.5rem; color:#64748b; cursor:pointer; line-height:1;">&times;</button>
+        </div>
+
+        <div class="qe-modal-body">
+            <!-- Quantity Toolbar -->
+            <div style="display: flex; justify-content: space-between; align-items: center; background: #ffffff; padding: 10px 14px; border-radius: 10px; border: 1px solid #e2e8f0; margin-bottom: 14px;">
+                <div id="prevStatsText" style="font-size: 0.85rem; color: #475569;">
+                    Layout: <strong>3 stickers in row</strong>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <label style="font-size: 0.82rem; font-weight: 700; color: #334155;">Labels QTY:</label>
+                    <div style="display: flex; align-items: center; border: 1.5px solid #cbd5e1; border-radius: 8px; overflow: hidden; background: #ffffff;">
+                        <button type="button" onclick="adjustModalQty(-3)" style="border:none; background:#f1f5f9; padding: 4px 10px; font-weight:800; cursor:pointer;" title="Minus 1 Row (-3)">-3</button>
+                        <input type="number" id="prevModalQty" min="1" max="999" value="3" onchange="updateModalPreviewQty()" style="width: 50px; border:none; text-align:center; font-weight:800; font-size:0.9rem; outline:none;">
+                        <button type="button" onclick="adjustModalQty(3)" style="border:none; background:#f1f5f9; padding: 4px 10px; font-weight:800; cursor:pointer;" title="Plus 1 Row (+3)">+3</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Visual Preview Sheet of 3-across stickers -->
+            <div id="previewSheetWrapper" style="max-height: 400px; overflow-y: auto; padding: 6px;"></div>
+        </div>
+
+        <div class="qe-modal-footer">
+            <label style="display: flex; align-items: center; gap: 6px; font-size: 0.82rem; color: #64748b; cursor: pointer;">
+                <input type="checkbox" id="chkSkipPreview"> Skip preview and print directly on table button click
+            </label>
+            <div style="display: flex; gap: 8px;">
+                <button type="button" class="btn btn-secondary" onclick="closeQeModal('modalLabelPreview')" style="padding: 0.5rem 1rem; border-radius: 8px; font-weight: 700; border: 1px solid #cbd5e1; background: #ffffff; cursor: pointer;">
+                    Cancel
+                </button>
+                <button type="button" class="btn btn-primary" onclick="executeModalPrint()" style="display: inline-flex; align-items: center; gap: 6px; padding: 0.5rem 1.3rem; border-radius: 8px; font-weight: 800; background: #0f172a; color: #ffffff; border: none; cursor: pointer;">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+                    Print Labels Now
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════
+     MODAL: LABEL CALIBRATION & SETUP (3-UP)
+     ══════════════════════════════════════════════════════════════ -->
+<div class="qe-modal-overlay" id="modalLabelConfig">
+    <div class="qe-modal-box" style="width: 580px;">
+        <div class="qe-modal-header">
+            <div>
+                <div style="font-weight: 800; font-size: 1.1rem; color: #0f172a;">3-Up Barcode Label Setup</div>
+                <div style="font-size: 0.8rem; color: #64748b; margin-top: 2px;">Calibrate sticker roll sizing & header text</div>
+            </div>
+            <button type="button" onclick="closeQeModal('modalLabelConfig')" style="background:none; border:none; font-size:1.5rem; color:#64748b; cursor:pointer; line-height:1;">&times;</button>
+        </div>
+
+        <div class="qe-modal-body" style="background:#ffffff;">
+            <!-- Company Name -->
+            <div style="margin-bottom: 14px;">
+                <label style="display:block; font-size: 0.82rem; font-weight: 700; color: #334155; margin-bottom: 4px;">Company Name Header</label>
+                <input type="text" id="cfgCompanyName" class="qe-input" value="Falcon Stationery (PVT) LTD" placeholder="e.g. Falcon Stationery (PVT) LTD">
+            </div>
+
+            <!-- Options -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px;">
+                <label style="display: flex; align-items: center; gap: 8px; font-size: 0.82rem; color: #334155; cursor: pointer;">
+                    <input type="checkbox" id="cfgShowCompany" checked> Print Company Header
+                </label>
+                <label style="display: flex; align-items: center; gap: 8px; font-size: 0.82rem; color: #334155; cursor: pointer;">
+                    <input type="checkbox" id="cfgShowCode" checked> Print Product Code / SKU
+                </label>
+            </div>
+
+            <!-- Price Prefix -->
+            <div style="margin-bottom: 14px;">
+                <label style="display:block; font-size: 0.82rem; font-weight: 700; color: #334155; margin-bottom: 4px;">Price Prefix</label>
+                <input type="text" id="cfgPricePrefix" class="qe-input" value="Rs." style="width: 120px;">
+            </div>
+
+            <!-- Sizing Controls (Millimeters) -->
+            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 14px; margin-bottom: 14px;">
+                <div style="font-weight: 800; font-size: 0.85rem; color: #0f172a; margin-bottom: 10px;">
+                    Millimeter Calibration (Default 3-Up: ~30-32mm x 15-16mm)
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                    <div>
+                        <label style="display:block; font-size: 0.78rem; font-weight: 700; color: #475569; margin-bottom: 4px;">Sticker Width (mm)</label>
+                        <input type="number" step="0.5" id="cfgLabelWidth" class="qe-input" value="31.5">
+                    </div>
+                    <div>
+                        <label style="display:block; font-size: 0.78rem; font-weight: 700; color: #475569; margin-bottom: 4px;">Sticker Length / Height (mm)</label>
+                        <input type="number" step="0.5" id="cfgLabelHeight" class="qe-input" value="16.0">
+                    </div>
+                    <div>
+                        <label style="display:block; font-size: 0.78rem; font-weight: 700; color: #475569; margin-bottom: 4px;">Total Roll Web Width (mm)</label>
+                        <input type="number" step="0.5" id="cfgRowWidth" class="qe-input" value="100.0">
+                    </div>
+                    <div>
+                        <label style="display:block; font-size: 0.78rem; font-weight: 700; color: #475569; margin-bottom: 4px;">Horizontal Gap (mm)</label>
+                        <input type="number" step="0.5" id="cfgGapX" class="qe-input" value="2.0">
+                    </div>
+                </div>
+                <div style="margin-top: 10px;">
+                    <label style="display:block; font-size: 0.78rem; font-weight: 700; color: #475569; margin-bottom: 4px;">Vertical Pitch / Row Gap (mm)</label>
+                    <input type="number" step="0.5" id="cfgGapY" class="qe-input" value="2.0" style="width: 120px;">
+                </div>
+            </div>
+
+            <!-- Direct print option -->
+            <div>
+                <label style="display: flex; align-items: center; gap: 8px; font-size: 0.84rem; color: #0f172a; font-weight: 600; cursor: pointer;">
+                    <input type="checkbox" id="cfgDirectPrint"> Direct 1-Click Print (Bypass Preview Modal)
+                </label>
+            </div>
+        </div>
+
+        <div class="qe-modal-footer">
+            <button type="button" onclick="resetLabelConfigDefaults()" style="background:none; border:none; color:#dc2626; font-size:0.82rem; font-weight:700; cursor:pointer;">
+                Reset Factory Defaults
+            </button>
+            <div style="display: flex; gap: 8px;">
+                <button type="button" class="btn btn-secondary" onclick="closeQeModal('modalLabelConfig')" style="padding: 0.5rem 1rem; border-radius: 8px; font-weight: 700; border: 1px solid #cbd5e1; background: #ffffff; cursor: pointer;">
+                    Cancel
+                </button>
+                <button type="button" class="btn btn-primary" onclick="saveLabelConfigFromModal()" style="padding: 0.5rem 1.25rem; border-radius: 8px; font-weight: 800; background: #0f172a; color: #ffffff; border: none; cursor: pointer;">
+                    Save Settings
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+

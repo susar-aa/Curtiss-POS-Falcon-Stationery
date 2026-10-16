@@ -41,7 +41,7 @@ if (isset($_REQUEST['action'])) {
         $sql = "
             SELECT 
                 p.id,
-                COALESCE(p.sku, p.barcode) AS sku,
+                p.sku,
                 p.barcode,
                 p.name,
                 p.cost,
@@ -201,7 +201,7 @@ if (isset($_REQUEST['action'])) {
 $sql = "
     SELECT 
         p.id,
-        COALESCE(p.sku, p.barcode) AS sku,
+        p.sku,
         p.barcode,
         p.name,
         p.cost,
