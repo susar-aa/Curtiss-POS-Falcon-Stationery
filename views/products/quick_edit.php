@@ -219,6 +219,33 @@
     border-radius: 7px !important;
 }
 
+/* Delete Product Button */
+.qe-btn-delete {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 36px;
+    border-radius: 7px;
+    background: #fef2f2;
+    color: #dc2626;
+    border: 1px solid #fecaca;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    padding: 0;
+    flex-shrink: 0;
+}
+.qe-btn-delete:hover {
+    background: #dc2626;
+    color: #ffffff;
+    border-color: #dc2626;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 6px rgba(220, 38, 38, 0.25);
+}
+.qe-btn-delete:active {
+    transform: translateY(0);
+}
+
 @keyframes flashGreen {
     0% { background: #dcfce7; }
     100% { background: #ffffff; }
@@ -406,34 +433,38 @@
         height: 6.5mm !important;
     }
 
-    .lbl-bottom {
-        width: 100% !important;
-        display: flex !important;
-        flex-direction: row !important;
-        justify-content: space-between !important;
-        align-items: baseline !important;
-        line-height: 1 !important;
-        margin-top: 0.1mm !important;
-    }
-
-    .lbl-code {
+    .lbl-sku {
         font-family: 'Courier New', Courier, monospace !important;
-        font-size: 5.5pt !important;
+        font-size: 6.5pt !important;
         font-weight: 800 !important;
         color: #000000 !important;
+        width: 100% !important;
+        text-align: center !important;
+        line-height: 1 !important;
+        margin: 0.1mm 0 !important;
+        letter-spacing: 0.5px !important;
         white-space: nowrap !important;
         overflow: hidden !important;
         text-overflow: ellipsis !important;
-        max-width: 50% !important;
+    }
+
+    .lbl-bottom {
+        width: 100% !important;
+        display: flex !important;
+        justify-content: center !important;
+        align-items: center !important;
+        line-height: 1.1 !important;
+        margin-top: 0.1mm !important;
+        text-align: center !important;
     }
 
     .lbl-price {
         font-family: Arial, Helvetica, sans-serif !important;
-        font-size: 7.5pt !important;
+        font-size: 8.5pt !important;
         font-weight: 900 !important;
         color: #000000 !important;
         white-space: nowrap !important;
-        text-align: right !important;
+        text-align: center !important;
     }
 }
 
@@ -476,6 +507,10 @@
             </p>
         </div>
         <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+            <button type="button" onclick="openAddProductModal()" class="btn btn-primary" style="display: inline-flex; align-items: center; gap: 6px; padding: 0.5rem 1.15rem; font-size: 0.85rem; font-weight: 800; border-radius: 8px; background: #0f172a; color: #ffffff; border: none; cursor: pointer; box-shadow: 0 2px 8px rgba(15,23,42,0.25);">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                + Add Product
+            </button>
             <button type="button" onclick="openLabelConfigModal()" class="btn btn-secondary" style="display: inline-flex; align-items: center; gap: 6px; padding: 0.5rem 1rem; font-size: 0.85rem; font-weight: 700; border-radius: 8px; border: 1px solid #cbd5e1; background: #ffffff; color: #334155; cursor: pointer;" title="Configure Label Calibration (3-up roll sizing)">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2v-.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
                 Label Setup (3-Up)
@@ -528,7 +563,7 @@
                         <th style="width: 120px; text-align: right;">Cost (LKR)</th>
                         <th style="width: 130px; text-align: right;">Selling Price (LKR)</th>
                         <th style="width: 110px; text-align: right;">Stock (Live)</th>
-                        <th style="width: 230px; text-align: center;">Action &amp; Print (3-Up)</th>
+                        <th style="width: 275px; text-align: center;">Actions &amp; Print</th>
                     </tr>
                 </thead>
                 <tbody id="qeTableBody">
@@ -582,11 +617,11 @@
 
                                 <!-- Action & Label Print Buttons -->
                                 <td style="text-align: center;">
-                                    <div style="display: flex; align-items: center; justify-content: center; gap: 6px;">
+                                    <div style="display: flex; align-items: center; justify-content: center; gap: 5px;">
                                         <button type="button" class="qe-btn-update" id="btn_<?= (int)$p['id'] ?>" onclick="saveProduct(<?= (int)$p['id'] ?>)">
                                             Update
                                         </button>
-                                        <div style="display: flex; align-items: center; gap: 4px; border-left: 1px solid #e2e8f0; padding-left: 6px;">
+                                        <div style="display: flex; align-items: center; gap: 3px; border-left: 1px solid #e2e8f0; padding-left: 5px;">
                                             <input type="number" step="1" min="1" max="999" class="qe-input field-label-qty" value="3" 
                                                    title="Label Quantity to print (3 per row)" onkeydown="if(event.key==='Enter') printRowLabel(<?= (int)$p['id'] ?>)">
                                             <button type="button" class="qe-btn-print" onclick="printRowLabel(<?= (int)$p['id'] ?>)" title="Print Barcode Labels (3 stickers in row)">
@@ -594,6 +629,9 @@
                                                 Print
                                             </button>
                                         </div>
+                                        <button type="button" class="qe-btn-delete" onclick="deleteProduct(<?= (int)$p['id'] ?>, '<?= View::escape(addslashes($p['name'])) ?>')" title="Delete Product (Move to Trash Bin)">
+                                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                                        </button>
                                     </div>
                                 </td>
                             </tr>
@@ -863,11 +901,11 @@ function renderSearchResults(products, query) {
                            data-original="${parseFloat(p.stock || 0)}" oninput="markDirty(${p.id})" onkeydown="checkEnter(event, ${p.id})">
                 </td>
                 <td style="text-align: center;">
-                    <div style="display: flex; align-items: center; justify-content: center; gap: 6px;">
+                    <div style="display: flex; align-items: center; justify-content: center; gap: 5px;">
                         <button type="button" class="qe-btn-update" id="btn_${p.id}" onclick="saveProduct(${p.id})">
                             Update
                         </button>
-                        <div style="display: flex; align-items: center; gap: 4px; border-left: 1px solid #e2e8f0; padding-left: 6px;">
+                        <div style="display: flex; align-items: center; gap: 3px; border-left: 1px solid #e2e8f0; padding-left: 5px;">
                             <input type="number" step="1" min="1" max="999" class="qe-input field-label-qty" value="3" 
                                    title="Label Quantity to print (3 per row)" onkeydown="if(event.key==='Enter') printRowLabel(${p.id})">
                             <button type="button" class="qe-btn-print" onclick="printRowLabel(${p.id})" title="Print Barcode Labels (3 stickers in row)">
@@ -875,6 +913,9 @@ function renderSearchResults(products, query) {
                                 Print
                             </button>
                         </div>
+                        <button type="button" class="qe-btn-delete" onclick="deleteProduct(${p.id}, '${escapeHtml(p.name)}')" title="Delete Product (Move to Trash Bin)">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                        </button>
                     </div>
                 </td>
             </tr>
@@ -921,7 +962,7 @@ function escapeHtml(text) {
 const DEFAULT_LABEL_CONFIG = {
     company_name: 'Falcon Stationery (PVT) LTD',
     show_company: true,
-    show_code: true,
+    show_sku: true,
     price_prefix: 'Rs.',
     label_width_mm: 31.5,
     label_height_mm: 16.0,
@@ -1033,31 +1074,32 @@ function createSinglePrintLabelElement(item, cfg) {
     // 2. Product Name
     const nameHtml = `<div class="lbl-name" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</div>`;
 
-    // 3. SVG Barcode (Code 128)
+    // 3. SVG Barcode (Code 128 - bars only without text)
     let barcodeSvg = '';
     if (window.CurtissCode128 && typeof CurtissCode128.generateSVG === 'function') {
         barcodeSvg = CurtissCode128.generateSVG(item.barcode, {
             width: 0.95,
-            height: 18,
-            fontSize: 7.5,
-            showText: true
+            height: 16,
+            showText: false
         });
     } else {
         barcodeSvg = `<div style="font-family:monospace; font-weight:800; font-size:7pt;">*${escapeHtml(item.barcode)}*</div>`;
     }
 
-    // 4. Code & Price
+    // 4. Product SKU under barcode (strictly SKU, not barcode digits)
+    const skuHtml = (cfg.show_sku !== false)
+        ? `<div class="lbl-sku">${escapeHtml(item.code)}</div>` 
+        : '';
+
+    // 5. Price at bottom (centered, no "CD:" prefix)
     const priceFormatted = `${cfg.price_prefix} ${item.price.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
-    const codeHtml = cfg.show_code 
-        ? `<span class="lbl-code">CD: ${escapeHtml(item.code)}</span>` 
-        : `<span></span>`;
 
     el.innerHTML = `
         ${companyHtml}
         ${nameHtml}
         <div class="lbl-barcode">${barcodeSvg}</div>
+        ${skuHtml}
         <div class="lbl-bottom">
-            ${codeHtml}
             <span class="lbl-price">${priceFormatted}</span>
         </div>
     `;
@@ -1142,13 +1184,16 @@ function createPreviewCardElement(item, cfg) {
     if (window.CurtissCode128 && typeof CurtissCode128.generateSVG === 'function') {
         barcodeSvg = CurtissCode128.generateSVG(item.barcode, {
             width: 0.95,
-            height: 18,
-            fontSize: 7.5,
-            showText: true
+            height: 16,
+            showText: false
         });
     }
 
     const priceFormatted = `${cfg.price_prefix} ${item.price.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+
+    const skuHtml = (cfg.show_sku !== false)
+        ? `<div style="width: 100%; font-family: 'Courier New', Courier, monospace; font-size: 8.5px; font-weight: 800; color: #000000; letter-spacing: 0.5px; line-height: 1; text-align: center;">${escapeHtml(item.code)}</div>`
+        : '';
 
     card.innerHTML = `
         <div style="width: 100%; font-size: 8.5px; font-weight: 900; letter-spacing: 0.2px; text-transform: uppercase; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1;">
@@ -1157,12 +1202,12 @@ function createPreviewCardElement(item, cfg) {
         <div style="width: 100%; font-size: 8px; font-weight: 700; margin: 1px 0; max-height: 18px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #1e293b;">
             ${escapeHtml(item.name)}
         </div>
-        <div style="width: 100%; max-height: 38px; display: flex; align-items: center; justify-content: center; overflow: hidden;">
+        <div style="width: 100%; max-height: 30px; display: flex; align-items: center; justify-content: center; overflow: hidden;">
             ${barcodeSvg}
         </div>
-        <div style="width: 100%; display: flex; justify-content: space-between; align-items: baseline; font-size: 8px; line-height: 1;">
-            <span style="font-family: monospace; font-weight: 800; color: #475569;">CD: ${escapeHtml(item.code)}</span>
-            <span style="font-weight: 900; color: #0f172a; font-size: 9.5px;">${priceFormatted}</span>
+        ${skuHtml}
+        <div style="width: 100%; text-align: center; line-height: 1;">
+            <span style="font-weight: 900; color: #0f172a; font-size: 10px;">${priceFormatted}</span>
         </div>
     `;
 
@@ -1211,7 +1256,7 @@ function openLabelConfigModal() {
     const cfg = getLabelConfig();
     document.getElementById('cfgCompanyName').value = cfg.company_name;
     document.getElementById('cfgShowCompany').checked = cfg.show_company;
-    document.getElementById('cfgShowCode').checked = cfg.show_code;
+    document.getElementById('cfgShowSku').checked = (cfg.show_sku !== false);
     document.getElementById('cfgPricePrefix').value = cfg.price_prefix;
     document.getElementById('cfgLabelWidth').value = cfg.label_width_mm;
     document.getElementById('cfgLabelHeight').value = cfg.label_height_mm;
@@ -1227,7 +1272,7 @@ function saveLabelConfigFromModal() {
     const cfg = {
         company_name: document.getElementById('cfgCompanyName').value.trim() || 'Falcon Stationery (PVT) LTD',
         show_company: document.getElementById('cfgShowCompany').checked,
-        show_code: document.getElementById('cfgShowCode').checked,
+        show_sku: document.getElementById('cfgShowSku').checked,
         price_prefix: document.getElementById('cfgPricePrefix').value.trim() || 'Rs.',
         label_width_mm: parseFloat(document.getElementById('cfgLabelWidth').value) || 31.5,
         label_height_mm: parseFloat(document.getElementById('cfgLabelHeight').value) || 16.0,
@@ -1252,6 +1297,208 @@ function resetLabelConfigDefaults() {
     }
 }
 
+// ─── Delete Product (Move to Trash Bin) ──────────────────────────────────────
+function deleteProduct(id, name) {
+    if (!confirm(`Are you sure you want to delete "${name}"?\nThis will move the product to the Trash Bin.`)) {
+        return;
+    }
+
+    const row = document.getElementById('row_' + id);
+    const formData = new FormData();
+    formData.append('action', 'delete_product');
+    formData.append('id', id);
+
+    fetch('quick_products.php', {
+        method: 'POST',
+        body: formData
+    })
+    .then(r => r.json())
+    .then(res => {
+        if (res.success) {
+            if (row) {
+                row.style.transition = 'all 0.28s ease';
+                row.style.opacity = '0';
+                row.style.transform = 'translateX(25px)';
+                setTimeout(() => {
+                    row.remove();
+                    const rowCount = document.getElementById('qeRowCount');
+                    const totalCount = document.getElementById('qeTotalCount');
+                    if (rowCount) rowCount.textContent = Math.max(0, parseInt(rowCount.textContent) - 1);
+                    if (totalCount) totalCount.textContent = Math.max(0, parseInt(totalCount.textContent) - 1);
+                }, 280);
+            }
+            showToast(res.message || 'Product moved to Trash Bin');
+        } else {
+            showToast(res.message || 'Failed to delete product', true);
+        }
+    })
+    .catch(err => {
+        showToast('Network error while deleting product.', true);
+        console.error(err);
+    });
+}
+
+// ─── Quick Add Product Modal & Submission ─────────────────────────────────────
+function openAddProductModal() {
+    document.getElementById('add_name').value = '';
+    document.getElementById('add_barcode').value = '';
+    document.getElementById('add_cost').value = '0.00';
+    document.getElementById('add_selling_price').value = '0.00';
+    document.getElementById('add_stock').value = '0';
+
+    document.getElementById('modalAddProduct').classList.add('active');
+    setTimeout(() => {
+        document.getElementById('add_name').focus();
+    }, 100);
+}
+
+function generateAutoBarcode() {
+    // Generate a clean 12-digit EAN/Code-128 numeric barcode
+    const ts = Date.now().toString().slice(-7);
+    const rnd = Math.floor(10000 + Math.random() * 90000).toString();
+    const barcode = ts + rnd;
+    document.getElementById('add_barcode').value = barcode;
+}
+
+function submitAddProduct(keepOpen = false) {
+    const nameInput = document.getElementById('add_name');
+    const barcodeInput = document.getElementById('add_barcode');
+    const costInput = document.getElementById('add_cost');
+    const priceInput = document.getElementById('add_selling_price');
+    const stockInput = document.getElementById('add_stock');
+
+    const name = nameInput.value.trim();
+    const barcode = barcodeInput.value.trim();
+    const cost = parseFloat(costInput.value) || 0;
+    const price = parseFloat(priceInput.value) || 0;
+    const stock = parseFloat(stockInput.value) || 0;
+
+    if (!name) {
+        showToast('Product Name is required!', true);
+        nameInput.focus();
+        return;
+    }
+
+    if (!barcode) {
+        showToast('Barcode is required!', true);
+        barcodeInput.focus();
+        return;
+    }
+
+    const btn = keepOpen ? document.getElementById('btnSubmitAddAndAnother') : document.getElementById('btnSubmitAdd');
+    const origText = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = 'Saving...';
+
+    const formData = new FormData();
+    formData.append('action', 'add_product');
+    formData.append('name', name);
+    formData.append('barcode', barcode);
+    formData.append('cost', cost);
+    formData.append('selling_price', price);
+    formData.append('stock', stock);
+
+    fetch('quick_products.php', {
+        method: 'POST',
+        body: formData
+    })
+    .then(r => r.json())
+    .then(res => {
+        btn.disabled = false;
+        btn.innerHTML = origText;
+
+        if (res.success && res.product) {
+            const p = res.product;
+            prependProductRow(p);
+
+            showToast(res.message || `Product '${p.name}' created successfully!`);
+
+            if (keepOpen) {
+                nameInput.value = '';
+                barcodeInput.value = '';
+                costInput.value = '0.00';
+                priceInput.value = '0.00';
+                stockInput.value = '0';
+                nameInput.focus();
+            } else {
+                closeQeModal('modalAddProduct');
+            }
+        } else {
+            showToast(res.message || 'Failed to add product', true);
+        }
+    })
+    .catch(err => {
+        btn.disabled = false;
+        btn.innerHTML = origText;
+        showToast('Network error while creating product.', true);
+        console.error(err);
+    });
+}
+
+function prependProductRow(p) {
+    const tbody = document.getElementById('qeTableBody');
+    const noRows = document.getElementById('noRowsNotice');
+    if (noRows) noRows.remove();
+
+    const rowHtml = `
+        <tr id="row_${p.id}" data-id="${p.id}" data-sku="${escapeHtml(p.sku || p.barcode)}" class="row-saved">
+            <td>
+                <span style="font-weight: 800; color: #475569;">#${p.id}</span>
+            </td>
+            <td>
+                <input type="text" class="qe-input field-name" value="${escapeHtml(p.name)}" 
+                       data-original="${escapeHtml(p.name)}" oninput="markDirty(${p.id})" onkeydown="checkEnter(event, ${p.id})">
+            </td>
+            <td>
+                <input type="text" class="qe-input field-barcode" style="font-family: monospace;" value="${escapeHtml(p.barcode)}" 
+                       data-original="${escapeHtml(p.barcode)}" oninput="markDirty(${p.id})" onkeydown="checkEnter(event, ${p.id})">
+            </td>
+            <td>
+                <input type="number" step="0.01" min="0" class="qe-input qe-input-num field-cost" value="${parseFloat(p.cost || 0).toFixed(2)}" 
+                       data-original="${parseFloat(p.cost || 0).toFixed(2)}" oninput="markDirty(${p.id})" onkeydown="checkEnter(event, ${p.id})">
+            </td>
+            <td>
+                <input type="number" step="0.01" min="0" class="qe-input qe-input-num field-price" value="${parseFloat(p.selling_price || 0).toFixed(2)}" 
+                       data-original="${parseFloat(p.selling_price || 0).toFixed(2)}" oninput="markDirty(${p.id})" onkeydown="checkEnter(event, ${p.id})">
+            </td>
+            <td>
+                <input type="number" step="1" class="qe-input qe-input-num qe-input-stock field-stock" value="${parseFloat(p.stock || 0)}" 
+                       data-original="${parseFloat(p.stock || 0)}" oninput="markDirty(${p.id})" onkeydown="checkEnter(event, ${p.id})">
+            </td>
+            <td style="text-align: center;">
+                <div style="display: flex; align-items: center; justify-content: center; gap: 5px;">
+                    <button type="button" class="qe-btn-update" id="btn_${p.id}" onclick="saveProduct(${p.id})">
+                        Update
+                    </button>
+                    <div style="display: flex; align-items: center; gap: 3px; border-left: 1px solid #e2e8f0; padding-left: 5px;">
+                        <input type="number" step="1" min="1" max="999" class="qe-input field-label-qty" value="3" 
+                               title="Label Quantity to print (3 per row)" onkeydown="if(event.key==='Enter') printRowLabel(${p.id})">
+                        <button type="button" class="qe-btn-print" onclick="printRowLabel(${p.id})" title="Print Barcode Labels (3 stickers in row)">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+                            Print
+                        </button>
+                    </div>
+                    <button type="button" class="qe-btn-delete" onclick="deleteProduct(${p.id}, '${escapeHtml(p.name)}')" title="Delete Product (Move to Trash Bin)">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                    </button>
+                </div>
+            </td>
+        </tr>
+    `;
+
+    tbody.insertAdjacentHTML('afterbegin', rowHtml);
+
+    const rowCount = document.getElementById('qeRowCount');
+    const totalCount = document.getElementById('qeTotalCount');
+    if (rowCount) rowCount.textContent = parseInt(rowCount.textContent || 0) + 1;
+    if (totalCount) totalCount.textContent = parseInt(totalCount.textContent || 0) + 1;
+
+    setTimeout(() => {
+        const addedRow = document.getElementById('row_' + p.id);
+        if (addedRow) addedRow.classList.remove('row-saved');
+    }, 2500);
+}
+
 function closeQeModal(modalId) {
     const modal = document.getElementById(modalId);
     if (modal) modal.classList.remove('active');
@@ -1260,6 +1507,7 @@ function closeQeModal(modalId) {
 // Close modals on Escape key
 document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') {
+        closeQeModal('modalAddProduct');
         closeQeModal('modalLabelPreview');
         closeQeModal('modalLabelConfig');
     }
@@ -1268,6 +1516,76 @@ document.addEventListener('keydown', function(e) {
 
 <!-- Hidden Container for Printing Thermal 3-Up Labels -->
 <div id="printLabelContainer"></div>
+
+<!-- ══════════════════════════════════════════════════════════════
+     MODAL: QUICK ADD PRODUCT
+     ══════════════════════════════════════════════════════════════ -->
+<div class="qe-modal-overlay" id="modalAddProduct">
+    <div class="qe-modal-box" style="width: 580px;">
+        <div class="qe-modal-header">
+            <div>
+                <div style="font-weight: 800; font-size: 1.15rem; color: #0f172a;">+ Add New Product</div>
+                <div style="font-size: 0.8rem; color: #64748b; margin-top: 2px;">Fast inline catalog creation & initial stock entry</div>
+            </div>
+            <button type="button" onclick="closeQeModal('modalAddProduct')" style="background:none; border:none; font-size:1.5rem; color:#64748b; cursor:pointer; line-height:1;">&times;</button>
+        </div>
+
+        <div class="qe-modal-body" style="background:#ffffff;">
+            <form onsubmit="event.preventDefault(); submitAddProduct(false);">
+                <!-- Product Name -->
+                <div style="margin-bottom: 14px;">
+                    <label style="display:block; font-size: 0.82rem; font-weight: 700; color: #334155; margin-bottom: 4px;">Product Name *</label>
+                    <input type="text" id="add_name" class="qe-input" placeholder="e.g. Atlas CR Exercise Book 120 Pages" required autofocus>
+                </div>
+
+                <!-- Barcode -->
+                <div style="margin-bottom: 14px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                        <label style="font-size: 0.82rem; font-weight: 700; color: #334155;">Barcode *</label>
+                        <span style="font-size: 0.72rem; color: #64748b;">(Also assigned automatically as SKU)</span>
+                    </div>
+                    <div style="display: flex; gap: 8px;">
+                        <input type="text" id="add_barcode" class="qe-input" placeholder="Scan or enter barcode" style="font-family: monospace;" required>
+                        <button type="button" onclick="generateAutoBarcode()" class="btn btn-secondary" style="white-space: nowrap; font-size: 0.8rem; font-weight: 700; padding: 0 12px; border-radius: 7px; border: 1px solid #cbd5e1; background: #f8fafc; cursor: pointer;" title="Auto-generate numeric barcode">
+                            ⚡ Generate
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Cost, Price, Stock -->
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 8px;">
+                    <div>
+                        <label style="display:block; font-size: 0.8rem; font-weight: 700; color: #334155; margin-bottom: 4px;">Cost (LKR)</label>
+                        <input type="number" step="0.01" min="0" id="add_cost" class="qe-input qe-input-num" value="0.00" placeholder="0.00" onkeydown="if(event.key==='Enter') submitAddProduct(false)">
+                    </div>
+                    <div>
+                        <label style="display:block; font-size: 0.8rem; font-weight: 700; color: #334155; margin-bottom: 4px;">Selling Price (LKR) *</label>
+                        <input type="number" step="0.01" min="0" id="add_selling_price" class="qe-input qe-input-num" value="0.00" placeholder="0.00" required onkeydown="if(event.key==='Enter') submitAddProduct(false)">
+                    </div>
+                    <div>
+                        <label style="display:block; font-size: 0.8rem; font-weight: 700; color: #334155; margin-bottom: 4px;">Stock (Live) *</label>
+                        <input type="number" step="1" min="0" id="add_stock" class="qe-input qe-input-num qe-input-stock" value="0" placeholder="0" required onkeydown="if(event.key==='Enter') submitAddProduct(false)">
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        <div class="qe-modal-footer">
+            <span style="font-size: 0.76rem; color: #94a3b8;">Enter submits form automatically</span>
+            <div style="display: flex; gap: 8px;">
+                <button type="button" class="btn btn-secondary" onclick="closeQeModal('modalAddProduct')" style="padding: 0.5rem 1rem; border-radius: 8px; font-weight: 700; border: 1px solid #cbd5e1; background: #ffffff; cursor: pointer;">
+                    Cancel
+                </button>
+                <button type="button" class="btn btn-primary" id="btnSubmitAddAndAnother" onclick="submitAddProduct(true)" style="padding: 0.5rem 1.1rem; border-radius: 8px; font-weight: 700; background: #1e293b; color: #ffffff; border: none; cursor: pointer;">
+                    Save &amp; Add Another
+                </button>
+                <button type="button" class="btn btn-primary" id="btnSubmitAdd" onclick="submitAddProduct(false)" style="padding: 0.5rem 1.3rem; border-radius: 8px; font-weight: 800; background: #0f172a; color: #ffffff; border: none; cursor: pointer;">
+                    Save Product
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 
 <!-- ══════════════════════════════════════════════════════════════
      MODAL: LIVE PRINT PREVIEW (3 STICKERS PER ROW)
@@ -1347,7 +1665,7 @@ document.addEventListener('keydown', function(e) {
                     <input type="checkbox" id="cfgShowCompany" checked> Print Company Header
                 </label>
                 <label style="display: flex; align-items: center; gap: 8px; font-size: 0.82rem; color: #334155; cursor: pointer;">
-                    <input type="checkbox" id="cfgShowCode" checked> Print Product Code / SKU
+                    <input type="checkbox" id="cfgShowSku" checked> Print Product SKU Under Barcode
                 </label>
             </div>
 

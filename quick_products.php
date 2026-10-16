@@ -193,6 +193,147 @@ if (isset($_REQUEST['action'])) {
         exit();
     }
 
+    // 3. Quick Add Product API
+    if ($action === 'add_product') {
+        $name         = trim($_POST['name'] ?? '');
+        $barcode      = trim($_POST['barcode'] ?? '');
+        $cost         = max(0.00, (float)($_POST['cost'] ?? 0));
+        $sellingPrice = max(0.00, (float)($_POST['selling_price'] ?? 0));
+        $stock        = max(0.00, (float)($_POST['stock'] ?? 0));
+
+        if (empty($name)) {
+            echo json_encode(['success' => false, 'message' => 'Product Name cannot be empty.']);
+            exit();
+        }
+
+        if (empty($barcode)) {
+            echo json_encode(['success' => false, 'message' => 'Barcode cannot be empty.']);
+            exit();
+        }
+
+        // Check if barcode already exists on active products
+        $existing = Database::fetchOne("
+            SELECT id FROM products 
+            WHERE barcode = :b AND deleted_at IS NULL 
+            LIMIT 1
+        ", [':b' => $barcode]);
+
+        if ($existing) {
+            echo json_encode(['success' => false, 'message' => "Barcode '$barcode' is already assigned to another product (ID #{$existing['id']})."]);
+            exit();
+        }
+
+        try {
+            // Ensure default brand, category, supplier exist without user having to configure them
+            $brandId = (int)(Database::fetchOne("SELECT id FROM brands WHERE deleted_at IS NULL ORDER BY id ASC LIMIT 1")['id'] ?? 0);
+            if ($brandId <= 0) {
+                Database::execute("INSERT INTO brands (name, created_at) VALUES ('General', NOW())");
+                $brandId = (int)Database::lastInsertId();
+            }
+
+            $categoryId = (int)(Database::fetchOne("SELECT id FROM categories WHERE deleted_at IS NULL ORDER BY id ASC LIMIT 1")['id'] ?? 0);
+            if ($categoryId <= 0) {
+                Database::execute("INSERT INTO categories (name, created_at) VALUES ('General', NOW())");
+                $categoryId = (int)Database::lastInsertId();
+            }
+
+            $supplierId = (int)(Database::fetchOne("SELECT id FROM suppliers WHERE deleted_at IS NULL ORDER BY id ASC LIMIT 1")['id'] ?? 0);
+            if ($supplierId <= 0) {
+                Database::execute("INSERT INTO suppliers (name, created_at) VALUES ('General Supplier', NOW())");
+                $supplierId = (int)Database::lastInsertId();
+            }
+
+            // Using barcode as SKU directly as requested
+            $sku = $barcode;
+
+            Database::execute("
+                INSERT INTO products (sku, barcode, brand_id, category_id, supplier_id, name, cost, selling_price, opening_stock, low_stock_threshold, status, has_expiry, created_at, updated_at)
+                VALUES (:sku, :barcode, :brand_id, :category_id, :supplier_id, :name, :cost, :selling_price, :opening_stock, 5, 'active', 0, NOW(), NOW())
+            ", [
+                ':sku'           => $sku,
+                ':barcode'       => $barcode,
+                ':brand_id'      => $brandId,
+                ':category_id'   => $categoryId,
+                ':supplier_id'   => $supplierId,
+                ':name'          => $name,
+                ':cost'          => $cost,
+                ':selling_price' => $sellingPrice,
+                ':opening_stock' => $stock
+            ]);
+
+            $newId = (int)Database::lastInsertId();
+
+            // Set live branch inventory
+            Database::execute("
+                INSERT INTO branch_inventory (branch_id, product_id, quantity, updated_at)
+                VALUES (:bid, :pid, :qty, NOW())
+                ON DUPLICATE KEY UPDATE quantity = VALUES(quantity), updated_at = NOW()
+            ", [
+                ':bid' => $branchId,
+                ':pid' => $newId,
+                ':qty' => $stock
+            ]);
+
+            // Record initial movement in stock_ledger if initial stock > 0
+            if ($stock > 0) {
+                Database::execute("
+                    INSERT INTO stock_ledger (branch_id, product_id, movement_type, quantity, balance_after, reference_no, notes, user_id, created_at)
+                    VALUES (:bid, :pid, 'opening_stock', :qty, :bal, :ref, :notes, :uid, NOW())
+                ", [
+                    ':bid'   => $branchId,
+                    ':pid'   => $newId,
+                    ':qty'   => $stock,
+                    ':bal'   => $stock,
+                    ':ref'   => 'QUICK_ADD_' . $newId,
+                    ':notes' => "Opening stock added via Quick Product Editor",
+                    ':uid'   => $userId
+                ]);
+            }
+
+            // Audit log
+            Audit::log('PRODUCT_QUICK_CREATE', 'products', (string)$newId, null, [
+                'name'          => $name,
+                'barcode'       => $barcode,
+                'sku'           => $sku,
+                'cost'          => $cost,
+                'selling_price' => $sellingPrice,
+                'stock'         => $stock,
+                'branch_id'     => $branchId
+            ]);
+
+            echo json_encode([
+                'success' => true,
+                'message' => "Product '{$name}' created successfully!",
+                'product' => [
+                    'id'            => $newId,
+                    'name'          => $name,
+                    'barcode'       => $barcode,
+                    'sku'           => $sku,
+                    'cost'          => $cost,
+                    'selling_price' => $sellingPrice,
+                    'stock'         => $stock
+                ]
+            ]);
+        } catch (Throwable $e) {
+            echo json_encode(['success' => false, 'message' => 'Error adding product: ' . $e->getMessage()]);
+        }
+        exit();
+    }
+
+    // 4. Delete Product API (Move to Trash Bin)
+    if ($action === 'delete_product') {
+        $productId = (int)($_POST['id'] ?? 0);
+        if ($productId <= 0) {
+            echo json_encode(['success' => false, 'message' => 'Invalid Product ID.']);
+            exit();
+        }
+
+        require_once __DIR__ . '/core/Product.php';
+        $res = Product::delete($productId);
+        echo json_encode($res);
+        exit();
+    }
+
     echo json_encode(['success' => false, 'message' => 'Invalid action.']);
     exit();
 }
