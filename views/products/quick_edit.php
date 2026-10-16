@@ -1,4 +1,4 @@
-<?php
+g<?php
 /**
  * Falcon POS - Quick Product & Stock Editor View
  * Enhanced with 3-Up Thermal Barcode Label Printing (30mm x 15mm / 3 stickers in row)
@@ -1356,6 +1356,7 @@ function triggerThermalIframePrint(rowsHtml, cfg) {
 <body>
     ${rowsHtml}
 </body>
+</html>`);
     doc.close();
 
     setTimeout(() => {

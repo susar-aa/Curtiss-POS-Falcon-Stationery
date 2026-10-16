@@ -33,8 +33,16 @@ $db  = Database::getInstance();
 $pdo = $db->getConnection();
 
 // ─── Check cache ─────────────────────────────────────────────────────────────
-$stmt = $pdo->query("SELECT * FROM nav_wallpaper_cache ORDER BY id DESC LIMIT 1");
-$cached = $stmt->fetch(PDO::FETCH_ASSOC);
+$cached = null;
+try {
+    $stmt = $pdo->query("SELECT * FROM nav_wallpaper_cache ORDER BY id DESC LIMIT 1");
+    if ($stmt) {
+        $cached = $stmt->fetch(PDO::FETCH_ASSOC);
+    }
+} catch (Throwable $e) {
+    // Table may not exist yet in local/live schema - fallback gracefully
+    $cached = null;
+}
 
 $cacheValid = $cached &&
     isset($cached['fetched_at']) &&
