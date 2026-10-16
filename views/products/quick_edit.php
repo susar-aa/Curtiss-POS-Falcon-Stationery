@@ -449,11 +449,11 @@
 
     .lbl-name {
         font-family: Arial, Helvetica, sans-serif !important;
-        font-size: 5.2pt !important;
-        font-weight: 700 !important;
-        line-height: 1.05 !important;
+        font-size: 7.2pt !important;
+        font-weight: 800 !important;
+        line-height: 1.1 !important;
         margin: 0 !important;
-        max-height: 2.3mm !important;
+        max-height: 3.2mm !important;
         overflow: hidden !important;
         text-overflow: ellipsis !important;
         white-space: nowrap !important;
@@ -462,30 +462,32 @@
     }
 
     .lbl-barcode {
-        width: 100% !important;
-        max-height: 4.8mm !important;
+        width: 96% !important;
+        height: 6.2mm !important;
+        max-height: 6.2mm !important;
         display: flex !important;
         align-items: center !important;
         justify-content: center !important;
-        margin: 0 !important;
+        margin: 0.2mm auto !important;
         overflow: hidden !important;
     }
 
     .lbl-barcode svg {
         width: 100% !important;
-        height: 4.5mm !important;
+        height: 100% !important;
+        max-height: 6.2mm !important;
     }
 
     .lbl-sku {
         font-family: 'Courier New', Courier, monospace !important;
-        font-size: 5.2pt !important;
-        font-weight: 800 !important;
+        font-size: 7.5pt !important;
+        font-weight: 900 !important;
         color: #000000 !important;
         width: 100% !important;
         text-align: center !important;
         line-height: 1 !important;
-        margin: 0 !important;
-        letter-spacing: 0.2px !important;
+        margin: 0.2mm 0 0 0 !important;
+        letter-spacing: 0.3px !important;
         white-space: nowrap !important;
         overflow: hidden !important;
         text-overflow: ellipsis !important;
@@ -503,7 +505,7 @@
 
     .lbl-price {
         font-family: Arial, Helvetica, sans-serif !important;
-        font-size: 7.2pt !important;
+        font-size: 8.5pt !important;
         font-weight: 900 !important;
         color: #000000 !important;
         white-space: nowrap !important;
@@ -1145,37 +1147,33 @@ function createPriceOnlyLabelHtml(item, cfg) {
 }
 
 function createSingleBarcodeLabelHtml(item, cfg) {
-    // 1. Company Name
-    const companyHtml = cfg.show_company 
-        ? `<div class="lbl-company">${escapeHtml(cfg.company_name)}</div>` 
-        : '';
-
-    // 2. Product Name
+    // 1. Product Name (Bigger font, no company header above it)
     const nameHtml = `<div class="lbl-name" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</div>`;
 
-    // 3. SVG Barcode (Code 128 - bars only without text)
+    // 2. SVG Barcode (Bigger height & optimized density for 1D laser scanners)
     let barcodeSvg = '';
     if (window.CurtissCode128 && typeof CurtissCode128.generateSVG === 'function') {
         barcodeSvg = CurtissCode128.generateSVG(item.barcode, {
-            width: 0.85,
-            height: 13,
+            width: 1.1,
+            height: 36,
+            quietZone: 8,
+            preserveAspectRatio: 'none',
             showText: false
         });
     } else {
-        barcodeSvg = `<div style="font-family:monospace; font-weight:800; font-size:7pt;">*${escapeHtml(item.barcode)}*</div>`;
+        barcodeSvg = `<div style="font-family:monospace; font-weight:800; font-size:8pt;">*${escapeHtml(item.barcode)}*</div>`;
     }
 
-    // 4. Product SKU under barcode
+    // 3. Product SKU / Code (Bigger font under barcode)
     const skuHtml = (cfg.show_sku !== false)
         ? `<div class="lbl-sku">${escapeHtml(item.code)}</div>` 
         : '';
 
-    // 5. Price at bottom
+    // 4. Price at bottom
     const priceFormatted = `${cfg.price_prefix} ${item.price.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
 
     return `
         <div class="label-item-3">
-            ${companyHtml}
             ${nameHtml}
             <div class="lbl-barcode">${barcodeSvg}</div>
             ${skuHtml}
@@ -1286,11 +1284,11 @@ function triggerThermalIframePrint(rowsHtml, cfg) {
         }
         .lbl-name {
             font-family: Arial, Helvetica, sans-serif !important;
-            font-size: 5.2pt !important;
-            font-weight: 700 !important;
-            line-height: 1.05 !important;
+            font-size: 7.2pt !important;
+            font-weight: 800 !important;
+            line-height: 1.1 !important;
             margin: 0 !important;
-            max-height: 2.3mm !important;
+            max-height: 3.2mm !important;
             overflow: hidden !important;
             text-overflow: ellipsis !important;
             white-space: nowrap !important;
@@ -1298,28 +1296,30 @@ function triggerThermalIframePrint(rowsHtml, cfg) {
             color: #000000 !important;
         }
         .lbl-barcode {
-            width: 100% !important;
-            max-height: 4.8mm !important;
+            width: 96% !important;
+            height: 6.2mm !important;
+            max-height: 6.2mm !important;
             display: flex !important;
             align-items: center !important;
             justify-content: center !important;
-            margin: 0 !important;
+            margin: 0.2mm auto !important;
             overflow: hidden !important;
         }
         .lbl-barcode svg {
             width: 100% !important;
-            height: 4.5mm !important;
+            height: 100% !important;
+            max-height: 6.2mm !important;
         }
         .lbl-sku {
             font-family: 'Courier New', Courier, monospace !important;
-            font-size: 5.2pt !important;
-            font-weight: 800 !important;
+            font-size: 7.5pt !important;
+            font-weight: 900 !important;
             color: #000000 !important;
             width: 100% !important;
             text-align: center !important;
             line-height: 1 !important;
-            margin: 0 !important;
-            letter-spacing: 0.2px !important;
+            margin: 0.2mm 0 0 0 !important;
+            letter-spacing: 0.3px !important;
             white-space: nowrap !important;
             overflow: hidden !important;
             text-overflow: ellipsis !important;
@@ -1335,7 +1335,7 @@ function triggerThermalIframePrint(rowsHtml, cfg) {
         }
         .lbl-price {
             font-family: Arial, Helvetica, sans-serif !important;
-            font-size: 7.2pt !important;
+            font-size: 8.5pt !important;
             font-weight: 900 !important;
             color: #000000 !important;
             white-space: nowrap !important;
@@ -1356,7 +1356,6 @@ function triggerThermalIframePrint(rowsHtml, cfg) {
 <body>
     ${rowsHtml}
 </body>
-</html>`);
     doc.close();
 
     setTimeout(() => {
@@ -1466,29 +1465,28 @@ function createPreviewCardElement(item, cfg) {
     let barcodeSvg = '';
     if (window.CurtissCode128 && typeof CurtissCode128.generateSVG === 'function') {
         barcodeSvg = CurtissCode128.generateSVG(item.barcode, {
-            width: 0.95,
-            height: 16,
+            width: 1.1,
+            height: 28,
+            quietZone: 8,
+            preserveAspectRatio: 'none',
             showText: false
         });
     }
 
     const skuHtml = (cfg.show_sku !== false)
-        ? `<div style="width: 100%; font-family: 'Courier New', Courier, monospace; font-size: 8.5px; font-weight: 800; color: #000000; letter-spacing: 0.5px; line-height: 1; text-align: center;">${escapeHtml(item.code)}</div>`
+        ? `<div style="width: 100%; font-family: 'Courier New', Courier, monospace; font-size: 10px; font-weight: 900; color: #000000; letter-spacing: 0.5px; line-height: 1; text-align: center;">${escapeHtml(item.code)}</div>`
         : '';
 
     card.innerHTML = `
-        <div style="width: 100%; font-size: 8.5px; font-weight: 900; letter-spacing: 0.2px; text-transform: uppercase; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1;">
-            ${escapeHtml(cfg.company_name)}
-        </div>
-        <div style="width: 100%; font-size: 8px; font-weight: 700; margin: 1px 0; max-height: 18px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #1e293b;">
+        <div style="width: 100%; font-size: 10px; font-weight: 800; margin: 0 0 1px 0; max-height: 20px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #0f172a;">
             ${escapeHtml(item.name)}
         </div>
-        <div style="width: 100%; max-height: 30px; display: flex; align-items: center; justify-content: center; overflow: hidden;">
+        <div style="width: 96%; height: 28px; display: flex; align-items: center; justify-content: center; overflow: hidden; margin: 0 auto;">
             ${barcodeSvg}
         </div>
         ${skuHtml}
         <div style="width: 100%; text-align: center; line-height: 1;">
-            <span style="font-weight: 900; color: #0f172a; font-size: 10px;">${priceFormatted}</span>
+            <span style="font-weight: 900; color: #0f172a; font-size: 12px;">${priceFormatted}</span>
         </div>
     `;
 
