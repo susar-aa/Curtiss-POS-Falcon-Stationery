@@ -7,13 +7,13 @@
 <script src="assets/js/code128.js"></script>
 
 <style>
-/* CSS Variables for 3-Up Label Calibration */
+/* CSS Variables for 3-Up Label Calibration (30mm x 15mm on 99mm / 3.9in Roll) */
 :root {
-    --lbl-width: 31.5mm;
-    --lbl-height: 16mm;
-    --lbl-row-width: 100mm;
-    --lbl-gap-x: 2mm;
-    --lbl-gap-y: 2mm;
+    --lbl-width: 30mm;
+    --lbl-height: 15mm;
+    --lbl-row-width: 99mm;
+    --lbl-gap-x: 3mm;
+    --lbl-gap-y: 0mm;
 }
 
 /* Quick Editor Specific Styles */
@@ -326,17 +326,18 @@
     }
 
     @page {
-        size: auto;
+        size: 99mm 15mm;
         margin: 0mm !important;
     }
 
     html, body {
-        width: 100% !important;
+        width: 99mm !important;
         height: auto !important;
+        min-height: 15mm !important;
         margin: 0 !important;
         padding: 0 !important;
         background: #ffffff !important;
-        overflow: visible !important;
+        overflow: hidden !important;
     }
 
     #printLabelContainer {
@@ -345,7 +346,7 @@
         position: absolute !important;
         top: 0 !important;
         left: 0 !important;
-        width: var(--lbl-row-width, 100mm) !important;
+        width: 99mm !important;
         margin: 0 !important;
         padding: 0 !important;
     }
@@ -357,20 +358,31 @@
     .label-row-3 {
         display: flex !important;
         flex-direction: row !important;
-        width: var(--lbl-row-width, 100mm) !important;
-        height: var(--lbl-height, 16mm) !important;
-        margin-bottom: var(--lbl-gap-y, 2mm) !important;
+        width: 99mm !important;
+        height: 15mm !important;
+        max-height: 15mm !important;
+        margin: 0 !important;
+        padding: 0 1.5mm !important;
         page-break-inside: avoid !important;
+        break-inside: avoid !important;
         page-break-after: always !important;
+        break-after: page !important;
         box-sizing: border-box !important;
         justify-content: space-between !important;
-        gap: var(--lbl-gap-x, 2mm) !important;
+        overflow: hidden !important;
+    }
+
+    .label-row-3:last-child {
+        page-break-after: avoid !important;
+        break-after: avoid !important;
     }
 
     .label-item-3 {
-        width: var(--lbl-width, 31.5mm) !important;
-        height: var(--lbl-height, 16mm) !important;
-        padding: 0.6mm 0.8mm !important;
+        width: 30mm !important;
+        max-width: 30mm !important;
+        height: 14.8mm !important;
+        max-height: 14.8mm !important;
+        padding: 0.3mm 0.5mm !important;
         display: flex !important;
         flex-direction: column !important;
         align-items: center !important;
@@ -384,16 +396,16 @@
     }
 
     .label-blank-3 {
-        width: var(--lbl-width, 31.5mm) !important;
-        height: var(--lbl-height, 16mm) !important;
+        width: 30mm !important;
+        height: 14.8mm !important;
         visibility: hidden !important;
     }
 
     .lbl-company {
         font-family: Arial, Helvetica, sans-serif !important;
-        font-size: 5.5pt !important;
+        font-size: 4.8pt !important;
         font-weight: 900 !important;
-        letter-spacing: 0.15px !important;
+        letter-spacing: 0px !important;
         text-transform: uppercase !important;
         line-height: 1 !important;
         margin: 0 !important;
@@ -406,11 +418,11 @@
 
     .lbl-name {
         font-family: Arial, Helvetica, sans-serif !important;
-        font-size: 5.8pt !important;
+        font-size: 5.2pt !important;
         font-weight: 700 !important;
         line-height: 1.05 !important;
-        margin: 0.2mm 0 !important;
-        max-height: 2.8mm !important;
+        margin: 0 !important;
+        max-height: 2.3mm !important;
         overflow: hidden !important;
         text-overflow: ellipsis !important;
         white-space: nowrap !important;
@@ -420,29 +432,29 @@
 
     .lbl-barcode {
         width: 100% !important;
-        max-height: 6.8mm !important;
+        max-height: 4.8mm !important;
         display: flex !important;
         align-items: center !important;
         justify-content: center !important;
-        margin: 0.2mm 0 !important;
+        margin: 0 !important;
         overflow: hidden !important;
     }
 
     .lbl-barcode svg {
         width: 100% !important;
-        height: 6.5mm !important;
+        height: 4.5mm !important;
     }
 
     .lbl-sku {
         font-family: 'Courier New', Courier, monospace !important;
-        font-size: 6.5pt !important;
+        font-size: 5.2pt !important;
         font-weight: 800 !important;
         color: #000000 !important;
         width: 100% !important;
         text-align: center !important;
         line-height: 1 !important;
-        margin: 0.1mm 0 !important;
-        letter-spacing: 0.5px !important;
+        margin: 0 !important;
+        letter-spacing: 0.2px !important;
         white-space: nowrap !important;
         overflow: hidden !important;
         text-overflow: ellipsis !important;
@@ -453,14 +465,14 @@
         display: flex !important;
         justify-content: center !important;
         align-items: center !important;
-        line-height: 1.1 !important;
-        margin-top: 0.1mm !important;
+        line-height: 1 !important;
+        margin: 0 !important;
         text-align: center !important;
     }
 
     .lbl-price {
         font-family: Arial, Helvetica, sans-serif !important;
-        font-size: 8.5pt !important;
+        font-size: 7.2pt !important;
         font-weight: 900 !important;
         color: #000000 !important;
         white-space: nowrap !important;
@@ -960,15 +972,15 @@ function escapeHtml(text) {
 // ════════════════════════════════════════════════════════════════════════════
 
 const DEFAULT_LABEL_CONFIG = {
-    company_name: 'Falcon Stationery (PVT) LTD',
+    company_name: 'Falcon Stationery',
     show_company: true,
     show_sku: true,
     price_prefix: 'Rs.',
-    label_width_mm: 31.5,
-    label_height_mm: 16.0,
-    row_width_mm: 100.0,
-    gap_x_mm: 2.0,
-    gap_y_mm: 2.0,
+    label_width_mm: 30.0,
+    label_height_mm: 15.0,
+    row_width_mm: 99.0,
+    gap_x_mm: 3.0,
+    gap_y_mm: 0.0,
     direct_print: false
 };
 
@@ -1078,8 +1090,8 @@ function createSinglePrintLabelElement(item, cfg) {
     let barcodeSvg = '';
     if (window.CurtissCode128 && typeof CurtissCode128.generateSVG === 'function') {
         barcodeSvg = CurtissCode128.generateSVG(item.barcode, {
-            width: 0.95,
-            height: 16,
+            width: 0.85,
+            height: 13,
             showText: false
         });
     } else {
@@ -1656,7 +1668,7 @@ document.addEventListener('keydown', function(e) {
             <!-- Company Name -->
             <div style="margin-bottom: 14px;">
                 <label style="display:block; font-size: 0.82rem; font-weight: 700; color: #334155; margin-bottom: 4px;">Company Name Header</label>
-                <input type="text" id="cfgCompanyName" class="qe-input" value="Falcon Stationery (PVT) LTD" placeholder="e.g. Falcon Stationery (PVT) LTD">
+                <input type="text" id="cfgCompanyName" class="qe-input" value="Falcon Stationery" placeholder="e.g. Falcon Stationery">
             </div>
 
             <!-- Options -->
@@ -1678,29 +1690,29 @@ document.addEventListener('keydown', function(e) {
             <!-- Sizing Controls (Millimeters) -->
             <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 14px; margin-bottom: 14px;">
                 <div style="font-weight: 800; font-size: 0.85rem; color: #0f172a; margin-bottom: 10px;">
-                    Millimeter Calibration (Default 3-Up: ~30-32mm x 15-16mm)
+                    Millimeter Calibration (Default 3-Up: 30mm x 15mm on 99mm / 3.90in Web)
                 </div>
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
                     <div>
                         <label style="display:block; font-size: 0.78rem; font-weight: 700; color: #475569; margin-bottom: 4px;">Sticker Width (mm)</label>
-                        <input type="number" step="0.5" id="cfgLabelWidth" class="qe-input" value="31.5">
+                        <input type="number" step="0.5" id="cfgLabelWidth" class="qe-input" value="30.0">
                     </div>
                     <div>
                         <label style="display:block; font-size: 0.78rem; font-weight: 700; color: #475569; margin-bottom: 4px;">Sticker Length / Height (mm)</label>
-                        <input type="number" step="0.5" id="cfgLabelHeight" class="qe-input" value="16.0">
+                        <input type="number" step="0.5" id="cfgLabelHeight" class="qe-input" value="15.0">
                     </div>
                     <div>
                         <label style="display:block; font-size: 0.78rem; font-weight: 700; color: #475569; margin-bottom: 4px;">Total Roll Web Width (mm)</label>
-                        <input type="number" step="0.5" id="cfgRowWidth" class="qe-input" value="100.0">
+                        <input type="number" step="0.5" id="cfgRowWidth" class="qe-input" value="99.0">
                     </div>
                     <div>
                         <label style="display:block; font-size: 0.78rem; font-weight: 700; color: #475569; margin-bottom: 4px;">Horizontal Gap (mm)</label>
-                        <input type="number" step="0.5" id="cfgGapX" class="qe-input" value="2.0">
+                        <input type="number" step="0.5" id="cfgGapX" class="qe-input" value="3.0">
                     </div>
                 </div>
                 <div style="margin-top: 10px;">
                     <label style="display:block; font-size: 0.78rem; font-weight: 700; color: #475569; margin-bottom: 4px;">Vertical Pitch / Row Gap (mm)</label>
-                    <input type="number" step="0.5" id="cfgGapY" class="qe-input" value="2.0" style="width: 120px;">
+                    <input type="number" step="0.5" id="cfgGapY" class="qe-input" value="0.0" style="width: 120px;">
                 </div>
             </div>
 
