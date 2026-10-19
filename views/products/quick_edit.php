@@ -344,7 +344,7 @@
 }
 
 @page {
-    size: 99mm 15mm;
+    size: auto;
     margin: 0 !important;
 }
 
@@ -357,18 +357,18 @@
     }
 
     @page {
-        size: 99mm 15mm;
+        size: auto;
         margin: 0 !important;
     }
 
     html, body {
         width: 99mm !important;
         max-width: 99mm !important;
-        height: 15mm !important;
-        max-height: 15mm !important;
+        height: auto !important;
+        min-height: 15mm !important;
         margin: 0 !important;
         padding: 0 !important;
-        overflow: hidden !important;
+        overflow: visible !important;
         background: #ffffff !important;
         display: block !important;
     }
@@ -381,9 +381,8 @@
         left: 0 !important;
         width: 99mm !important;
         max-width: 99mm !important;
-        height: 15mm !important;
-        max-height: 15mm !important;
-        overflow: hidden !important;
+        height: auto !important;
+        min-height: 15mm !important;
         margin: 0 !important;
         padding: 0 !important;
     }
@@ -395,6 +394,7 @@
     .label-row-3 {
         display: flex !important;
         flex-direction: row !important;
+        flex-wrap: nowrap !important;
         width: 99mm !important;
         max-width: 99mm !important;
         height: 15mm !important;
@@ -419,6 +419,8 @@
     .label-item-3 {
         width: 30mm !important;
         max-width: 30mm !important;
+        min-width: 30mm !important;
+        flex: 0 0 30mm !important;
         height: 14.85mm !important;
         max-height: 14.85mm !important;
         padding: 0.2mm 0.5mm !important;
@@ -442,6 +444,9 @@
 
     .label-blank-3 {
         width: 30mm !important;
+        max-width: 30mm !important;
+        min-width: 30mm !important;
+        flex: 0 0 30mm !important;
         height: 14.85mm !important;
         visibility: hidden !important;
     }
@@ -1230,13 +1235,24 @@ function triggerThermalIframePrint(rowsHtml, cfg) {
     if (!iframe) {
         iframe = document.createElement('iframe');
         iframe.id = 'thermalPrintFrame';
-        iframe.style.position = 'fixed';
-        iframe.style.top = '-9999px';
-        iframe.style.left = '-9999px';
-        iframe.style.width = '0';
-        iframe.style.height = '0';
-        iframe.style.border = 'none';
         document.body.appendChild(iframe);
+    }
+
+    // Set real physical dimensions in host DOM to prevent Chromium from collapsing layout viewport to 0x0
+    iframe.style.position = 'fixed';
+    iframe.style.top = '0';
+    iframe.style.left = '0';
+    iframe.style.width = '99mm';
+    iframe.style.height = '15mm';
+    iframe.style.border = 'none';
+    iframe.style.opacity = '0';
+    iframe.style.pointerEvents = 'none';
+    iframe.style.zIndex = '-9999';
+
+    // Also populate host DOM print container
+    const hostContainer = document.getElementById('printLabelContainer');
+    if (hostContainer) {
+        hostContainer.innerHTML = rowsHtml;
     }
 
     const doc = iframe.contentWindow.document;
@@ -1248,7 +1264,7 @@ function triggerThermalIframePrint(rowsHtml, cfg) {
     <title>Falcon Thermal Print</title>
     <style>
         @page {
-            size: ${cfg.row_width_mm || 99}mm ${cfg.label_height_mm || 15}mm;
+            size: auto;
             margin: 0 !important;
         }
         * {
@@ -1259,17 +1275,18 @@ function triggerThermalIframePrint(rowsHtml, cfg) {
         html, body {
             width: ${cfg.row_width_mm || 99}mm !important;
             max-width: ${cfg.row_width_mm || 99}mm !important;
-            height: ${cfg.label_height_mm || 15}mm !important;
-            max-height: ${cfg.label_height_mm || 15}mm !important;
+            height: auto !important;
+            min-height: ${cfg.label_height_mm || 15}mm !important;
             margin: 0 !important;
             padding: 0 !important;
-            overflow: hidden !important;
+            overflow: visible !important;
             background: #ffffff !important;
             display: block !important;
         }
         .label-row-3 {
             display: flex !important;
             flex-direction: row !important;
+            flex-wrap: nowrap !important;
             width: ${cfg.row_width_mm || 99}mm !important;
             max-width: ${cfg.row_width_mm || 99}mm !important;
             height: ${cfg.label_height_mm || 15}mm !important;
@@ -1292,6 +1309,8 @@ function triggerThermalIframePrint(rowsHtml, cfg) {
         .label-item-3 {
             width: ${cfg.label_width_mm}mm !important;
             max-width: ${cfg.label_width_mm}mm !important;
+            min-width: ${cfg.label_width_mm}mm !important;
+            flex: 0 0 ${cfg.label_width_mm}mm !important;
             height: 14.85mm !important;
             max-height: 14.85mm !important;
             padding: 0.2mm 0.5mm !important;
@@ -1314,6 +1333,9 @@ function triggerThermalIframePrint(rowsHtml, cfg) {
         }
         .label-blank-3 {
             width: ${cfg.label_width_mm}mm !important;
+            max-width: ${cfg.label_width_mm}mm !important;
+            min-width: ${cfg.label_width_mm}mm !important;
+            flex: 0 0 ${cfg.label_width_mm}mm !important;
             height: 14.85mm !important;
             visibility: hidden !important;
         }

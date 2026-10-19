@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CurtissPOS - Offline</title>
+    <link rel="icon" type="image/png" href="assets/icons/favicon-32x32.png">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #090d16;
+            color: #f8fafc;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 1.5rem;
+            text-align: center;
+        }
+        .offline-card {
+            background: rgba(15, 23, 42, 0.9);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 24px;
+            padding: 2.5rem 2rem;
+            max-width: 420px;
+            width: 100%;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+        .logo-img {
+            width: 80px;
+            height: 80px;
+            border-radius: 18px;
+            margin-bottom: 1.25rem;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+        }
+        h1 {
+            font-size: 1.4rem;
+            font-weight: 800;
+            margin-bottom: 0.5rem;
+            color: #ffffff;
+        }
+        p {
+            font-size: 0.9rem;
+            color: #94a3b8;
+            line-height: 1.5;
+            margin-bottom: 1.75rem;
+        }
+        .retry-btn {
+            background: #2563eb;
+            color: #ffffff;
+            border: none;
+            padding: 0.75rem 1.75rem;
+            border-radius: 999px;
+            font-size: 0.9rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .retry-btn:hover {
+            background: #1d4ed8;
+            transform: translateY(-1px);
+        }
+    </style>
+</head>
+<body>
+    <div class="offline-card">
+        <img src="assets/icons/icon-192x192.png" alt="CurtissPOS" class="logo-img">
+        <h1>Server Connection Offline</h1>
+        <p>CurtissPOS is unable to communicate with the local server. Please ensure XAMPP Apache is running and check your network connection.</p>
+        <button type="button" class="retry-btn" onclick="window.location.reload()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+            </svg>
+            <span>Retry Connection</span>
+        </button>
+    </div>
+</body>
+</html>

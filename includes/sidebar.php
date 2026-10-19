@@ -7,8 +7,8 @@ $currentScript = basename($_SERVER['SCRIPT_NAME']);
 ?>
 <aside class="app-sidebar" id="appSidebar">
     <div class="sidebar-brand">
-        <div class="sidebar-brand-icon">C</div>
-        <div class="sidebar-brand-text">Curtiss POS</div>
+        <img src="assets/icons/icon-192x192.png" alt="CurtissPOS" class="sidebar-brand-icon" style="width: 36px; height: 36px; border-radius: 9px; object-fit: contain; background: #ffffff; padding: 2px; box-shadow: 0 4px 10px rgba(0,0,0,0.3);">
+        <div class="sidebar-brand-text">CurtissPOS</div>
     </div>
 
     <nav class="sidebar-nav">
@@ -49,6 +49,19 @@ $currentScript = basename($_SERVER['SCRIPT_NAME']);
                 </svg>
             </span>
             <span>Sales History</span>
+        </a>
+        <?php endif; ?>
+
+        <?php if (Auth::hasRole(ROLE_SUPER_ADMIN, ROLE_ADMIN, ROLE_MANAGER, ROLE_ACCOUNTANT)): ?>
+        <a href="discounts.php" class="nav-item <?= ($currentScript === 'discounts.php') ? 'active' : '' ?>">
+            <span class="nav-icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="19" y1="5" x2="5" y2="19"></line>
+                    <circle cx="6.5" cy="6.5" r="2.5"></circle>
+                    <circle cx="17.5" cy="17.5" r="2.5"></circle>
+                </svg>
+            </span>
+            <span>Discounts & Promotions</span>
         </a>
         <?php endif; ?>
 
@@ -252,15 +265,6 @@ $currentScript = basename($_SERVER['SCRIPT_NAME']);
             </span>
             <span>Product Master</span>
         </a>
-        <a href="quick_products.php" class="nav-item <?= ($currentScript === 'quick_products.php') ? 'active' : '' ?>">
-            <span class="nav-icon">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-                </svg>
-            </span>
-            <span>Quick Product Editor</span>
-        </a>
         <?php endif; ?>
 
         <?php if (Auth::hasRole(ROLE_SUPER_ADMIN, ROLE_ADMIN, ROLE_MANAGER)): ?>
@@ -361,6 +365,15 @@ $currentScript = basename($_SERVER['SCRIPT_NAME']);
             </span>
             <span>User Accounts</span>
         </a>
+        <a href="roles.php" class="nav-item <?= ($currentScript === 'roles.php') ? 'active' : '' ?>">
+            <span class="nav-icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                </svg>
+            </span>
+            <span>Roles & Permissions</span>
+        </a>
         <?php endif; ?>
 
         <?php if (Auth::hasRole(ROLE_SUPER_ADMIN, ROLE_ADMIN, ROLE_MANAGER, ROLE_ACCOUNTANT)): ?>
@@ -407,6 +420,16 @@ $currentScript = basename($_SERVER['SCRIPT_NAME']);
                 </svg>
             </span>
             <span>Bank Reconciliation</span>
+        </a>
+        <?php endif; ?>
+        <?php if (Auth::hasPermission('expenses.view')): ?>
+        <a href="expenses.php" class="nav-item <?= ($currentScript === 'expenses.php') ? 'active' : '' ?>">
+            <span class="nav-icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+                </svg>
+            </span>
+            <span>Expense Management</span>
         </a>
         <?php endif; ?>
         <?php if (Auth::hasPermission('view_petty_cash')): ?>
@@ -478,5 +501,17 @@ $currentScript = basename($_SERVER['SCRIPT_NAME']);
             <span>System Settings</span>
         </a>
         <?php endif; ?>
+
+        <!-- PWA Install App Action -->
+        <button type="button" class="nav-item" id="sidebarPwaInstallBtn" onclick="if(window.CurtissPWA) window.CurtissPWA.install();" style="width: 100%; border: none; background: rgba(37, 99, 235, 0.12); color: #93c5fd; text-align: left; cursor: pointer; margin-top: 0.5rem; display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem 0.85rem; border-radius: 10px; font-weight: 700;">
+            <span class="nav-icon" style="color: #60a5fa;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="7 10 12 15 17 10"></polyline>
+                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                </svg>
+            </span>
+            <span>Install App</span>
+        </button>
     </nav>
 </aside>
