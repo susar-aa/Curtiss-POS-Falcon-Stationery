@@ -4,6 +4,7 @@
  * Enhanced with 3-Up Thermal Barcode Label Printing (30mm x 15mm / 3 stickers in row)
  */
 ?>
+<script src="assets/js/JsBarcode.all.min.js?v=<?= file_exists(APP_ROOT . '/assets/js/JsBarcode.all.min.js') ? filemtime(APP_ROOT . '/assets/js/JsBarcode.all.min.js') : '3.11.6' ?>"></script>
 <script src="assets/js/code128.js?v=<?= filemtime(APP_ROOT . '/assets/js/code128.js') ?>"></script>
 
 <style>
@@ -1087,19 +1088,21 @@ function initiateLabelPrint(id, mode = 'barcode') {
     const row = document.getElementById('row_' + id);
     if (!row) return;
 
-    const name = row.querySelector('.field-name').value.trim();
+    const name = row.querySelector('.field-name') ? row.querySelector('.field-name').value.trim() : '';
     const skuInput = row.querySelector('.field-sku');
-    const sku = (skuInput ? skuInput.value.trim() : '') || row.dataset.sku || String(id).padStart(5, '0');
-    const barcode = row.querySelector('.field-barcode').value.trim();
-    const price = parseFloat(row.querySelector('.field-price').value) || 0;
+    const sku = (skuInput ? skuInput.value.trim() : '') || row.dataset.sku || '';
+    const barcodeInput = row.querySelector('.field-barcode');
+    const barcode = (barcodeInput ? barcodeInput.value.trim() : '');
+    const price = parseFloat(row.querySelector('.field-price') ? row.querySelector('.field-price').value : 0) || 0;
     const qtyInput = row.querySelector('.field-label-qty');
     const qty = Math.max(1, parseInt(qtyInput ? qtyInput.value : 3) || 3);
 
-    // Scannable barcode is the barcode field, or falls back to sku if empty
+    // Scannable barcode encodes the exact barcode field, or falls back to SKU if barcode is empty
     const printableBarcode = barcode || sku;
+    const displayCode = sku || barcode;
 
     if (mode === 'barcode' && !printableBarcode) {
-        showToast('Cannot print barcode label: Product has no barcode!', true);
+        showToast('Cannot print barcode label: Product has no barcode or SKU code!', true);
         return;
     }
 
@@ -1108,7 +1111,7 @@ function initiateLabelPrint(id, mode = 'barcode') {
         name: name,
         barcode: printableBarcode,
         price: price,
-        code: sku,
+        code: displayCode,
         quantity: qty,
         mode: mode
     };

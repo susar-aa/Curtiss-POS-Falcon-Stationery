@@ -82,14 +82,44 @@
      */
     function generateSVG(text, options) {
         options = options || {};
+        const safeText = String(text || '').trim();
+        if (!safeText) return '';
+
         const width = options.width || 1.1; // module width in pixels
         const height = options.height || 34; // barcode height in pixels
-        const showText = options.showText !== false;
+        const showText = options.showText || false;
         const fontSize = options.fontSize || 10;
         const quietZone = (options.quietZone !== undefined) ? options.quietZone : 4;
         const preserveAspect = options.preserveAspectRatio || 'none';
 
-        const symbols = encodeCode128(String(text).trim());
+        // 1. Primary: Use standard JsBarcode library if available in runtime
+        if (typeof window.JsBarcode === 'function') {
+            try {
+                const svgNode = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+                window.JsBarcode(svgNode, safeText, {
+                    format: "CODE128",
+                    width: width,
+                    height: height,
+                    displayValue: showText,
+                    fontSize: fontSize,
+                    margin: quietZone,
+                    background: "#ffffff",
+                    lineColor: "#000000"
+                });
+                svgNode.setAttribute("preserveAspectRatio", preserveAspect);
+                svgNode.setAttribute("shape-rendering", "crispEdges");
+                svgNode.style.width = "100%";
+                svgNode.style.height = "100%";
+                svgNode.style.display = "block";
+                svgNode.style.margin = "0 auto";
+                return svgNode.outerHTML;
+            } catch (e) {
+                console.warn('JsBarcode render failed, falling back to standalone generator:', e);
+            }
+        }
+
+        // 2. Standalone Code 128 vector generator (Native fallback)
+        const symbols = encodeCode128(safeText);
         if (!symbols) return '';
 
         let x = quietZone;

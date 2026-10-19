@@ -10,6 +10,7 @@ $canConfigure = Auth::hasRole(ROLE_SUPER_ADMIN, ROLE_ADMIN);
 
 <link rel="stylesheet" href="assets/css/curtiss_select.css">
 <script src="assets/js/curtiss_select.js"></script>
+<script src="assets/js/JsBarcode.all.min.js"></script>
 <script src="assets/js/code128.js"></script>
 
 <!-- Floating Top-Right Action Controls -->
