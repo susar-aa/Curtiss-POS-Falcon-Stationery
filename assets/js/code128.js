@@ -40,8 +40,17 @@
             for (let i = 0; i < text.length; i += 2) {
                 symbols.push(parseInt(text.substr(i, 2), 10));
             }
+        } else if (isAllDigits && text.length >= 5 && (text.length % 2 !== 0)) {
+            // Standard Code 128 B start + switch to Code C (symbol 99) for odd-length numeric barcodes (e.g. 13-digit retail numbers)
+            // Cuts symbol count by ~35% so bars print significantly wider and scan reliably on 203 DPI printers
+            symbols.push(START_B);
+            symbols.push(text.charCodeAt(0) - 32);
+            symbols.push(99); // Switch to Code C
+            for (let i = 1; i < text.length; i += 2) {
+                symbols.push(parseInt(text.substr(i, 2), 10));
+            }
         } else {
-            // Pure Code 128 B: Odd number of digits or alphanumeric (zero mid-code latching, 100% scanner support)
+            // Pure Code 128 B: Alphanumeric strings (e.g. CBRZB12)
             symbols.push(START_B);
             for (let i = 0; i < text.length; i++) {
                 const code = text.charCodeAt(i);
@@ -73,12 +82,12 @@
      */
     function generateSVG(text, options) {
         options = options || {};
-        const width = options.width || 1.2; // module width in pixels
-        const height = options.height || 36; // barcode height in pixels
+        const width = options.width || 1.1; // module width in pixels
+        const height = options.height || 34; // barcode height in pixels
         const showText = options.showText !== false;
         const fontSize = options.fontSize || 10;
-        const quietZone = (options.quietZone !== undefined) ? options.quietZone : 10;
-        const preserveAspect = options.preserveAspectRatio || 'xMidYMid meet';
+        const quietZone = (options.quietZone !== undefined) ? options.quietZone : 4;
+        const preserveAspect = options.preserveAspectRatio || 'none';
 
         const symbols = encodeCode128(String(text).trim());
         if (!symbols) return '';

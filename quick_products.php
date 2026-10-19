@@ -252,8 +252,9 @@ if (isset($_REQUEST['action'])) {
                 $supplierId = (int)Database::lastInsertId();
             }
 
-            // Using barcode as SKU directly as requested
-            $sku = $barcode;
+            if (empty($sku)) {
+                $sku = $barcode;
+            }
 
             Database::execute("
                 INSERT INTO products (sku, barcode, brand_id, category_id, supplier_id, name, cost, selling_price, opening_stock, low_stock_threshold, status, has_expiry, created_at, updated_at)

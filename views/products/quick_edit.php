@@ -462,20 +462,20 @@
     }
 
     .lbl-barcode {
-        width: 96% !important;
-        height: 6.2mm !important;
-        max-height: 6.2mm !important;
+        width: 27mm !important;
+        max-width: 27mm !important;
+        height: 5.6mm !important;
+        max-height: 5.6mm !important;
         display: flex !important;
         align-items: center !important;
         justify-content: center !important;
-        margin: 0.2mm auto !important;
+        margin: 0.3mm auto 0.7mm auto !important;
         overflow: hidden !important;
     }
 
     .lbl-barcode svg {
         width: 100% !important;
         height: 100% !important;
-        max-height: 6.2mm !important;
     }
 
     .lbl-sku {
@@ -1168,14 +1168,14 @@ function createSingleBarcodeLabelHtml(item, cfg) {
     // 1. Product Name (Bigger font, no company header above it)
     const nameHtml = `<div class="lbl-name" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</div>`;
 
-    // 2. SVG Barcode (Calibrated height & quiet zone for 1D laser scanners)
+    // 2. SVG Barcode (Calibrated 27mm width, crisp edges & guaranteed quiet zone)
     let barcodeSvg = '';
     if (window.CurtissCode128 && typeof CurtissCode128.generateSVG === 'function') {
         barcodeSvg = CurtissCode128.generateSVG(item.barcode, {
-            width: 1.05,
-            height: 32,
-            quietZone: 10,
-            preserveAspectRatio: 'xMidYMid meet',
+            width: 1.1,
+            height: 34,
+            quietZone: 4,
+            preserveAspectRatio: 'none',
             showText: false
         });
     } else {
@@ -1184,7 +1184,7 @@ function createSingleBarcodeLabelHtml(item, cfg) {
 
     // 3. Product SKU / Code (Bigger font under barcode with clear quiet zone)
     const skuHtml = (cfg.show_sku !== false)
-        ? `<div class="lbl-sku">${escapeHtml(item.code)}</div>` 
+        ? `<div class="lbl-sku">${escapeHtml(item.code || item.barcode)}</div>` 
         : '';
 
     // 4. Price at bottom
@@ -1265,7 +1265,7 @@ function triggerThermalIframePrint(rowsHtml, cfg) {
             max-width: ${cfg.label_width_mm}mm !important;
             height: 14.8mm !important;
             max-height: 14.8mm !important;
-            padding: 0.6mm 0.5mm 0.4mm 0.5mm !important;
+            padding: 0.9mm 0.5mm 0.3mm 0.5mm !important;
             display: flex !important;
             flex-direction: column !important;
             align-items: center !important;
@@ -1302,11 +1302,11 @@ function triggerThermalIframePrint(rowsHtml, cfg) {
         }
         .lbl-name {
             font-family: Arial, Helvetica, sans-serif !important;
-            font-size: 6.6pt !important;
+            font-size: 6.2pt !important;
             font-weight: 800 !important;
             line-height: 1.1 !important;
-            margin: 0 0 0.4mm 0 !important;
-            max-height: 2.8mm !important;
+            margin: 0 !important;
+            max-height: 2.6mm !important;
             overflow: hidden !important;
             text-overflow: ellipsis !important;
             white-space: nowrap !important;
@@ -1314,30 +1314,30 @@ function triggerThermalIframePrint(rowsHtml, cfg) {
             color: #000000 !important;
         }
         .lbl-barcode {
-            width: 95% !important;
-            height: 5.3mm !important;
-            max-height: 5.3mm !important;
+            width: 27mm !important;
+            max-width: 27mm !important;
+            height: 5.6mm !important;
+            max-height: 5.6mm !important;
             display: flex !important;
             align-items: center !important;
             justify-content: center !important;
-            margin: 0 auto 0.6mm auto !important;
+            margin: 0.3mm auto 0.7mm auto !important;
             overflow: hidden !important;
         }
         .lbl-barcode svg {
             width: 100% !important;
             height: 100% !important;
-            max-height: 5.3mm !important;
         }
         .lbl-sku {
             font-family: 'Courier New', Courier, monospace !important;
-            font-size: 6.8pt !important;
+            font-size: 6.5pt !important;
             font-weight: 900 !important;
             color: #000000 !important;
             width: 100% !important;
             text-align: center !important;
             line-height: 1 !important;
             margin: 0 0 0.3mm 0 !important;
-            letter-spacing: 0.2px !important;
+            letter-spacing: 0.3px !important;
             white-space: nowrap !important;
             overflow: hidden !important;
             text-overflow: ellipsis !important;
@@ -1484,16 +1484,16 @@ function createPreviewCardElement(item, cfg) {
     let barcodeSvg = '';
     if (window.CurtissCode128 && typeof CurtissCode128.generateSVG === 'function') {
         barcodeSvg = CurtissCode128.generateSVG(item.barcode, {
-            width: 1.05,
-            height: 28,
-            quietZone: 10,
-            preserveAspectRatio: 'xMidYMid meet',
+            width: 1.1,
+            height: 32,
+            quietZone: 4,
+            preserveAspectRatio: 'none',
             showText: false
         });
     }
 
     const skuHtml = (cfg.show_sku !== false)
-        ? `<div style="width: 100%; font-family: 'Courier New', Courier, monospace; font-size: 10px; font-weight: 900; color: #000000; letter-spacing: 0.5px; line-height: 1; text-align: center;">${escapeHtml(item.code)}</div>`
+        ? `<div style="width: 100%; font-family: 'Courier New', Courier, monospace; font-size: 10px; font-weight: 900; color: #000000; letter-spacing: 0.5px; line-height: 1; text-align: center;">${escapeHtml(item.code || item.barcode)}</div>`
         : '';
 
     card.innerHTML = `
