@@ -1,10 +1,10 @@
-g<?php
+<?php
 /**
  * Falcon POS - Quick Product & Stock Editor View
  * Enhanced with 3-Up Thermal Barcode Label Printing (30mm x 15mm / 3 stickers in row)
  */
 ?>
-<script src="assets/js/code128.js"></script>
+<script src="assets/js/code128.js?v=<?= filemtime(APP_ROOT . '/assets/js/code128.js') ?>"></script>
 
 <style>
 /* CSS Variables for 3-Up Label Calibration (30mm x 15mm on 99mm / 3.9in Roll) */
@@ -1174,8 +1174,8 @@ function createSingleBarcodeLabelHtml(item, cfg) {
         barcodeSvg = CurtissCode128.generateSVG(item.barcode, {
             width: 1.05,
             height: 32,
-            quietZone: 8,
-            preserveAspectRatio: 'none',
+            quietZone: 10,
+            preserveAspectRatio: 'xMidYMid meet',
             showText: false
         });
     } else {
@@ -1484,10 +1484,10 @@ function createPreviewCardElement(item, cfg) {
     let barcodeSvg = '';
     if (window.CurtissCode128 && typeof CurtissCode128.generateSVG === 'function') {
         barcodeSvg = CurtissCode128.generateSVG(item.barcode, {
-            width: 1.1,
+            width: 1.05,
             height: 28,
-            quietZone: 8,
-            preserveAspectRatio: 'none',
+            quietZone: 10,
+            preserveAspectRatio: 'xMidYMid meet',
             showText: false
         });
     }

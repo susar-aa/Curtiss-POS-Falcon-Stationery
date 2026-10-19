@@ -34,24 +34,14 @@
         const isAllDigits = /^\d+$/.test(text);
         let symbols = [];
 
-        if (isAllDigits && text.length >= 4) {
-            // High-density Code 128 C optimization for numeric barcodes (cuts symbol count in half)
-            const isEven = (text.length % 2 === 0);
-            const pairCount = isEven ? text.length : (text.length - 1);
-
+        if (isAllDigits && text.length >= 4 && (text.length % 2 === 0)) {
+            // Pure Code 128 C: Even number of digits (cuts symbols in half, 100% universal scanner support)
             symbols.push(START_C);
-            for (let i = 0; i < pairCount; i += 2) {
+            for (let i = 0; i < text.length; i += 2) {
                 symbols.push(parseInt(text.substr(i, 2), 10));
             }
-
-            // If odd number of digits, switch to Code B for the single remaining digit
-            if (!isEven) {
-                symbols.push(100); // CODE_B switch inside Code C
-                const lastCode = text.charCodeAt(text.length - 1);
-                symbols.push(lastCode - 32);
-            }
         } else {
-            // Standard Code 128 B mode
+            // Pure Code 128 B: Odd number of digits or alphanumeric (zero mid-code latching, 100% scanner support)
             symbols.push(START_B);
             for (let i = 0; i < text.length; i++) {
                 const code = text.charCodeAt(i);
@@ -87,8 +77,8 @@
         const height = options.height || 36; // barcode height in pixels
         const showText = options.showText !== false;
         const fontSize = options.fontSize || 10;
-        const quietZone = (options.quietZone !== undefined) ? options.quietZone : 8;
-        const preserveAspect = options.preserveAspectRatio || 'none';
+        const quietZone = (options.quietZone !== undefined) ? options.quietZone : 10;
+        const preserveAspect = options.preserveAspectRatio || 'xMidYMid meet';
 
         const symbols = encodeCode128(String(text).trim());
         if (!symbols) return '';
