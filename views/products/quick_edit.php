@@ -343,6 +343,11 @@
     display: none;
 }
 
+@page {
+    size: 99mm 15mm;
+    margin: 0 !important;
+}
+
 @media print {
     body * {
         visibility: hidden !important;
@@ -352,18 +357,20 @@
     }
 
     @page {
-        size: 99mm 15mm landscape;
-        margin: 0mm !important;
+        size: 99mm 15mm;
+        margin: 0 !important;
     }
 
     html, body {
         width: 99mm !important;
+        max-width: 99mm !important;
         height: 15mm !important;
-        min-height: 15mm !important;
+        max-height: 15mm !important;
         margin: 0 !important;
         padding: 0 !important;
-        background: #ffffff !important;
         overflow: hidden !important;
+        background: #ffffff !important;
+        display: block !important;
     }
 
     #printLabelContainer {
@@ -373,7 +380,9 @@
         top: 0 !important;
         left: 0 !important;
         width: 99mm !important;
+        max-width: 99mm !important;
         height: 15mm !important;
+        max-height: 15mm !important;
         overflow: hidden !important;
         margin: 0 !important;
         padding: 0 !important;
@@ -387,16 +396,18 @@
         display: flex !important;
         flex-direction: row !important;
         width: 99mm !important;
+        max-width: 99mm !important;
         height: 15mm !important;
         max-height: 15mm !important;
         margin: 0 !important;
         padding: 0 1.5mm !important;
+        box-sizing: border-box !important;
+        justify-content: space-between !important;
+        align-items: center !important;
         page-break-inside: avoid !important;
         break-inside: avoid !important;
         page-break-after: always !important;
         break-after: page !important;
-        box-sizing: border-box !important;
-        justify-content: space-between !important;
         overflow: hidden !important;
     }
 
@@ -1237,8 +1248,8 @@ function triggerThermalIframePrint(rowsHtml, cfg) {
     <title>Falcon Thermal Print</title>
     <style>
         @page {
-            size: ${cfg.row_width_mm || 99}mm ${cfg.label_height_mm || 15}mm landscape;
-            margin: 0mm !important;
+            size: ${cfg.row_width_mm || 99}mm ${cfg.label_height_mm || 15}mm;
+            margin: 0 !important;
         }
         * {
             box-sizing: border-box;
@@ -1247,27 +1258,32 @@ function triggerThermalIframePrint(rowsHtml, cfg) {
         }
         html, body {
             width: ${cfg.row_width_mm || 99}mm !important;
+            max-width: ${cfg.row_width_mm || 99}mm !important;
             height: ${cfg.label_height_mm || 15}mm !important;
+            max-height: ${cfg.label_height_mm || 15}mm !important;
             margin: 0 !important;
             padding: 0 !important;
-            background: #ffffff !important;
             overflow: hidden !important;
+            background: #ffffff !important;
+            display: block !important;
         }
         .label-row-3 {
             display: flex !important;
             flex-direction: row !important;
-            width: ${cfg.row_width_mm}mm !important;
-            height: ${cfg.label_height_mm}mm !important;
-            max-height: ${cfg.label_height_mm}mm !important;
+            width: ${cfg.row_width_mm || 99}mm !important;
+            max-width: ${cfg.row_width_mm || 99}mm !important;
+            height: ${cfg.label_height_mm || 15}mm !important;
+            max-height: ${cfg.label_height_mm || 15}mm !important;
             margin: 0 !important;
             padding: 0 1.5mm !important;
             box-sizing: border-box !important;
             justify-content: space-between !important;
-            overflow: hidden !important;
+            align-items: center !important;
             page-break-inside: avoid !important;
             break-inside: avoid !important;
             page-break-after: always !important;
             break-after: page !important;
+            overflow: hidden !important;
         }
         .label-row-3:last-child {
             page-break-after: avoid !important;
