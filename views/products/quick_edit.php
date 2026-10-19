@@ -478,6 +478,8 @@
     .lbl-barcode svg {
         width: 100% !important;
         height: 100% !important;
+        max-width: 100% !important;
+        max-height: 100% !important;
         display: block !important;
         margin: 0 auto !important;
         shape-rendering: crispEdges !important;
@@ -1184,9 +1186,7 @@ function createSingleBarcodeLabelHtml(item, cfg) {
         barcodeSvg = CurtissCode128.generateSVG(item.barcode, {
             containerWidthMm: 27.0,
             containerHeightMm: 7.2,
-            width: 2,
-            marginLeft: 6,
-            marginRight: 6,
+            quietZoneModules: 10,
             preserveAspectRatio: 'xMidYMid meet',
             showText: false
         });
@@ -1342,14 +1342,13 @@ function triggerThermalIframePrint(rowsHtml, cfg) {
         .lbl-barcode svg {
             width: 100% !important;
             height: 100% !important;
+            max-width: 100% !important;
+            max-height: 100% !important;
             display: block !important;
             margin: 0 auto !important;
             shape-rendering: crispEdges !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
-            image-rendering: -webkit-optimize-contrast !important;
-            image-rendering: crisp-edges !important;
-            image-rendering: pixelated !important;
         }
         .lbl-sku {
             font-family: 'Courier New', Courier, monospace !important;
@@ -1512,9 +1511,7 @@ function createPreviewCardElement(item, cfg) {
         barcodeSvg = CurtissCode128.generateSVG(item.barcode, {
             containerWidthMm: 27.0,
             containerHeightMm: 7.2,
-            width: 2,
-            marginLeft: 6,
-            marginRight: 6,
+            quietZoneModules: 10,
             preserveAspectRatio: 'xMidYMid meet',
             showText: false
         });

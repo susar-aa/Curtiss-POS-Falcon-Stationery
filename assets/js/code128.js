@@ -89,20 +89,40 @@
         const containerH = options.containerHeightMm || 7.2;
         const targetRatio = containerW / containerH; // default ~3.75
 
-        const moduleWidth = options.width || 2; // integer 2px module scale for 203/300 DPI
-        const qz = (options.quietZone !== undefined) ? options.quietZone : 6;
-        const marginLeft = (options.marginLeft !== undefined) ? options.marginLeft : qz;
-        const marginRight = (options.marginRight !== undefined) ? options.marginRight : qz;
-        const showText = options.showText || false;
-        const fontSize = options.fontSize || 10;
-        const preserveAspect = options.preserveAspectRatio || 'xMidYMid meet';
-
-        // Calculate exact module count to dynamically determine optimal bar height
+        // Encode symbols first to know exact module requirements
         const symbols = encodeCode128(safeText);
         if (!symbols) return '';
 
         // Stop is 13 modules, all other symbols are 11 modules
         const barModules = (symbols.length - 1) * 11 + 13;
+
+        // 203 DPI thermal printer dot resolution (203 / 25.4 = 7.992 dots/mm)
+        // 27.0mm available width = ~215 thermal dots max
+        const dpi = options.dpi || 203;
+        const maxAvailableDots = Math.floor(containerW * (dpi / 25.4)); // ~215 dots
+
+        // Code 128 standard requires at least 10 modules quiet zone on each side
+        const qzModules = (options.quietZoneModules !== undefined) ? options.quietZoneModules : 10;
+        const totalModules = barModules + (qzModules * 2);
+
+        // Dynamic module scaling: prevent dot-crushing on 203 DPI thermal printers
+        // When barModules > 100 or text length >= 7 (e.g. FILEC141 has 123 modules):
+        // moduleWidth dynamically scales to 1.3 - 1.5 so total SVG width stays <= 215 dots
+        const maxModuleWidth = Math.floor((maxAvailableDots / totalModules) * 100) / 100;
+        const requestedWidth = (options.width && options.autoWidth === false)
+            ? options.width
+            : (options.width ? Math.min(options.width, 2.0) : 2.0);
+        const moduleWidth = Math.min(requestedWidth, Math.max(1.0, maxModuleWidth));
+
+        // Preserve at least 10 modules of clear white space on both sides
+        const defaultQzPx = Math.round(qzModules * moduleWidth);
+        const marginLeft = (options.marginLeft !== undefined) ? options.marginLeft : defaultQzPx;
+        const marginRight = (options.marginRight !== undefined) ? options.marginRight : defaultQzPx;
+
+        const showText = options.showText || false;
+        const fontSize = options.fontSize || 10;
+        const preserveAspect = options.preserveAspectRatio || 'xMidYMid meet';
+
         const totalWidthPx = (barModules * moduleWidth) + marginLeft + marginRight;
 
         // Dynamic height: dynamically matches the aspect ratio of the label space to maximize bar height
