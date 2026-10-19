@@ -408,7 +408,7 @@
         max-width: 30mm !important;
         height: 14.85mm !important;
         max-height: 14.85mm !important;
-        padding: 0.35mm 0.5mm 0.25mm 0.5mm !important;
+        padding: 0.2mm 0.5mm !important;
         display: flex !important;
         flex-direction: column !important;
         align-items: center !important;
@@ -450,11 +450,11 @@
 
     .lbl-name {
         font-family: Arial, Helvetica, sans-serif !important;
-        font-size: 6.2pt !important;
+        font-size: 5.8pt !important;
         font-weight: 800 !important;
-        line-height: 1.1 !important;
-        margin: 0 0 0.25mm 0 !important;
-        max-height: 2.2mm !important;
+        line-height: 1.05 !important;
+        margin: 0 0 0.15mm 0 !important;
+        max-height: 1.9mm !important;
         overflow: hidden !important;
         text-overflow: ellipsis !important;
         white-space: nowrap !important;
@@ -465,36 +465,33 @@
     .lbl-barcode {
         width: 28.5mm !important;
         max-width: 28.5mm !important;
-        height: 7.2mm !important;
-        max-height: 7.2mm !important;
+        height: 8.5mm !important;
+        max-height: 8.5mm !important;
         display: flex !important;
         align-items: center !important;
         justify-content: center !important;
-        margin: 0 auto 0.3mm auto !important;
-        overflow: hidden !important;
+        margin: 0.2mm auto !important;
+        overflow: visible !important;
         background: #ffffff !important;
     }
 
     .lbl-barcode svg {
         width: 100% !important;
         height: 100% !important;
-        max-width: 100% !important;
-        max-height: 100% !important;
         display: block !important;
-        margin: 0 auto !important;
         shape-rendering: crispEdges !important;
     }
 
     .lbl-sku {
         font-family: 'Courier New', Courier, monospace !important;
-        font-size: 6.6pt !important;
+        font-size: 6.0pt !important;
         font-weight: 900 !important;
         color: #000000 !important;
         width: 100% !important;
         text-align: center !important;
         line-height: 1 !important;
-        max-height: 1.8mm !important;
-        margin: 0 0 0.2mm 0 !important;
+        max-height: 1.5mm !important;
+        margin: 0 0 0.15mm 0 !important;
         letter-spacing: 0.3px !important;
         white-space: nowrap !important;
         overflow: hidden !important;
@@ -513,13 +510,14 @@
 
     .lbl-price {
         font-family: Arial, Helvetica, sans-serif !important;
-        font-size: 8.6pt !important;
+        font-size: 8.0pt !important;
         font-weight: 900 !important;
         color: #000000 !important;
         white-space: nowrap !important;
         text-align: center !important;
         line-height: 1 !important;
-        max-height: 2.3mm !important;
+        max-height: 1.9mm !important;
+        margin: 0 !important;
     }
 
     .lbl-price-large {
@@ -1185,9 +1183,9 @@ function createSingleBarcodeLabelHtml(item, cfg) {
     if (window.CurtissCode128 && typeof CurtissCode128.generateSVG === 'function') {
         barcodeSvg = CurtissCode128.generateSVG(item.barcode, {
             containerWidthMm: 28.5,
-            containerHeightMm: 7.2,
-            quietZoneModules: 10,
-            preserveAspectRatio: 'xMidYMid meet',
+            containerHeightMm: 8.5,
+            quietZoneModules: 7,
+            preserveAspectRatio: 'none',
             showText: false
         });
     } else {
@@ -1277,7 +1275,7 @@ function triggerThermalIframePrint(rowsHtml, cfg) {
             max-width: ${cfg.label_width_mm}mm !important;
             height: 14.85mm !important;
             max-height: 14.85mm !important;
-            padding: 0.35mm 0.5mm 0.25mm 0.5mm !important;
+            padding: 0.2mm 0.5mm !important;
             display: flex !important;
             flex-direction: column !important;
             align-items: center !important;
@@ -1316,11 +1314,11 @@ function triggerThermalIframePrint(rowsHtml, cfg) {
         }
         .lbl-name {
             font-family: Arial, Helvetica, sans-serif !important;
-            font-size: 6.2pt !important;
+            font-size: 5.8pt !important;
             font-weight: 800 !important;
-            line-height: 1.1 !important;
-            margin: 0 0 0.25mm 0 !important;
-            max-height: 2.2mm !important;
+            line-height: 1.05 !important;
+            margin: 0 0 0.15mm 0 !important;
+            max-height: 1.9mm !important;
             overflow: hidden !important;
             text-overflow: ellipsis !important;
             white-space: nowrap !important;
@@ -1330,36 +1328,33 @@ function triggerThermalIframePrint(rowsHtml, cfg) {
         .lbl-barcode {
             width: 28.5mm !important;
             max-width: 28.5mm !important;
-            height: 7.2mm !important;
-            max-height: 7.2mm !important;
+            height: 8.5mm !important;
+            max-height: 8.5mm !important;
             display: flex !important;
             align-items: center !important;
             justify-content: center !important;
-            margin: 0 auto 0.3mm auto !important;
-            overflow: hidden !important;
+            margin: 0.2mm auto !important;
+            overflow: visible !important;
             background: #ffffff !important;
         }
         .lbl-barcode svg {
             width: 100% !important;
             height: 100% !important;
-            max-width: 100% !important;
-            max-height: 100% !important;
             display: block !important;
-            margin: 0 auto !important;
             shape-rendering: crispEdges !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
         }
         .lbl-sku {
             font-family: 'Courier New', Courier, monospace !important;
-            font-size: 6.6pt !important;
+            font-size: 6.0pt !important;
             font-weight: 900 !important;
             color: #000000 !important;
             width: 100% !important;
             text-align: center !important;
             line-height: 1 !important;
-            max-height: 1.8mm !important;
-            margin: 0 0 0.2mm 0 !important;
+            max-height: 1.5mm !important;
+            margin: 0 0 0.15mm 0 !important;
             letter-spacing: 0.3px !important;
             white-space: nowrap !important;
             overflow: hidden !important;
@@ -1376,13 +1371,14 @@ function triggerThermalIframePrint(rowsHtml, cfg) {
         }
         .lbl-price {
             font-family: Arial, Helvetica, sans-serif !important;
-            font-size: 8.6pt !important;
+            font-size: 8.0pt !important;
             font-weight: 900 !important;
             color: #000000 !important;
             white-space: nowrap !important;
             text-align: center !important;
             line-height: 1 !important;
-            max-height: 2.3mm !important;
+            max-height: 1.9mm !important;
+            margin: 0 !important;
         }
         .lbl-price-large {
             font-family: Arial, Helvetica, sans-serif !important;
@@ -1510,9 +1506,9 @@ function createPreviewCardElement(item, cfg) {
     if (window.CurtissCode128 && typeof CurtissCode128.generateSVG === 'function') {
         barcodeSvg = CurtissCode128.generateSVG(item.barcode, {
             containerWidthMm: 28.5,
-            containerHeightMm: 7.2,
-            quietZoneModules: 10,
-            preserveAspectRatio: 'xMidYMid meet',
+            containerHeightMm: 8.5,
+            quietZoneModules: 7,
+            preserveAspectRatio: 'none',
             showText: false
         });
     }
@@ -1525,7 +1521,7 @@ function createPreviewCardElement(item, cfg) {
         <div style="width: 100%; font-size: 10px; font-weight: 800; margin: 0 0 2px 0; max-height: 18px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #0f172a;">
             ${escapeHtml(item.name)}
         </div>
-        <div style="width: 96%; height: 38px; display: flex; align-items: center; justify-content: center; overflow: hidden; margin: 0 auto; background: #ffffff;">
+        <div style="width: 96%; height: 44px; display: flex; align-items: center; justify-content: center; overflow: hidden; margin: 0 auto; background: #ffffff;">
             ${barcodeSvg}
         </div>
         ${skuHtml}

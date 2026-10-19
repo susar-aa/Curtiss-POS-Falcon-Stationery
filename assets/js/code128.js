@@ -153,8 +153,8 @@
         if (!safeText) return '';
 
         const containerW = options.containerWidthMm || 28.5;
-        const containerH = options.containerHeightMm || 7.2;
-        const targetRatio = containerW / containerH; // ~3.96
+        const containerH = options.containerHeightMm || 8.5;
+        const targetRatio = containerW / containerH; // ~3.35
 
         // Encode symbols with optimal Code 128 Set B <-> C switching
         const symbols = encodeCode128(safeText);
@@ -168,8 +168,8 @@
         const dpi = options.dpi || 203;
         const maxAvailableDots = Math.floor(containerW * (dpi / 25.4)); // ~227 dots
 
-        // Code 128 standard requires at least 10 modules quiet zone on each side
-        const qzModules = (options.quietZoneModules !== undefined) ? options.quietZoneModules : 10;
+        // Clean minimum quiet zone (7 modules) to maximize printable bar area
+        const qzModules = (options.quietZoneModules !== undefined) ? options.quietZoneModules : 7;
         const totalModules = barModules + (qzModules * 2);
 
         // Strict integer dot widths: moduleWidth is strictly 2 if it fits, else strictly 1.
@@ -177,15 +177,17 @@
         let moduleWidth = (options.width && options.autoWidth === false)
             ? Math.round(options.width)
             : ((totalModules * 2 <= maxAvailableDots) ? 2 : 1);
+        if (moduleWidth < 1) moduleWidth = 1;
 
-        // Preserve at least 10 modules of clear white space on both sides
+        // Preserve quiet zone on both sides
         const defaultQzPx = qzModules * moduleWidth;
         const marginLeft = (options.marginLeft !== undefined) ? Math.round(options.marginLeft) : defaultQzPx;
         const marginRight = (options.marginRight !== undefined) ? Math.round(options.marginRight) : defaultQzPx;
 
         const showText = options.showText || false;
         const fontSize = options.fontSize || 10;
-        const preserveAspect = options.preserveAspectRatio || 'xMidYMid meet';
+        // preserveAspectRatio: 'none' stretches bars horizontally to fill 28.5mm, eliminating 1-dot dropouts
+        const preserveAspect = options.preserveAspectRatio || 'none';
 
         const totalWidthPx = (barModules * moduleWidth) + marginLeft + marginRight;
 
