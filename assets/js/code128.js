@@ -121,7 +121,7 @@
             textSvg = `<text x="${(totalWidth / 2).toFixed(2)}" y="${textY}" text-anchor="middle" font-family="'Courier New', Courier, monospace" font-size="${fontSize}px" font-weight="700" fill="#000000" letter-spacing="1px">${escapeXml(text)}</text>`;
         }
 
-        return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${totalWidth.toFixed(2)} ${totalHeight}" preserveAspectRatio="${preserveAspect}" width="100%" height="100%" style="display:block; margin:0 auto; overflow:visible;">
+        return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${totalWidth.toFixed(2)} ${totalHeight}" preserveAspectRatio="${preserveAspect}" shape-rendering="crispEdges" width="100%" height="100%" style="display:block; margin:0 auto; overflow:visible;">
             ${rects.join('\n            ')}
             ${textSvg}
         </svg>`;
