@@ -72,6 +72,7 @@ if (isset($_REQUEST['action'])) {
     if ($action === 'update_product') {
         $productId    = (int)($_POST['id'] ?? 0);
         $name         = trim($_POST['name'] ?? '');
+        $sku          = trim($_POST['sku'] ?? '');
         $barcode      = trim($_POST['barcode'] ?? '');
         $cost         = (float)($_POST['cost'] ?? 0);
         $sellingPrice = (float)($_POST['selling_price'] ?? 0);
@@ -90,6 +91,10 @@ if (isset($_REQUEST['action'])) {
         if (empty($barcode)) {
             echo json_encode(['success' => false, 'message' => 'Barcode cannot be empty.']);
             exit();
+        }
+
+        if (empty($sku)) {
+            $sku = $barcode;
         }
 
         // Check if barcode is already used by a different product
@@ -121,10 +126,11 @@ if (isset($_REQUEST['action'])) {
             // 1. Update product master details
             Database::execute("
                 UPDATE products 
-                SET name = :name, barcode = :barcode, cost = :cost, selling_price = :selling_price, updated_at = NOW()
+                SET name = :name, sku = :sku, barcode = :barcode, cost = :cost, selling_price = :selling_price, updated_at = NOW()
                 WHERE id = :id
             ", [
                 ':name'          => $name,
+                ':sku'           => $sku,
                 ':barcode'       => $barcode,
                 ':cost'          => $cost,
                 ':selling_price' => $sellingPrice,
@@ -196,6 +202,7 @@ if (isset($_REQUEST['action'])) {
     // 3. Quick Add Product API
     if ($action === 'add_product') {
         $name         = trim($_POST['name'] ?? '');
+        $sku          = trim($_POST['sku'] ?? '');
         $barcode      = trim($_POST['barcode'] ?? '');
         $cost         = max(0.00, (float)($_POST['cost'] ?? 0));
         $sellingPrice = max(0.00, (float)($_POST['selling_price'] ?? 0));
@@ -211,7 +218,9 @@ if (isset($_REQUEST['action'])) {
             exit();
         }
 
-        // Check if barcode already exists on active products
+        if (empty($sku)) {
+            $sku = $barcode;
+        }
         $existing = Database::fetchOne("
             SELECT id FROM products 
             WHERE barcode = :b AND deleted_at IS NULL 
