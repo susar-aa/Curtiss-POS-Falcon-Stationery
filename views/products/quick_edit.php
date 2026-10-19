@@ -352,13 +352,13 @@
     }
 
     @page {
-        size: 99mm 15mm;
+        size: 99mm 15mm landscape;
         margin: 0mm !important;
     }
 
     html, body {
         width: 99mm !important;
-        height: auto !important;
+        height: 15mm !important;
         min-height: 15mm !important;
         margin: 0 !important;
         padding: 0 !important;
@@ -373,6 +373,8 @@
         top: 0 !important;
         left: 0 !important;
         width: 99mm !important;
+        height: 15mm !important;
+        overflow: hidden !important;
         margin: 0 !important;
         padding: 0 !important;
     }
@@ -1235,7 +1237,7 @@ function triggerThermalIframePrint(rowsHtml, cfg) {
     <title>Falcon Thermal Print</title>
     <style>
         @page {
-            size: ${cfg.row_width_mm}mm ${cfg.label_height_mm}mm;
+            size: ${cfg.row_width_mm || 99}mm ${cfg.label_height_mm || 15}mm landscape;
             margin: 0mm !important;
         }
         * {
@@ -1244,7 +1246,8 @@ function triggerThermalIframePrint(rowsHtml, cfg) {
             padding: 0;
         }
         html, body {
-            width: ${cfg.row_width_mm}mm !important;
+            width: ${cfg.row_width_mm || 99}mm !important;
+            height: ${cfg.label_height_mm || 15}mm !important;
             margin: 0 !important;
             padding: 0 !important;
             background: #ffffff !important;
