@@ -85,12 +85,12 @@
         const safeText = String(text || '').trim();
         if (!safeText) return '';
 
-        const width = options.width || 1.1; // module width in pixels
-        const height = options.height || 34; // barcode height in pixels
+        const width = options.width || 2; // integer module width (2px) for sharp 203/300 DPI rendering
+        const height = options.height || 42; // optimal bar height for optical scan sweeps
         const showText = options.showText || false;
         const fontSize = options.fontSize || 10;
-        const quietZone = (options.quietZone !== undefined) ? options.quietZone : 4;
-        const preserveAspect = options.preserveAspectRatio || 'none';
+        const quietZone = (options.quietZone !== undefined) ? options.quietZone : 10;
+        const preserveAspect = options.preserveAspectRatio || 'xMidYMid meet';
 
         // 1. Primary: Use standard JsBarcode library if available in runtime
         if (typeof window.JsBarcode === 'function') {
@@ -144,13 +144,16 @@
         const totalWidth = x + quietZone;
         const totalHeight = showText ? (height + fontSize + 3) : height;
 
+        const bgRect = `<rect x="0" y="0" width="${totalWidth.toFixed(2)}" height="${totalHeight}" fill="#ffffff" />`;
+
         let textSvg = '';
         if (showText) {
             const textY = height + fontSize;
-            textSvg = `<text x="${(totalWidth / 2).toFixed(2)}" y="${textY}" text-anchor="middle" font-family="'Courier New', Courier, monospace" font-size="${fontSize}px" font-weight="700" fill="#000000" letter-spacing="1px">${escapeXml(text)}</text>`;
+            textSvg = `<text x="${(totalWidth / 2).toFixed(2)}" y="${textY}" text-anchor="middle" font-family="'Courier New', Courier, monospace" font-size="${fontSize}px" font-weight="700" fill="#000000" letter-spacing="1px">${escapeXml(safeText)}</text>`;
         }
 
         return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${totalWidth.toFixed(2)} ${totalHeight}" preserveAspectRatio="${preserveAspect}" shape-rendering="crispEdges" width="100%" height="100%" style="display:block; margin:0 auto; overflow:visible;">
+            ${bgRect}
             ${rects.join('\n            ')}
             ${textSvg}
         </svg>`;
