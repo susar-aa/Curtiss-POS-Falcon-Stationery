@@ -85,12 +85,30 @@
         const safeText = String(text || '').trim();
         if (!safeText) return '';
 
-        const width = options.width || 2; // integer module width (2px) for sharp 203/300 DPI rendering
-        const height = options.height || 42; // optimal bar height for optical scan sweeps
+        const containerW = options.containerWidthMm || 27.0;
+        const containerH = options.containerHeightMm || 7.2;
+        const targetRatio = containerW / containerH; // default ~3.75
+
+        const moduleWidth = options.width || 2; // integer 2px module scale for 203/300 DPI
+        const qz = (options.quietZone !== undefined) ? options.quietZone : 6;
+        const marginLeft = (options.marginLeft !== undefined) ? options.marginLeft : qz;
+        const marginRight = (options.marginRight !== undefined) ? options.marginRight : qz;
         const showText = options.showText || false;
         const fontSize = options.fontSize || 10;
-        const quietZone = (options.quietZone !== undefined) ? options.quietZone : 10;
         const preserveAspect = options.preserveAspectRatio || 'xMidYMid meet';
+
+        // Calculate exact module count to dynamically determine optimal bar height
+        const symbols = encodeCode128(safeText);
+        if (!symbols) return '';
+
+        // Stop is 13 modules, all other symbols are 11 modules
+        const barModules = (symbols.length - 1) * 11 + 13;
+        const totalWidthPx = (barModules * moduleWidth) + marginLeft + marginRight;
+
+        // Dynamic height: dynamically matches the aspect ratio of the label space to maximize bar height
+        const dynamicBarHeight = Math.max(30, Math.round(totalWidthPx / targetRatio));
+        // Use dynamic height unless explicit options.dynamicHeight === false with a positive options.height
+        const height = (options.dynamicHeight === false && options.height) ? options.height : dynamicBarHeight;
 
         // 1. Primary: Use standard JsBarcode library if available in runtime
         if (typeof window.JsBarcode === 'function') {
@@ -98,20 +116,26 @@
                 const svgNode = document.createElementNS("http://www.w3.org/2000/svg", "svg");
                 window.JsBarcode(svgNode, safeText, {
                     format: "CODE128",
-                    width: width,
+                    width: moduleWidth,
                     height: height,
                     displayValue: showText,
                     fontSize: fontSize,
-                    margin: quietZone,
+                    marginTop: 0,
+                    marginBottom: 0,
+                    marginLeft: marginLeft,
+                    marginRight: marginRight,
                     background: "#ffffff",
                     lineColor: "#000000"
                 });
                 svgNode.setAttribute("preserveAspectRatio", preserveAspect);
                 svgNode.setAttribute("shape-rendering", "crispEdges");
+                svgNode.setAttribute("width", "100%");
+                svgNode.setAttribute("height", "100%");
                 svgNode.style.width = "100%";
                 svgNode.style.height = "100%";
                 svgNode.style.display = "block";
                 svgNode.style.margin = "0 auto";
+                svgNode.style.overflow = "visible";
                 return svgNode.outerHTML;
             } catch (e) {
                 console.warn('JsBarcode render failed, falling back to standalone generator:', e);
@@ -119,10 +143,7 @@
         }
 
         // 2. Standalone Code 128 vector generator (Native fallback)
-        const symbols = encodeCode128(safeText);
-        if (!symbols) return '';
-
-        let x = quietZone;
+        let x = marginLeft;
         let rects = [];
 
         for (let s = 0; s < symbols.length; s++) {
@@ -132,7 +153,7 @@
 
             let isBar = true;
             for (let p = 0; p < pattern.length; p++) {
-                const w = parseInt(pattern[p], 10) * width;
+                const w = parseInt(pattern[p], 10) * moduleWidth;
                 if (isBar) {
                     rects.push(`<rect x="${x.toFixed(2)}" y="0" width="${w.toFixed(2)}" height="${height}" fill="#000000" />`);
                 }
@@ -141,7 +162,7 @@
             }
         }
 
-        const totalWidth = x + quietZone;
+        const totalWidth = x + marginRight;
         const totalHeight = showText ? (height + fontSize + 3) : height;
 
         const bgRect = `<rect x="0" y="0" width="${totalWidth.toFixed(2)}" height="${totalHeight}" fill="#ffffff" />`;
