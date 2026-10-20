@@ -126,7 +126,8 @@ class ProductImportEngine
         ];
 
         foreach ($headers as $idx => $h) {
-            $clean = strtolower(trim($h));
+            $clean = strtolower(trim((string)$h));
+            $clean = preg_replace('/\s+/', ' ', $clean);
             if ($clean === 'sku' || $clean === 'item_code' || $clean === 'code') {
                 $mapping['sku'] = $idx;
             } elseif ($clean === 'barcode' || $clean === 'ean' || $clean === 'upc') {
@@ -139,13 +140,13 @@ class ProductImportEngine
                 $mapping['name'] = $idx;
             } elseif ($clean === 'supplier' || $clean === 'supplier_name') {
                 $mapping['supplier'] = $idx;
-            } elseif ($clean === 'cost' || $clean === 'unit_cost' || $clean === 'purchase_price') {
+            } elseif (in_array($clean, ['cost', 'cost price', 'cost_price', 'unit_cost', 'unit cost', 'purchase_price', 'purchase price', 'buying_price', 'buying price'], true)) {
                 $mapping['cost'] = $idx;
-            } elseif ($clean === 'selling price' || $clean === 'selling_price' || $clean === 'price' || $clean === 'retail_price') {
+            } elseif (in_array($clean, ['selling price', 'selling_price', 'seling price', 'seling_price', 'price', 'retail_price', 'retail price', 'sale price', 'sales price', 'mrp'], true)) {
                 $mapping['selling_price'] = $idx;
-            } elseif ($clean === 'opening stock' || $clean === 'opening_stock' || $clean === 'initial_stock' || $clean === 'qty') {
+            } elseif (in_array($clean, ['opening stock', 'opening_stock', 'initial_stock', 'initial stock', 'qty', 'stock', 'quantity'], true)) {
                 $mapping['opening_stock'] = $idx;
-            } elseif ($clean === 'low stock threshold' || $clean === 'low_stock_threshold' || $clean === 'reorder_level') {
+            } elseif (in_array($clean, ['low stock threshold', 'low_stock_threshold', 'reorder_level', 'reorder level', 'alert_quantity', 'threshold'], true)) {
                 $mapping['low_stock_threshold'] = $idx;
             } elseif ($clean === 'status') {
                 $mapping['status'] = $idx;
@@ -261,13 +262,17 @@ class ProductImportEngine
             }
 
             // Validation 4: Price & Cost Numeric
-            if ($rawCost !== '' && (!is_numeric($rawCost) || (float)$rawCost < 0)) {
+            $cleanCost = str_replace([',', ' '], '', $rawCost);
+            $cleanSelling = str_replace([',', ' '], '', $rawSelling);
+            $cleanStock = str_replace([',', ' '], '', $rawStock);
+
+            if ($cleanCost !== '' && (!is_numeric($cleanCost) || (float)$cleanCost < 0)) {
                 $rowErrors[] = "Row #{$lineNo}: Invalid Cost value '{$rawCost}'. Must be non-negative number.";
             }
-            if ($rawSelling !== '' && (!is_numeric($rawSelling) || (float)$rawSelling < 0)) {
+            if ($cleanSelling !== '' && (!is_numeric($cleanSelling) || (float)$cleanSelling < 0)) {
                 $rowErrors[] = "Row #{$lineNo}: Invalid Selling Price value '{$rawSelling}'. Must be non-negative number.";
             }
-            if ($rawStock !== '' && (!is_numeric($rawStock) || (float)$rawStock < 0)) {
+            if ($cleanStock !== '' && (!is_numeric($cleanStock) || (float)$cleanStock < 0)) {
                 $rowErrors[] = "Row #{$lineNo}: Invalid Opening Stock value '{$rawStock}'. Must be non-negative number.";
             }
 
@@ -412,10 +417,10 @@ class ProductImportEngine
                 $rawCategory   = isset($mapping['category']) && isset($row[$mapping['category']]) ? trim((string)$row[$mapping['category']]) : '';
                 $rawName       = isset($mapping['name']) && isset($row[$mapping['name']]) ? trim((string)$row[$mapping['name']]) : '';
                 $rawSupplier   = isset($mapping['supplier']) && isset($row[$mapping['supplier']]) ? trim((string)$row[$mapping['supplier']]) : '';
-                $rawCost       = isset($mapping['cost']) && isset($row[$mapping['cost']]) ? trim((string)$row[$mapping['cost']]) : '';
-                $rawSelling    = isset($mapping['selling_price']) && isset($row[$mapping['selling_price']]) ? trim((string)$row[$mapping['selling_price']]) : '';
-                $rawStock      = isset($mapping['opening_stock']) && isset($row[$mapping['opening_stock']]) ? trim((string)$row[$mapping['opening_stock']]) : '';
-                $rawThreshold  = isset($mapping['low_stock_threshold']) && isset($row[$mapping['low_stock_threshold']]) ? trim((string)$row[$mapping['low_stock_threshold']]) : '';
+                $rawCost       = isset($mapping['cost']) && isset($row[$mapping['cost']]) ? str_replace([',', ' '], '', trim((string)$row[$mapping['cost']])) : '';
+                $rawSelling    = isset($mapping['selling_price']) && isset($row[$mapping['selling_price']]) ? str_replace([',', ' '], '', trim((string)$row[$mapping['selling_price']])) : '';
+                $rawStock      = isset($mapping['opening_stock']) && isset($row[$mapping['opening_stock']]) ? str_replace([',', ' '], '', trim((string)$row[$mapping['opening_stock']])) : '';
+                $rawThreshold  = isset($mapping['low_stock_threshold']) && isset($row[$mapping['low_stock_threshold']]) ? str_replace([',', ' '], '', trim((string)$row[$mapping['low_stock_threshold']])) : '';
                 $rawStatus     = isset($mapping['status']) && isset($row[$mapping['status']]) ? strtolower(trim((string)$row[$mapping['status']])) : 'active';
 
                 // Resolve Brand ID

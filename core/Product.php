@@ -659,6 +659,11 @@ class Product
             return ['success' => false, 'message' => 'Product not found.'];
         }
 
+        $safety = self::canDelete($id);
+        if (!$safety['can_delete']) {
+            return ['success' => false, 'message' => $safety['reason']];
+        }
+
         try {
             Database::execute("UPDATE products SET deleted_at = NOW() WHERE id = :id", [':id' => $id]);
 
