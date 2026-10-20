@@ -1,11 +1,10 @@
-<?php
+g<?php
 /**
  * Falcon POS - Quick Product & Stock Editor View
  * Enhanced with 3-Up Thermal Barcode Label Printing (30mm x 15mm / 3 stickers in row)
  */
 ?>
-<script src="assets/js/JsBarcode.all.min.js?v=<?= file_exists(APP_ROOT . '/assets/js/JsBarcode.all.min.js') ? filemtime(APP_ROOT . '/assets/js/JsBarcode.all.min.js') : '3.11.6' ?>"></script>
-<script src="assets/js/code128.js?v=<?= filemtime(APP_ROOT . '/assets/js/code128.js') ?>"></script>
+<script src="assets/js/code128.js"></script>
 
 <style>
 /* CSS Variables for 3-Up Label Calibration (30mm x 15mm on 99mm / 3.9in Roll) */
@@ -343,11 +342,6 @@
     display: none;
 }
 
-@page {
-    size: auto;
-    margin: 0 !important;
-}
-
 @media print {
     body * {
         visibility: hidden !important;
@@ -357,20 +351,18 @@
     }
 
     @page {
-        size: auto;
-        margin: 0 !important;
+        size: 99mm 15mm;
+        margin: 0mm !important;
     }
 
     html, body {
         width: 99mm !important;
-        max-width: 99mm !important;
         height: auto !important;
         min-height: 15mm !important;
         margin: 0 !important;
         padding: 0 !important;
-        overflow: visible !important;
         background: #ffffff !important;
-        display: block !important;
+        overflow: hidden !important;
     }
 
     #printLabelContainer {
@@ -380,9 +372,6 @@
         top: 0 !important;
         left: 0 !important;
         width: 99mm !important;
-        max-width: 99mm !important;
-        height: auto !important;
-        min-height: 15mm !important;
         margin: 0 !important;
         padding: 0 !important;
     }
@@ -394,20 +383,17 @@
     .label-row-3 {
         display: flex !important;
         flex-direction: row !important;
-        flex-wrap: nowrap !important;
         width: 99mm !important;
-        max-width: 99mm !important;
         height: 15mm !important;
         max-height: 15mm !important;
         margin: 0 !important;
         padding: 0 1.5mm !important;
-        box-sizing: border-box !important;
-        justify-content: space-between !important;
-        align-items: center !important;
         page-break-inside: avoid !important;
         break-inside: avoid !important;
         page-break-after: always !important;
         break-after: page !important;
+        box-sizing: border-box !important;
+        justify-content: space-between !important;
         overflow: hidden !important;
     }
 
@@ -419,11 +405,9 @@
     .label-item-3 {
         width: 30mm !important;
         max-width: 30mm !important;
-        min-width: 30mm !important;
-        flex: 0 0 30mm !important;
-        height: 14.85mm !important;
-        max-height: 14.85mm !important;
-        padding: 0.2mm 0.5mm !important;
+        height: 14.8mm !important;
+        max-height: 14.8mm !important;
+        padding: 0.3mm 0.5mm !important;
         display: flex !important;
         flex-direction: column !important;
         align-items: center !important;
@@ -444,10 +428,7 @@
 
     .label-blank-3 {
         width: 30mm !important;
-        max-width: 30mm !important;
-        min-width: 30mm !important;
-        flex: 0 0 30mm !important;
-        height: 14.85mm !important;
+        height: 14.8mm !important;
         visibility: hidden !important;
     }
 
@@ -468,11 +449,11 @@
 
     .lbl-name {
         font-family: Arial, Helvetica, sans-serif !important;
-        font-size: 5.8pt !important;
+        font-size: 7.2pt !important;
         font-weight: 800 !important;
-        line-height: 1.05 !important;
-        margin: 0 0 0.15mm 0 !important;
-        max-height: 1.9mm !important;
+        line-height: 1.1 !important;
+        margin: 0 !important;
+        max-height: 3.2mm !important;
         overflow: hidden !important;
         text-overflow: ellipsis !important;
         white-space: nowrap !important;
@@ -481,35 +462,31 @@
     }
 
     .lbl-barcode {
-        width: 28.5mm !important;
-        max-width: 28.5mm !important;
-        height: 8.5mm !important;
-        max-height: 8.5mm !important;
+        width: 96% !important;
+        height: 6.2mm !important;
+        max-height: 6.2mm !important;
         display: flex !important;
         align-items: center !important;
         justify-content: center !important;
         margin: 0.2mm auto !important;
-        overflow: visible !important;
-        background: #ffffff !important;
+        overflow: hidden !important;
     }
 
     .lbl-barcode svg {
         width: 100% !important;
         height: 100% !important;
-        display: block !important;
-        shape-rendering: crispEdges !important;
+        max-height: 6.2mm !important;
     }
 
     .lbl-sku {
         font-family: 'Courier New', Courier, monospace !important;
-        font-size: 6.0pt !important;
+        font-size: 7.5pt !important;
         font-weight: 900 !important;
         color: #000000 !important;
         width: 100% !important;
         text-align: center !important;
         line-height: 1 !important;
-        max-height: 1.5mm !important;
-        margin: 0 0 0.15mm 0 !important;
+        margin: 0.2mm 0 0 0 !important;
         letter-spacing: 0.3px !important;
         white-space: nowrap !important;
         overflow: hidden !important;
@@ -528,14 +505,11 @@
 
     .lbl-price {
         font-family: Arial, Helvetica, sans-serif !important;
-        font-size: 8.0pt !important;
+        font-size: 8.5pt !important;
         font-weight: 900 !important;
         color: #000000 !important;
         white-space: nowrap !important;
         text-align: center !important;
-        line-height: 1 !important;
-        max-height: 1.9mm !important;
-        margin: 0 !important;
     }
 
     .lbl-price-large {
@@ -639,20 +613,19 @@
             <table class="qe-table" id="qeProductTable">
                 <thead>
                     <tr>
-                        <th style="width: 65px;"># ID</th>
-                        <th style="min-width: 220px;">Product Name *</th>
-                        <th style="width: 140px;">Product Code (SKU)</th>
-                        <th style="width: 150px;">Barcode *</th>
-                        <th style="width: 115px; text-align: right;">Cost (LKR)</th>
-                        <th style="width: 125px; text-align: right;">Selling Price (LKR)</th>
-                        <th style="width: 105px; text-align: right;">Stock (Live)</th>
+                        <th style="width: 70px;"># ID</th>
+                        <th style="min-width: 240px;">Product Name *</th>
+                        <th style="width: 160px;">Barcode *</th>
+                        <th style="width: 120px; text-align: right;">Cost (LKR)</th>
+                        <th style="width: 130px; text-align: right;">Selling Price (LKR)</th>
+                        <th style="width: 110px; text-align: right;">Stock (Live)</th>
                         <th style="width: 275px; text-align: center;">Actions &amp; Print</th>
                     </tr>
                 </thead>
                 <tbody id="qeTableBody">
                     <?php if (empty($products)): ?>
                         <tr id="noRowsNotice">
-                            <td colspan="8" style="padding: 3rem; text-align: center; color: #64748b;">
+                            <td colspan="7" style="padding: 3rem; text-align: center; color: #64748b;">
                                 <div style="font-size: 1.1rem; font-weight: 700; color: #1e293b; margin-bottom: 0.25rem;">No products found</div>
                                 <div style="font-size: 0.85rem;">Import products or add new items to get started.</div>
                             </td>
@@ -660,9 +633,12 @@
                     <?php else: ?>
                         <?php foreach ($products as $p): ?>
                             <tr id="row_<?= (int)$p['id'] ?>" data-id="<?= (int)$p['id'] ?>" data-sku="<?= View::escape($p['sku'] ?? '') ?>">
-                                <!-- ID -->
+                                <!-- ID / SKU -->
                                 <td>
                                     <span style="font-weight: 800; color: #475569;">#<?= (int)$p['id'] ?></span>
+                                    <?php if (!empty($p['sku']) && $p['sku'] !== $p['barcode']): ?>
+                                        <div style="font-size: 0.7rem; color: #94a3b8; font-family: monospace;" class="field-sku-display"><?= View::escape($p['sku']) ?></div>
+                                    <?php endif; ?>
                                 </td>
 
                                 <!-- Product Name -->
@@ -671,16 +647,10 @@
                                            data-original="<?= View::escape($p['name']) ?>" oninput="markDirty(<?= (int)$p['id'] ?>)" onkeydown="checkEnter(event, <?= (int)$p['id'] ?>)">
                                 </td>
 
-                                <!-- Product Code (SKU) -->
-                                <td>
-                                    <input type="text" class="qe-input field-sku" style="font-family: monospace; font-weight: 700;" value="<?= View::escape($p['sku'] ?? '') ?>" 
-                                           placeholder="e.g. CBRZB1-2" data-original="<?= View::escape($p['sku'] ?? '') ?>" oninput="markDirty(<?= (int)$p['id'] ?>)" onkeydown="checkEnter(event, <?= (int)$p['id'] ?>)">
-                                </td>
-
                                 <!-- Barcode -->
                                 <td>
                                     <input type="text" class="qe-input field-barcode" style="font-family: monospace;" value="<?= View::escape($p['barcode']) ?>" 
-                                           placeholder="Scannable Barcode" data-original="<?= View::escape($p['barcode']) ?>" oninput="markDirty(<?= (int)$p['id'] ?>)" onkeydown="checkEnter(event, <?= (int)$p['id'] ?>)">
+                                           data-original="<?= View::escape($p['barcode']) ?>" oninput="markDirty(<?= (int)$p['id'] ?>)" onkeydown="checkEnter(event, <?= (int)$p['id'] ?>)">
                                 </td>
 
                                 <!-- Cost Price -->
@@ -748,7 +718,6 @@ function markDirty(id) {
     if (!row) return;
 
     const name = row.querySelector('.field-name');
-    const sku = row.querySelector('.field-sku');
     const barcode = row.querySelector('.field-barcode');
     const cost = row.querySelector('.field-cost');
     const price = row.querySelector('.field-price');
@@ -756,7 +725,6 @@ function markDirty(id) {
 
     const isChanged = (
         name.value !== name.dataset.original ||
-        (sku && sku.value !== sku.dataset.original) ||
         barcode.value !== barcode.dataset.original ||
         parseFloat(cost.value || 0) !== parseFloat(cost.dataset.original || 0) ||
         parseFloat(price.value || 0) !== parseFloat(price.dataset.original || 0) ||
@@ -798,14 +766,12 @@ function saveProduct(id) {
 
     const btn = document.getElementById('btn_' + id);
     const nameInput = row.querySelector('.field-name');
-    const skuInput = row.querySelector('.field-sku');
     const barcodeInput = row.querySelector('.field-barcode');
     const costInput = row.querySelector('.field-cost');
     const priceInput = row.querySelector('.field-price');
     const stockInput = row.querySelector('.field-stock');
 
     const name = nameInput.value.trim();
-    const sku = skuInput ? skuInput.value.trim() : (row.dataset.sku || '');
     const barcode = barcodeInput.value.trim();
     const cost = parseFloat(costInput.value) || 0;
     const price = parseFloat(priceInput.value) || 0;
@@ -831,7 +797,6 @@ function saveProduct(id) {
     formData.append('action', 'update_product');
     formData.append('id', id);
     formData.append('name', name);
-    formData.append('sku', sku || barcode);
     formData.append('barcode', barcode);
     formData.append('cost', cost);
     formData.append('selling_price', price);
@@ -850,8 +815,6 @@ function saveProduct(id) {
 
             // Update originals
             nameInput.dataset.original = name;
-            if (skuInput) skuInput.dataset.original = sku;
-            row.dataset.sku = sku || barcode;
             barcodeInput.dataset.original = barcode;
             costInput.dataset.original = cost.toFixed(2);
             priceInput.dataset.original = price.toFixed(2);
@@ -975,18 +938,15 @@ function renderSearchResults(products, query) {
             <tr id="row_${p.id}" data-id="${p.id}" data-sku="${escapeHtml(p.sku || '')}" class="${isDirty ? 'row-dirty' : ''}">
                 <td>
                     <span style="font-weight: 800; color: #475569;">#${p.id}</span>
+                    ${p.sku && p.sku !== p.barcode ? `<div style="font-size: 0.7rem; color: #94a3b8; font-family: monospace;" class="field-sku-display">${escapeHtml(p.sku)}</div>` : ''}
                 </td>
                 <td>
                     <input type="text" class="qe-input field-name" value="${escapeHtml(p.name)}" 
                            data-original="${escapeHtml(p.name)}" oninput="markDirty(${p.id})" onkeydown="checkEnter(event, ${p.id})">
                 </td>
                 <td>
-                    <input type="text" class="qe-input field-sku" style="font-family: monospace; font-weight: 700;" value="${escapeHtml(p.sku || '')}" 
-                           placeholder="e.g. CBRZB1-2" data-original="${escapeHtml(p.sku || '')}" oninput="markDirty(${p.id})" onkeydown="checkEnter(event, ${p.id})">
-                </td>
-                <td>
                     <input type="text" class="qe-input field-barcode" style="font-family: monospace;" value="${escapeHtml(p.barcode)}" 
-                           placeholder="Scannable Barcode" data-original="${escapeHtml(p.barcode)}" oninput="markDirty(${p.id})" onkeydown="checkEnter(event, ${p.id})">
+                           data-original="${escapeHtml(p.barcode)}" oninput="markDirty(${p.id})" onkeydown="checkEnter(event, ${p.id})">
                 </td>
                 <td>
                     <input type="number" step="0.01" min="0" class="qe-input qe-input-num field-cost" value="${parseFloat(p.cost || 0).toFixed(2)}" 
@@ -1113,30 +1073,24 @@ function initiateLabelPrint(id, mode = 'barcode') {
     const row = document.getElementById('row_' + id);
     if (!row) return;
 
-    const name = row.querySelector('.field-name') ? row.querySelector('.field-name').value.trim() : '';
-    const skuInput = row.querySelector('.field-sku');
-    const sku = (skuInput ? skuInput.value.trim() : '') || row.dataset.sku || '';
-    const barcodeInput = row.querySelector('.field-barcode');
-    const barcode = (barcodeInput ? barcodeInput.value.trim() : '');
-    const price = parseFloat(row.querySelector('.field-price') ? row.querySelector('.field-price').value : 0) || 0;
+    const name = row.querySelector('.field-name').value.trim();
+    const barcode = row.querySelector('.field-barcode').value.trim();
+    const price = parseFloat(row.querySelector('.field-price').value) || 0;
     const qtyInput = row.querySelector('.field-label-qty');
     const qty = Math.max(1, parseInt(qtyInput ? qtyInput.value : 3) || 3);
+    const sku = row.dataset.sku || String(id).padStart(5, '0');
 
-    // Scannable barcode encodes the exact barcode field, or falls back to SKU if barcode is empty
-    const printableBarcode = barcode || sku;
-    const displayCode = sku || barcode;
-
-    if (mode === 'barcode' && !printableBarcode) {
-        showToast('Cannot print barcode label: Product has no barcode or SKU code!', true);
+    if (mode === 'barcode' && !barcode) {
+        showToast('Cannot print barcode label: Product has no barcode!', true);
         return;
     }
 
     currentPrintPayload = {
         id: id,
         name: name,
-        barcode: printableBarcode,
+        barcode: barcode,
         price: price,
-        code: displayCode,
+        code: sku,
         quantity: qty,
         mode: mode
     };
@@ -1196,13 +1150,13 @@ function createSingleBarcodeLabelHtml(item, cfg) {
     // 1. Product Name (Bigger font, no company header above it)
     const nameHtml = `<div class="lbl-name" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</div>`;
 
-    // 2. SVG Barcode (Standard Code 128 via JsBarcode / CurtissCode128 with solid white background)
+    // 2. SVG Barcode (Bigger height & optimized density for 1D laser scanners)
     let barcodeSvg = '';
     if (window.CurtissCode128 && typeof CurtissCode128.generateSVG === 'function') {
         barcodeSvg = CurtissCode128.generateSVG(item.barcode, {
-            containerWidthMm: 28.5,
-            containerHeightMm: 8.5,
-            quietZoneModules: 7,
+            width: 1.1,
+            height: 36,
+            quietZone: 8,
             preserveAspectRatio: 'none',
             showText: false
         });
@@ -1210,9 +1164,9 @@ function createSingleBarcodeLabelHtml(item, cfg) {
         barcodeSvg = `<div style="font-family:monospace; font-weight:800; font-size:8pt;">*${escapeHtml(item.barcode)}*</div>`;
     }
 
-    // 3. Product SKU / Code (Bigger font under barcode with clear quiet zone)
+    // 3. Product SKU / Code (Bigger font under barcode)
     const skuHtml = (cfg.show_sku !== false)
-        ? `<div class="lbl-sku">${escapeHtml(item.code || item.barcode)}</div>` 
+        ? `<div class="lbl-sku">${escapeHtml(item.code)}</div>` 
         : '';
 
     // 4. Price at bottom
@@ -1235,24 +1189,13 @@ function triggerThermalIframePrint(rowsHtml, cfg) {
     if (!iframe) {
         iframe = document.createElement('iframe');
         iframe.id = 'thermalPrintFrame';
+        iframe.style.position = 'fixed';
+        iframe.style.top = '-9999px';
+        iframe.style.left = '-9999px';
+        iframe.style.width = '0';
+        iframe.style.height = '0';
+        iframe.style.border = 'none';
         document.body.appendChild(iframe);
-    }
-
-    // Set real physical dimensions in host DOM to prevent Chromium from collapsing layout viewport to 0x0
-    iframe.style.position = 'fixed';
-    iframe.style.top = '0';
-    iframe.style.left = '0';
-    iframe.style.width = '99mm';
-    iframe.style.height = '15mm';
-    iframe.style.border = 'none';
-    iframe.style.opacity = '0';
-    iframe.style.pointerEvents = 'none';
-    iframe.style.zIndex = '-9999';
-
-    // Also populate host DOM print container
-    const hostContainer = document.getElementById('printLabelContainer');
-    if (hostContainer) {
-        hostContainer.innerHTML = rowsHtml;
     }
 
     const doc = iframe.contentWindow.document;
@@ -1264,8 +1207,8 @@ function triggerThermalIframePrint(rowsHtml, cfg) {
     <title>Falcon Thermal Print</title>
     <style>
         @page {
-            size: auto;
-            margin: 0 !important;
+            size: ${cfg.row_width_mm}mm ${cfg.label_height_mm}mm;
+            margin: 0mm !important;
         }
         * {
             box-sizing: border-box;
@@ -1273,34 +1216,27 @@ function triggerThermalIframePrint(rowsHtml, cfg) {
             padding: 0;
         }
         html, body {
-            width: ${cfg.row_width_mm || 99}mm !important;
-            max-width: ${cfg.row_width_mm || 99}mm !important;
-            height: auto !important;
-            min-height: ${cfg.label_height_mm || 15}mm !important;
+            width: ${cfg.row_width_mm}mm !important;
             margin: 0 !important;
             padding: 0 !important;
-            overflow: visible !important;
             background: #ffffff !important;
-            display: block !important;
+            overflow: hidden !important;
         }
         .label-row-3 {
             display: flex !important;
             flex-direction: row !important;
-            flex-wrap: nowrap !important;
-            width: ${cfg.row_width_mm || 99}mm !important;
-            max-width: ${cfg.row_width_mm || 99}mm !important;
-            height: ${cfg.label_height_mm || 15}mm !important;
-            max-height: ${cfg.label_height_mm || 15}mm !important;
+            width: ${cfg.row_width_mm}mm !important;
+            height: ${cfg.label_height_mm}mm !important;
+            max-height: ${cfg.label_height_mm}mm !important;
             margin: 0 !important;
             padding: 0 1.5mm !important;
             box-sizing: border-box !important;
             justify-content: space-between !important;
-            align-items: center !important;
+            overflow: hidden !important;
             page-break-inside: avoid !important;
             break-inside: avoid !important;
             page-break-after: always !important;
             break-after: page !important;
-            overflow: hidden !important;
         }
         .label-row-3:last-child {
             page-break-after: avoid !important;
@@ -1309,11 +1245,9 @@ function triggerThermalIframePrint(rowsHtml, cfg) {
         .label-item-3 {
             width: ${cfg.label_width_mm}mm !important;
             max-width: ${cfg.label_width_mm}mm !important;
-            min-width: ${cfg.label_width_mm}mm !important;
-            flex: 0 0 ${cfg.label_width_mm}mm !important;
-            height: 14.85mm !important;
-            max-height: 14.85mm !important;
-            padding: 0.2mm 0.5mm !important;
+            height: 14.8mm !important;
+            max-height: 14.8mm !important;
+            padding: 0.3mm 0.5mm !important;
             display: flex !important;
             flex-direction: column !important;
             align-items: center !important;
@@ -1323,8 +1257,6 @@ function triggerThermalIframePrint(rowsHtml, cfg) {
             overflow: hidden !important;
             background: #ffffff !important;
             color: #000000 !important;
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
         }
         .label-item-price-only {
             justify-content: center !important;
@@ -1333,10 +1265,7 @@ function triggerThermalIframePrint(rowsHtml, cfg) {
         }
         .label-blank-3 {
             width: ${cfg.label_width_mm}mm !important;
-            max-width: ${cfg.label_width_mm}mm !important;
-            min-width: ${cfg.label_width_mm}mm !important;
-            flex: 0 0 ${cfg.label_width_mm}mm !important;
-            height: 14.85mm !important;
+            height: 14.8mm !important;
             visibility: hidden !important;
         }
         .lbl-company {
@@ -1355,11 +1284,11 @@ function triggerThermalIframePrint(rowsHtml, cfg) {
         }
         .lbl-name {
             font-family: Arial, Helvetica, sans-serif !important;
-            font-size: 5.8pt !important;
+            font-size: 7.2pt !important;
             font-weight: 800 !important;
-            line-height: 1.05 !important;
-            margin: 0 0 0.15mm 0 !important;
-            max-height: 1.9mm !important;
+            line-height: 1.1 !important;
+            margin: 0 !important;
+            max-height: 3.2mm !important;
             overflow: hidden !important;
             text-overflow: ellipsis !important;
             white-space: nowrap !important;
@@ -1367,35 +1296,29 @@ function triggerThermalIframePrint(rowsHtml, cfg) {
             color: #000000 !important;
         }
         .lbl-barcode {
-            width: 28.5mm !important;
-            max-width: 28.5mm !important;
-            height: 8.5mm !important;
-            max-height: 8.5mm !important;
+            width: 96% !important;
+            height: 6.2mm !important;
+            max-height: 6.2mm !important;
             display: flex !important;
             align-items: center !important;
             justify-content: center !important;
             margin: 0.2mm auto !important;
-            overflow: visible !important;
-            background: #ffffff !important;
+            overflow: hidden !important;
         }
         .lbl-barcode svg {
             width: 100% !important;
             height: 100% !important;
-            display: block !important;
-            shape-rendering: crispEdges !important;
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
+            max-height: 6.2mm !important;
         }
         .lbl-sku {
             font-family: 'Courier New', Courier, monospace !important;
-            font-size: 6.0pt !important;
+            font-size: 7.5pt !important;
             font-weight: 900 !important;
             color: #000000 !important;
             width: 100% !important;
             text-align: center !important;
             line-height: 1 !important;
-            max-height: 1.5mm !important;
-            margin: 0 0 0.15mm 0 !important;
+            margin: 0.2mm 0 0 0 !important;
             letter-spacing: 0.3px !important;
             white-space: nowrap !important;
             overflow: hidden !important;
@@ -1412,14 +1335,11 @@ function triggerThermalIframePrint(rowsHtml, cfg) {
         }
         .lbl-price {
             font-family: Arial, Helvetica, sans-serif !important;
-            font-size: 8.0pt !important;
+            font-size: 8.5pt !important;
             font-weight: 900 !important;
             color: #000000 !important;
             white-space: nowrap !important;
             text-align: center !important;
-            line-height: 1 !important;
-            max-height: 1.9mm !important;
-            margin: 0 !important;
         }
         .lbl-price-large {
             font-family: Arial, Helvetica, sans-serif !important;
@@ -1546,23 +1466,23 @@ function createPreviewCardElement(item, cfg) {
     let barcodeSvg = '';
     if (window.CurtissCode128 && typeof CurtissCode128.generateSVG === 'function') {
         barcodeSvg = CurtissCode128.generateSVG(item.barcode, {
-            containerWidthMm: 28.5,
-            containerHeightMm: 8.5,
-            quietZoneModules: 7,
+            width: 1.1,
+            height: 28,
+            quietZone: 8,
             preserveAspectRatio: 'none',
             showText: false
         });
     }
 
     const skuHtml = (cfg.show_sku !== false)
-        ? `<div style="width: 100%; font-family: 'Courier New', Courier, monospace; font-size: 10px; font-weight: 900; color: #000000; letter-spacing: 0.5px; line-height: 1; text-align: center; margin: 1px 0;">${escapeHtml(item.code || item.barcode)}</div>`
+        ? `<div style="width: 100%; font-family: 'Courier New', Courier, monospace; font-size: 10px; font-weight: 900; color: #000000; letter-spacing: 0.5px; line-height: 1; text-align: center;">${escapeHtml(item.code)}</div>`
         : '';
 
     card.innerHTML = `
-        <div style="width: 100%; font-size: 10px; font-weight: 800; margin: 0 0 2px 0; max-height: 18px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #0f172a;">
+        <div style="width: 100%; font-size: 10px; font-weight: 800; margin: 0 0 1px 0; max-height: 20px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #0f172a;">
             ${escapeHtml(item.name)}
         </div>
-        <div style="width: 96%; height: 44px; display: flex; align-items: center; justify-content: center; overflow: hidden; margin: 0 auto; background: #ffffff;">
+        <div style="width: 96%; height: 28px; display: flex; align-items: center; justify-content: center; overflow: hidden; margin: 0 auto;">
             ${barcodeSvg}
         </div>
         ${skuHtml}
@@ -1697,7 +1617,6 @@ function deleteProduct(id, name) {
 // ─── Quick Add Product Modal & Submission ─────────────────────────────────────
 function openAddProductModal() {
     document.getElementById('add_name').value = '';
-    document.getElementById('add_sku').value = '';
     document.getElementById('add_barcode').value = '';
     document.getElementById('add_cost').value = '0.00';
     document.getElementById('add_selling_price').value = '0.00';
@@ -1719,14 +1638,12 @@ function generateAutoBarcode() {
 
 function submitAddProduct(keepOpen = false) {
     const nameInput = document.getElementById('add_name');
-    const skuInput = document.getElementById('add_sku');
     const barcodeInput = document.getElementById('add_barcode');
     const costInput = document.getElementById('add_cost');
     const priceInput = document.getElementById('add_selling_price');
     const stockInput = document.getElementById('add_stock');
 
     const name = nameInput.value.trim();
-    const sku = skuInput.value.trim();
     const barcode = barcodeInput.value.trim();
     const cost = parseFloat(costInput.value) || 0;
     const price = parseFloat(priceInput.value) || 0;
@@ -1752,7 +1669,6 @@ function submitAddProduct(keepOpen = false) {
     const formData = new FormData();
     formData.append('action', 'add_product');
     formData.append('name', name);
-    formData.append('sku', sku || barcode);
     formData.append('barcode', barcode);
     formData.append('cost', cost);
     formData.append('selling_price', price);
@@ -1775,7 +1691,6 @@ function submitAddProduct(keepOpen = false) {
 
             if (keepOpen) {
                 nameInput.value = '';
-                skuInput.value = '';
                 barcodeInput.value = '';
                 costInput.value = '0.00';
                 priceInput.value = '0.00';
@@ -1811,12 +1726,8 @@ function prependProductRow(p) {
                        data-original="${escapeHtml(p.name)}" oninput="markDirty(${p.id})" onkeydown="checkEnter(event, ${p.id})">
             </td>
             <td>
-                <input type="text" class="qe-input field-sku" style="font-family: monospace; font-weight: 700;" value="${escapeHtml(p.sku || '')}" 
-                       placeholder="e.g. CBRZB1-2" data-original="${escapeHtml(p.sku || '')}" oninput="markDirty(${p.id})" onkeydown="checkEnter(event, ${p.id})">
-            </td>
-            <td>
                 <input type="text" class="qe-input field-barcode" style="font-family: monospace;" value="${escapeHtml(p.barcode)}" 
-                       placeholder="Scannable Barcode" data-original="${escapeHtml(p.barcode)}" oninput="markDirty(${p.id})" onkeydown="checkEnter(event, ${p.id})">
+                       data-original="${escapeHtml(p.barcode)}" oninput="markDirty(${p.id})" onkeydown="checkEnter(event, ${p.id})">
             </td>
             <td>
                 <input type="number" step="0.01" min="0" class="qe-input qe-input-num field-cost" value="${parseFloat(p.cost || 0).toFixed(2)}" 
@@ -1907,23 +1818,17 @@ document.addEventListener('keydown', function(e) {
                     <input type="text" id="add_name" class="qe-input" placeholder="e.g. Atlas CR Exercise Book 120 Pages" required autofocus>
                 </div>
 
-                <!-- Product Code (SKU) & Barcode Grid -->
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px;">
-                    <div>
-                        <label style="display:block; font-size: 0.82rem; font-weight: 700; color: #334155; margin-bottom: 4px;">Product Code (SKU)</label>
-                        <input type="text" id="add_sku" class="qe-input" placeholder="e.g. CBRZB1-2" style="font-family: monospace; font-weight: 700;">
+                <!-- Barcode -->
+                <div style="margin-bottom: 14px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                        <label style="font-size: 0.82rem; font-weight: 700; color: #334155;">Barcode *</label>
+                        <span style="font-size: 0.72rem; color: #64748b;">(Also assigned automatically as SKU)</span>
                     </div>
-                    <div>
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-                            <label style="font-size: 0.82rem; font-weight: 700; color: #334155;">Barcode *</label>
-                            <span style="font-size: 0.72rem; color: #64748b;">(Scannable)</span>
-                        </div>
-                        <div style="display: flex; gap: 6px;">
-                            <input type="text" id="add_barcode" class="qe-input" placeholder="Scan or enter barcode" style="font-family: monospace;" required>
-                            <button type="button" onclick="generateAutoBarcode()" class="btn btn-secondary" style="white-space: nowrap; font-size: 0.78rem; font-weight: 700; padding: 0 10px; border-radius: 7px; border: 1px solid #cbd5e1; background: #f8fafc; cursor: pointer;" title="Auto-generate numeric barcode">
-                                ⚡ Gen
-                            </button>
-                        </div>
+                    <div style="display: flex; gap: 8px;">
+                        <input type="text" id="add_barcode" class="qe-input" placeholder="Scan or enter barcode" style="font-family: monospace;" required>
+                        <button type="button" onclick="generateAutoBarcode()" class="btn btn-secondary" style="white-space: nowrap; font-size: 0.8rem; font-weight: 700; padding: 0 12px; border-radius: 7px; border: 1px solid #cbd5e1; background: #f8fafc; cursor: pointer;" title="Auto-generate numeric barcode">
+                            ⚡ Generate
+                        </button>
                     </div>
                 </div>
 
