@@ -2802,6 +2802,8 @@ CREATE TABLE `users` (
   `username` varchar(50) NOT NULL,
   `email` varchar(100) NOT NULL,
   `password_hash` varchar(255) NOT NULL,
+  `pin` varchar(64) DEFAULT NULL,
+  `pin_hash` varchar(255) DEFAULT NULL,
   `full_name` varchar(100) NOT NULL,
   `phone` varchar(30) DEFAULT NULL,
   `role_id` int(10) unsigned NOT NULL,
@@ -2816,6 +2818,7 @@ CREATE TABLE `users` (
   KEY `idx_users_role` (`role_id`),
   KEY `idx_users_status` (`status`),
   KEY `idx_users_deleted` (`deleted_at`),
+  KEY `idx_users_pin` (`pin`),
   CONSTRAINT `fk_users_role` FOREIGN KEY (`role_id`) REFERENCES `roles` (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=10 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;

@@ -30,34 +30,90 @@ if (Auth::isLoggedIn()) {
 }
 
 $error = null;
+$csrfToken = Auth::generateCsrfToken();
+$isAjax = (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') ||
+          (isset($_POST['ajax']) && $_POST['ajax'] === '1');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $username = trim($_POST['username'] ?? '');
-    $password = trim($_POST['password'] ?? '');
+    $loginType = trim($_POST['login_type'] ?? 'password');
 
-    if (empty($username) || empty($password)) {
-        $error = 'Please enter both username and password.';
-    } else {
-        $result = Auth::attempt($username, $password);
-        if ($result['success']) {
-            if (!empty($returnUrl)) {
-                $_SESSION['return_url'] = $returnUrl;
+    if ($loginType === 'pin') {
+        $pin = trim($_POST['pin'] ?? '');
+        if (empty($pin)) {
+            $error = 'Please enter your 5-digit PIN.';
+            if ($isAjax) {
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode(['success' => false, 'message' => $error]);
+                exit();
             }
-            if (!empty($result['needs_branch_selection'])) {
-                header('Location: select_branch');
-            } else {
-                $target = !empty($returnUrl) ? $returnUrl : 'dashboard';
-                unset($_SESSION['return_url']);
-                header('Location: ' . $target);
-            }
-            exit();
         } else {
-            $error = $result['message'];
+            $result = Auth::attemptPin($pin);
+            if ($result['success']) {
+                if (!empty($returnUrl)) {
+                    $_SESSION['return_url'] = $returnUrl;
+                }
+                $target = (!empty($result['needs_branch_selection'])) ? 'select_branch' : (!empty($returnUrl) ? $returnUrl : 'dashboard');
+                if (empty($result['needs_branch_selection'])) {
+                    unset($_SESSION['return_url']);
+                }
+                if ($isAjax) {
+                    header('Content-Type: application/json; charset=utf-8');
+                    echo json_encode(['success' => true, 'redirect' => $target]);
+                    exit();
+                }
+                header('Location: ' . $target);
+                exit();
+            } else {
+                $error = $result['message'];
+                if ($isAjax) {
+                    header('Content-Type: application/json; charset=utf-8');
+                    echo json_encode(['success' => false, 'message' => $error]);
+                    exit();
+                }
+            }
+        }
+    } else {
+        $username = trim($_POST['username'] ?? '');
+        $password = trim($_POST['password'] ?? '');
+
+        if (empty($username) || empty($password)) {
+            $error = 'Please enter both username and password.';
+            if ($isAjax) {
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode(['success' => false, 'message' => $error]);
+                exit();
+            }
+        } else {
+            $result = Auth::attempt($username, $password);
+            if ($result['success']) {
+                if (!empty($returnUrl)) {
+                    $_SESSION['return_url'] = $returnUrl;
+                }
+                $target = (!empty($result['needs_branch_selection'])) ? 'select_branch' : (!empty($returnUrl) ? $returnUrl : 'dashboard');
+                if (empty($result['needs_branch_selection'])) {
+                    unset($_SESSION['return_url']);
+                }
+                if ($isAjax) {
+                    header('Content-Type: application/json; charset=utf-8');
+                    echo json_encode(['success' => true, 'redirect' => $target]);
+                    exit();
+                }
+                header('Location: ' . $target);
+                exit();
+            } else {
+                $error = $result['message'];
+                if ($isAjax) {
+                    header('Content-Type: application/json; charset=utf-8');
+                    echo json_encode(['success' => false, 'message' => $error]);
+                    exit();
+                }
+            }
         }
     }
 }
 
 View::renderBlank('auth/login', [
     'error' => $error,
-    'returnUrl' => $returnUrl
+    'returnUrl' => $returnUrl,
+    'csrfToken' => $csrfToken
 ], 'Login - Curtiss POS');

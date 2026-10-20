@@ -39,74 +39,138 @@ class Auth
                 return ['success' => false, 'message' => 'Invalid credentials or inactive account.'];
             }
 
-            // Update last_login_at
-            Database::execute("UPDATE users SET last_login_at = NOW() WHERE id = :id", [':id' => $user['id']]);
-
-            // Set Session Data
-            session_regenerate_id(true);
-            $_SESSION['user_id'] = (int)$user['id'];
-            $_SESSION['username'] = $user['username'];
-            $_SESSION['full_name'] = $user['full_name'];
-            $_SESSION['email'] = $user['email'];
-            $_SESSION['role_id'] = (int)$user['role_id'];
-            $_SESSION['role_name'] = $user['role_name'];
-            $_SESSION['role_code'] = $user['role_code'];
-            $_SESSION['last_activity'] = time();
-
-            // Load User Branches
-            $branches = self::getUserBranches((int)$user['id'], $user['role_code']);
-            $_SESSION['user_branches'] = $branches;
-
-            if (empty($branches)) {
-                self::logout();
-                return ['success' => false, 'message' => 'No active branch assigned to this account. Contact Administrator.'];
-            }
-
-            $isAdminOrSuperAdmin = in_array($user['role_code'], [ROLE_SUPER_ADMIN, ROLE_ADMIN], true);
-            $hasMultipleBranches = count($branches) > 1;
-
-            // Set default active branch
-            if (count($branches) === 1) {
-                $_SESSION['active_branch_id']   = (int)$branches[0]['id'];
-                $_SESSION['branch_id']          = (int)$branches[0]['id'];
-                $_SESSION['active_branch_name'] = $branches[0]['name'];
-                $_SESSION['active_branch_code'] = $branches[0]['code'];
-                $_SESSION['branch_selected']    = true;
-            } else {
-                // Determine initial fallback branch
-                $primary = array_values(array_filter($branches, fn($b) => $b['is_primary'] == 1));
-                $initial = !empty($primary) ? $primary[0] : $branches[0];
-
-                $_SESSION['active_branch_id']   = (int)$initial['id'];
-                $_SESSION['branch_id']          = (int)$initial['id'];
-                $_SESSION['active_branch_name'] = $initial['name'];
-                $_SESSION['active_branch_code'] = $initial['code'];
-
-                if ($isAdminOrSuperAdmin) {
-                    // Admin & Super Admin must explicitly choose an operating branch upon login
-                    $_SESSION['branch_selected'] = false;
-                } else {
-                    $_SESSION['branch_selected'] = true;
-                }
-            }
-
-            Audit::log('LOGIN_SUCCESS', 'auth', (string)$user['id'], null, [
-                'username' => $user['username'],
-                'active_branch' => $_SESSION['active_branch_name'] ?? 'None'
-            ]);
-
-            return [
-                'success' => true,
-                'multiple_branches' => $hasMultipleBranches,
-                'is_admin_or_superadmin' => $isAdminOrSuperAdmin,
-                'needs_branch_selection' => ($isAdminOrSuperAdmin && $hasMultipleBranches),
-                'user' => $user
-            ];
+            return self::setupSession($user);
 
         } catch (Throwable $e) {
             Logger::error("Authentication Attempt Failed: " . $e->getMessage(), $e);
             return ['success' => false, 'message' => 'Authentication service error: ' . $e->getMessage()];
         }
+    }
+
+    /**
+     * Authenticate user via Security PIN (POS Keypad Terminal)
+     */
+    public static function attemptPin(string $pin): array
+    {
+        try {
+            $pin = trim($pin);
+            if ($pin === '') {
+                return ['success' => false, 'message' => 'Please enter your PIN.'];
+            }
+
+            // 1. Direct indexed match on pin column
+            $user = Database::fetchOne("
+                SELECT u.id, u.username, u.email, u.password_hash, u.pin, u.pin_hash, u.full_name, u.role_id, u.status,
+                       r.name AS role_name, r.code AS role_code
+                FROM users u
+                INNER JOIN roles r ON u.role_id = r.id
+                WHERE u.pin = :pin
+                  AND u.status = 'active'
+                  AND u.deleted_at IS NULL
+                LIMIT 1
+            ", [':pin' => $pin]);
+
+            // 2. If no direct match on pin, check hash match
+            if (!$user) {
+                $candidates = Database::fetchAll("
+                    SELECT u.id, u.username, u.email, u.password_hash, u.pin, u.pin_hash, u.full_name, u.role_id, u.status,
+                           r.name AS role_name, r.code AS role_code
+                    FROM users u
+                    INNER JOIN roles r ON u.role_id = r.id
+                    WHERE u.pin_hash IS NOT NULL
+                      AND u.status = 'active'
+                      AND u.deleted_at IS NULL
+                    LIMIT 50
+                ");
+                foreach ($candidates as $candidate) {
+                    if (password_verify($pin, $candidate['pin_hash']) || hash_equals((string)$candidate['pin_hash'], (string)$pin)) {
+                        $user = $candidate;
+                        break;
+                    }
+                }
+            }
+
+            if (!$user) {
+                Audit::log('LOGIN_FAILED_BAD_PIN', 'auth', null, null, ['pin_length' => strlen($pin)]);
+                return ['success' => false, 'message' => 'Invalid PIN. Please try again.'];
+            }
+
+            return self::setupSession($user);
+
+        } catch (Throwable $e) {
+            Logger::error("PIN Authentication Attempt Failed: " . $e->getMessage(), $e);
+            return ['success' => false, 'message' => 'Authentication service error: ' . $e->getMessage()];
+        }
+    }
+
+    /**
+     * Helper to set up user session upon successful authentication
+     */
+    private static function setupSession(array $user): array
+    {
+        // Update last_login_at
+        Database::execute("UPDATE users SET last_login_at = NOW() WHERE id = :id", [':id' => $user['id']]);
+
+        // Set Session Data
+        session_regenerate_id(true);
+        $_SESSION['user_id'] = (int)$user['id'];
+        $_SESSION['username'] = $user['username'];
+        $_SESSION['full_name'] = $user['full_name'];
+        $_SESSION['email'] = $user['email'];
+        $_SESSION['role_id'] = (int)$user['role_id'];
+        $_SESSION['role_name'] = $user['role_name'];
+        $_SESSION['role_code'] = $user['role_code'];
+        $_SESSION['last_activity'] = time();
+
+        // Load User Branches
+        $branches = self::getUserBranches((int)$user['id'], $user['role_code']);
+        $_SESSION['user_branches'] = $branches;
+
+        if (empty($branches)) {
+            self::logout();
+            return ['success' => false, 'message' => 'No active branch assigned to this account. Contact Administrator.'];
+        }
+
+        $isAdminOrSuperAdmin = in_array($user['role_code'], [ROLE_SUPER_ADMIN, ROLE_ADMIN], true);
+        $hasMultipleBranches = count($branches) > 1;
+
+        // Set default active branch
+        if (count($branches) === 1) {
+            $_SESSION['active_branch_id']   = (int)$branches[0]['id'];
+            $_SESSION['branch_id']          = (int)$branches[0]['id'];
+            $_SESSION['active_branch_name'] = $branches[0]['name'];
+            $_SESSION['active_branch_code'] = $branches[0]['code'];
+            $_SESSION['branch_selected']    = true;
+        } else {
+            // Determine initial fallback branch
+            $primary = array_values(array_filter($branches, fn($b) => $b['is_primary'] == 1));
+            $initial = !empty($primary) ? $primary[0] : $branches[0];
+
+            $_SESSION['active_branch_id']   = (int)$initial['id'];
+            $_SESSION['branch_id']          = (int)$initial['id'];
+            $_SESSION['active_branch_name'] = $initial['name'];
+            $_SESSION['active_branch_code'] = $initial['code'];
+
+            if ($isAdminOrSuperAdmin) {
+                // Admin & Super Admin must explicitly choose an operating branch upon login
+                $_SESSION['branch_selected'] = false;
+            } else {
+                $_SESSION['branch_selected'] = true;
+            }
+        }
+
+        Audit::log('LOGIN_SUCCESS', 'auth', (string)$user['id'], null, [
+            'username' => $user['username'],
+            'active_branch' => $_SESSION['active_branch_name'] ?? 'None'
+        ]);
+
+        return [
+            'success' => true,
+            'multiple_branches' => $hasMultipleBranches,
+            'is_admin_or_superadmin' => $isAdminOrSuperAdmin,
+            'needs_branch_selection' => ($isAdminOrSuperAdmin && $hasMultipleBranches),
+            'user' => $user
+        ];
     }
 
     /**
