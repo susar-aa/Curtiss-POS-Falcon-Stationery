@@ -25,7 +25,7 @@ try {
     // Execute multi-query script
     $pdo->exec($sql);
     
-    echo "SUCCESS: Falcon POS database (falcon_pos) created and seeded successfully!\n";
+    echo "SUCCESS: Curtiss POS database (curtiss_pos) created and seeded successfully!\n";
     
 } catch (Exception $e) {
     echo "ERROR during migration: " . $e->getMessage() . "\n";

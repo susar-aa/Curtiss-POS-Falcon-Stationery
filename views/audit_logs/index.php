@@ -1,13 +1,95 @@
 <?php
 /**
  * Curtiss POS - Audit Logs View (Full Compliance & Security Trail)
+ * Standardized to Curtiss Master Rules:
+ * - Fixed screen viewport & internal scrolling (calc(100vh - 110px))
+ * - Sticky uppercase table headers
+ * - Standard 48px row heights & Curtiss zebra striping (rgba(248, 250, 252, 0.57))
+ * - Floating top-right header action bar (#curtiss-floating-header-right) with CSV Export
+ * - 34px inline filter controls with CurtissSearchableSelect comboboxes
+ * - Superadmin branch selector integration
+ * - Theme-matched 28px audit action badges & buttons
+ * - Full-row click for audit payload inspection modal
+ * - Realtime floating search via CurtissNav.enablePageSearch excluding action columns
+ * - Standard pagination limits (25, 50, 75, 100, 500)
  */
+
+$isSuperAdmin = Auth::hasRole(ROLE_SUPER_ADMIN);
+$exportQuery = http_build_query(array_merge($filters, ['export' => 'csv']));
 ?>
 <link rel="stylesheet" href="assets/css/curtiss_select.css">
 <script src="assets/js/curtiss_select.js"></script>
 
+<!-- Floating Top-Right Action Controls -->
+<div id="curtiss-floating-header-right" class="no-print" style="position: fixed; top: 16px; right: 20px; z-index: 1050; display: flex; align-items: center; gap: 8px;">
+    <a href="audit_logs?<?= $exportQuery ?>" class="inv-btn inv-btn-ghost" title="Export filtered audit logs to CSV format">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Export CSV
+    </a>
+</div>
+
 <style>
-/* Module-Specific Theme Styling for Audit Logs */
+/* ── Master Theme & Typography ── */
+.inv-title {
+    font-size: 1.35rem;
+    font-weight: 800;
+    color: #0f172a;
+    letter-spacing: -0.025em;
+    line-height: 1.2;
+    margin: 0;
+}
+
+/* ── Standard 34px Buttons ── */
+.inv-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 34px;
+    min-height: 34px;
+    padding: 0 14px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    border: 1px solid transparent;
+    cursor: pointer;
+    text-decoration: none;
+    transition: all 0.18s ease;
+    white-space: nowrap;
+    box-sizing: border-box;
+    font-family: inherit;
+}
+.inv-btn-primary {
+    background: #0f172a;
+    color: #ffffff;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.18);
+}
+.inv-btn-primary:hover {
+    background: #1e293b;
+    transform: translateY(-1px);
+}
+.inv-btn-ghost {
+    background: rgba(255, 255, 255, 0.95);
+    border-color: rgba(226, 232, 240, 0.9);
+    color: #0f172a;
+    backdrop-filter: blur(12px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+.inv-btn-ghost:hover {
+    background: #ffffff;
+    border-color: #cbd5e1;
+    transform: translateY(-1px);
+}
+.inv-btn-danger-ghost {
+    background: #fef2f2;
+    color: #dc2626;
+    border-color: #fca5a5;
+}
+.inv-btn-danger-ghost:hover {
+    background: #fee2e2;
+    border-color: #f87171;
+}
+
+/* ── Table Panel & Layout ── */
 .prod-table-panel {
     background: #ffffff;
     border-radius: 14px;
@@ -20,40 +102,47 @@
 .prod-table-scroll {
     overflow-y: auto;
     flex: 1;
+    min-height: 0;
 }
 .prod-table {
     width: 100%;
-    border-collapse: separate;
+    border-collapse: collapse;
     border-spacing: 0;
     font-family: inherit;
+    font-size: 12.5px;
 }
 .prod-table thead th {
     position: sticky;
     top: 0;
     z-index: 10;
+    height: 40px;
     background: #f8fafc;
-    color: #475569;
-    font-size: 11px;
+    color: #64748b;
+    font-size: 10px;
     font-weight: 800;
     text-transform: uppercase;
-    letter-spacing: 0.06em;
+    letter-spacing: 0.07em;
     padding: 10px 14px;
     border-bottom: 1px solid #e2e8f0;
     text-align: left;
     white-space: nowrap;
+    box-sizing: border-box;
 }
 .prod-table thead th.col-right,
-.prod-table td.col-right { text-align: right; }
+.prod-table td.col-right { text-align: right !important; }
 .prod-table thead th.col-center,
-.prod-table td.col-center { text-align: center; }
+.prod-table td.col-center { text-align: center !important; }
 
+/* ── 48px Row Height & Curtiss Zebra Striping ── */
 .prod-table tbody tr {
+    height: 48px;
+    min-height: 48px;
     border-bottom: 1px solid #f1f5f9;
     transition: background 0.12s ease;
     cursor: pointer;
 }
 .prod-table tbody tr:nth-child(even) {
-    background: rgba(248, 250, 252, 0.75);
+    background: rgba(248, 250, 252, 0.57);
 }
 .prod-table tbody tr:nth-child(odd) {
     background: #ffffff;
@@ -62,31 +151,37 @@
     background: #f1f5f9 !important;
 }
 .prod-table td {
-    padding: 8px 14px;
+    height: 48px;
+    padding: 0 14px;
     font-size: 12.5px;
     color: #1e293b;
     vertical-align: middle;
+    box-sizing: border-box;
 }
 
-/* Theme Action Badges */
+/* ── Theme 28px Badges & Action Buttons ── */
 .audit-badge {
     display: inline-flex;
     align-items: center;
-    gap: 5px;
-    padding: 3px 9px;
+    gap: 6px;
+    height: 28px;
+    min-height: 28px;
+    line-height: 26px;
+    padding: 0 12px;
     border-radius: 999px;
-    font-size: 10.5px;
-    font-weight: 700;
-    line-height: 1.2;
-    letter-spacing: 0.02em;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.03em;
     white-space: nowrap;
+    box-sizing: border-box;
+    user-select: none;
 }
-.audit-badge-create  { background: #dcfce7; color: #15803d; border: 1px solid rgba(22,163,74,0.3); }
-.audit-badge-update  { background: #e0f2fe; color: #0369a1; border: 1px solid rgba(2,132,199,0.3); }
-.audit-badge-delete  { background: #fee2e2; color: #b91c1c; border: 1px solid rgba(220,38,38,0.3); }
-.audit-badge-toggle  { background: #fef3c7; color: #b45309; border: 1px solid rgba(217,119,6,0.3); }
-.audit-badge-auth    { background: #f3e8ff; color: #6b21a8; border: 1px solid rgba(147,51,234,0.3); }
-.audit-badge-generic { background: #f1f5f9; color: #475569; border: 1px solid rgba(100,116,139,0.3); }
+.audit-badge-create  { background: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; }
+.audit-badge-update  { background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; }
+.audit-badge-delete  { background: #fee2e2; color: #b91c1c; border: 1px solid #fecaca; }
+.audit-badge-toggle  { background: #fef3c7; color: #b45309; border: 1px solid #fde68a; }
+.audit-badge-auth    { background: #f3e8ff; color: #6b21a8; border: 1px solid #e9d5ff; }
+.audit-badge-generic { background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; }
 
 .audit-badge .dot {
     width: 6px; height: 6px; border-radius: 50%; display: inline-block;
@@ -98,12 +193,14 @@
 .audit-badge-auth    .dot { background: #9333ea; }
 .audit-badge-generic .dot { background: #64748b; }
 
-/* Buttons */
 .prod-act-btn {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    padding: 5px 12px;
+    gap: 5px;
+    height: 28px;
+    min-height: 28px;
+    line-height: 26px;
+    padding: 0 12px;
     border-radius: 999px;
     font-size: 11px;
     font-weight: 700;
@@ -112,6 +209,8 @@
     transition: all 0.15s ease;
     font-family: inherit;
     text-decoration: none;
+    box-sizing: border-box;
+    white-space: nowrap;
 }
 .prod-act-edit {
     background: #f1f5f9;
@@ -122,8 +221,13 @@
     background: #e2e8f0;
     color: #0f172a;
 }
+.prod-act-primary {
+    background: #0f172a;
+    color: #ffffff;
+    border-color: #0f172a;
+}
 
-/* Glassmorphism Modal */
+/* ── Modal & JSON Viewer ── */
 .curtiss-modal-backdrop {
     display: none;
     position: fixed;
@@ -173,12 +277,24 @@
         <div>
             <div style="display: flex; align-items: center; gap: 8px;">
                 <div style="width: 8px; height: 8px; border-radius: 50%; background: #0f172a;"></div>
-                <h1 class="prod-title">System Audit Logs</h1>
+                <h1 class="inv-title">System Audit Logs</h1>
             </div>
         </div>
 
         <!-- Inline Filter Controls Above Table Right Corner (34px height) -->
         <form method="GET" action="audit_logs" id="auditFilterForm" style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0;">
+            <?php if ($isSuperAdmin && !empty($branches)): ?>
+            <div style="display: flex; align-items: center; gap: 5px;">
+                <span style="font-size: 11px; font-weight: 800; color: #64748b; text-transform: uppercase;">Branch:</span>
+                <select name="branch_id" id="filterBranch" onchange="this.form.submit()" style="height: 34px; min-height: 34px; padding: 0 12px; border-radius: 999px; font-size: 12px; font-weight: 700; background: #fff; border: 1px solid #cbd5e1; color: #0f172a;">
+                    <option value="">All Branches</option>
+                    <?php foreach ($branches as $b): ?>
+                        <option value="<?= (int)$b['id'] ?>" <?= ($filters['branch_id'] == $b['id']) ? 'selected' : '' ?>><?= View::escape($b['name']) ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <?php endif; ?>
+
             <div style="display: flex; align-items: center; gap: 5px;">
                 <span style="font-size: 11px; font-weight: 800; color: #64748b; text-transform: uppercase;">Module:</span>
                 <select name="module" id="filterModule" onchange="this.form.submit()" style="height: 34px; min-height: 34px; padding: 0 12px; border-radius: 999px; font-size: 12px; font-weight: 700; background: #fff; border: 1px solid #cbd5e1; color: #0f172a;">
@@ -209,8 +325,8 @@
                 <input type="date" name="date_to" value="<?= View::escape($filters['date_to']) ?>" onchange="this.form.submit()" style="height: 34px; min-height: 34px; padding: 0 10px; border-radius: 999px; font-size: 12px; font-weight: 700; background: #fff; border: 1px solid #cbd5e1; color: #0f172a;">
             </div>
 
-            <?php if (!empty($filters['module']) || !empty($filters['action']) || !empty($filters['date_from']) || !empty($filters['date_to']) || !empty($filters['search'])): ?>
-                <a href="audit_logs" class="prod-act-btn prod-act-edit" style="height: 34px; box-sizing: border-box; display: inline-flex; align-items: center;">Clear Filters</a>
+            <?php if (!empty($filters['module']) || !empty($filters['action']) || !empty($filters['branch_id']) || !empty($filters['date_from']) || !empty($filters['date_to']) || !empty($filters['search'])): ?>
+                <a href="audit_logs" class="inv-btn inv-btn-danger-ghost" title="Clear all active filters">Clear Filters</a>
             <?php endif; ?>
         </form>
     </div>
@@ -221,15 +337,15 @@
             <table class="prod-table" id="auditTable">
                 <thead>
                     <tr>
-                        <th style="width: 70px;"># ID</th>
+                        <th style="width: 75px;"># ID</th>
                         <th style="width: 150px;">Timestamp</th>
                         <th style="width: 140px;">User</th>
-                        <th style="width: 120px;">Branch</th>
+                        <th style="width: 130px;">Branch</th>
                         <th style="width: 110px;">Module</th>
                         <th style="width: 190px;">Action Event</th>
                         <th style="width: 90px;">Record ID</th>
                         <th style="width: 110px;">IP Address</th>
-                        <th style="text-align: right; width: 100px;">Details</th>
+                        <th class="col-right" style="width: 120px;">Details</th>
                     </tr>
                 </thead>
                 <tbody id="auditTableBody">
@@ -244,15 +360,15 @@
                             <?php
                                 $actionName = strtoupper($log['action']);
                                 $badgeClass = 'audit-badge-generic';
-                                if (str_contains($actionName, 'CREATED') || str_contains($actionName, 'ADDED') || str_contains($actionName, 'POSTED') || str_contains($actionName, 'RESTORED')) {
+                                if (str_contains($actionName, 'CREATED') || str_contains($actionName, 'ADDED') || str_contains($actionName, 'POSTED') || str_contains($actionName, 'RESTORED') || str_contains($actionName, 'SUCCESS')) {
                                     $badgeClass = 'audit-badge-create';
                                 } elseif (str_contains($actionName, 'UPDATED') || str_contains($actionName, 'MODIFIED')) {
                                     $badgeClass = 'audit-badge-update';
-                                } elseif (str_contains($actionName, 'DELETED') || str_contains($actionName, 'CANCELLED') || str_contains($actionName, 'REVERSED')) {
+                                } elseif (str_contains($actionName, 'DELETED') || str_contains($actionName, 'CANCELLED') || str_contains($actionName, 'REVERSED') || str_contains($actionName, 'FAILED')) {
                                     $badgeClass = 'audit-badge-delete';
                                 } elseif (str_contains($actionName, 'TOGGLED') || str_contains($actionName, 'STATUS')) {
                                     $badgeClass = 'audit-badge-toggle';
-                                } elseif (str_contains($actionName, 'LOGIN') || str_contains($actionName, 'LOGOUT') || str_contains($actionName, 'SESSION')) {
+                                } elseif (str_contains($actionName, 'LOGIN') || str_contains($actionName, 'LOGOUT') || str_contains($actionName, 'SESSION') || str_contains($actionName, 'AUTH')) {
                                     $badgeClass = 'audit-badge-auth';
                                 }
                             ?>
@@ -275,7 +391,7 @@
                                 <td style="font-weight: 700; color: #64748b;"><?= View::escape($log['record_id'] ?? '—') ?></td>
                                 <td style="font-size: 11.5px; color: #64748b; font-family: monospace;"><?= View::escape($log['ip_address'] ?? 'CLI') ?></td>
                                 <td class="col-right" onclick="event.stopPropagation();">
-                                    <button type="button" class="prod-act-btn prod-act-edit" onclick='viewAuditDetails(<?= json_encode($log, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>)'>
+                                    <button type="button" class="prod-act-btn prod-act-edit" onclick='event.stopPropagation(); viewAuditDetails(<?= json_encode($log, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>)'>
                                         View Payload
                                     </button>
                                 </td>
@@ -313,14 +429,14 @@
 </div>
 
 <!-- Glassmorphism Modal for Audit Payload Details -->
-<div id="auditModal" class="curtiss-modal-backdrop">
+<div id="auditModal" class="curtiss-modal-backdrop" onclick="handleBackdropClick(event)">
     <div class="curtiss-modal-card">
         <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid #f1f5f9; flex-shrink: 0;">
             <div style="display: flex; align-items: center; gap: 8px;">
                 <div style="width: 8px; height: 8px; border-radius: 50%; background: #0f172a;"></div>
                 <h3 id="modalTitle" style="font-size: 1.1rem; font-weight: 800; color: #0f172a; margin: 0;">Audit Record Details</h3>
             </div>
-            <button type="button" onclick="closeAuditModal()" style="background: none; border: none; color: #94a3b8; cursor: pointer; padding: 4px; display: flex; align-items: center; justify-content: center; transition: color 0.15s ease;">
+            <button type="button" onclick="closeAuditModal()" style="background: none; border: none; color: #94a3b8; cursor: pointer; padding: 4px; display: flex; align-items: center; justify-content: center; transition: color 0.15s ease;" title="Close Modal (Esc)">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
             </button>
         </div>
@@ -378,7 +494,7 @@
         </div>
 
         <div style="display: flex; justify-content: flex-end; padding-top: 14px; border-top: 1px solid #f1f5f9; margin-top: 12px; flex-shrink: 0;">
-            <button type="button" class="prod-act-btn prod-act-edit" onclick="closeAuditModal()">Close Panel</button>
+            <button type="button" class="inv-btn inv-btn-ghost" onclick="closeAuditModal()">Close Panel</button>
         </div>
     </div>
 </div>
@@ -389,10 +505,25 @@ document.addEventListener('DOMContentLoaded', function() {
     if (typeof CurtissSearchableSelect !== 'undefined') {
         const modEl = document.getElementById('filterModule');
         const actEl = document.getElementById('filterAction');
+        const brEl  = document.getElementById('filterBranch');
         if (modEl) CurtissSearchableSelect.attach(modEl);
         if (actEl) CurtissSearchableSelect.attach(actEl);
+        if (brEl)  CurtissSearchableSelect.attach(brEl);
     }
 });
+
+// ESC Key listener to close modal
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        closeAuditModal();
+    }
+});
+
+function handleBackdropClick(e) {
+    if (e.target.id === 'auditModal') {
+        closeAuditModal();
+    }
+}
 
 function viewAuditDetails(log) {
     document.getElementById('modalTitle').innerText = 'Audit Record #' + log.id;
@@ -461,16 +592,21 @@ function updatePagination() {
         }
     }
 
-    document.getElementById('pagStart').textContent = totalItems > 0 ? startIdx + 1 : 0;
-    document.getElementById('pagEnd').textContent = endIdx;
-    document.getElementById('pagTotal').textContent = totalItems;
+    const startEl = document.getElementById('pagStart');
+    const endEl   = document.getElementById('pagEnd');
+    const totalEl = document.getElementById('pagTotal');
+    if (startEl) startEl.textContent = totalItems > 0 ? startIdx + 1 : 0;
+    if (endEl)   endEl.textContent = endIdx;
+    if (totalEl) totalEl.textContent = totalItems;
 
     const navContainer = document.getElementById('pagNavBtns');
+    if (!navContainer) return;
     navContainer.innerHTML = '';
 
     const prevBtn = document.createElement('button');
+    prevBtn.type = 'button';
     prevBtn.className = 'prod-act-btn prod-act-edit';
-    prevBtn.style.padding = '4px 10px';
+    prevBtn.style.padding = '0 12px';
     prevBtn.disabled = currentPage === 1;
     prevBtn.innerHTML = `← Prev`;
     prevBtn.onclick = () => { if (currentPage > 1) { currentPage--; updatePagination(); } };
@@ -482,8 +618,9 @@ function updatePagination() {
 
     for (let p = startPage; p <= endPage; p++) {
         const pBtn = document.createElement('button');
+        pBtn.type = 'button';
         pBtn.className = 'prod-act-btn ' + (p === currentPage ? 'prod-act-primary' : 'prod-act-edit');
-        pBtn.style.padding = '4px 10px';
+        pBtn.style.padding = '0 10px';
         pBtn.style.minWidth = '28px';
         pBtn.style.justifyContent = 'center';
         if (p === currentPage) {
@@ -497,8 +634,9 @@ function updatePagination() {
     }
 
     const nextBtn = document.createElement('button');
+    nextBtn.type = 'button';
     nextBtn.className = 'prod-act-btn prod-act-edit';
-    nextBtn.style.padding = '4px 10px';
+    nextBtn.style.padding = '0 12px';
     nextBtn.disabled = currentPage === totalPages;
     nextBtn.innerHTML = `Next →`;
     nextBtn.onclick = () => { if (currentPage < totalPages) { currentPage++; updatePagination(); } };
@@ -513,13 +651,17 @@ function changePageSize() {
 
 document.addEventListener('DOMContentLoaded', updatePagination);
 
-/* ── Realtime Search in Floating Bottom Nav Bar ── */
+/* ── Realtime Search in Floating Bottom Nav Bar (Debounced 300ms) ── */
+let searchDebounceTimer = null;
 function registerBottomSearch() {
     if (window.CurtissNav && window.CurtissNav.enablePageSearch) {
         window.CurtissNav.enablePageSearch({
-            placeholder: 'Search audit logs...',
+            placeholder: 'Search audit logs (ID, User, Branch, Action, IP)...',
             onSearch: function(query) {
-                filterAuditRealtime(query);
+                clearTimeout(searchDebounceTimer);
+                searchDebounceTimer = setTimeout(() => {
+                    filterAuditRealtime(query);
+                }, 300);
             }
         });
     } else {
@@ -529,10 +671,11 @@ function registerBottomSearch() {
 registerBottomSearch();
 
 function filterAuditRealtime(query) {
-    const q = query.toLowerCase().trim();
+    const q = (query || '').toLowerCase().trim();
     const rows = document.querySelectorAll('#auditTable tbody tr');
     rows.forEach(tr => {
         if (tr.classList.contains('prod-empty')) return;
+        // Search all columns except the col-right actions column
         const searchableCells = Array.from(tr.querySelectorAll('td:not(.col-right)'));
         const text = searchableCells.map(td => td.textContent).join(' ').toLowerCase();
         if (!q || text.includes(q)) {

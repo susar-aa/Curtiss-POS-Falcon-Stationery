@@ -20,14 +20,12 @@ class Accounting
     const CODE_BANK = '1020';
     const CODE_BANK_ACCOUNT = '1020';
     const CODE_CARD_RECEIVABLE = '1030';
-    const CODE_KOKO_RECEIVABLE = '1032';
     const CODE_CHEQUES_HAND = '1035';
     const CODE_CUSTOMER_RECEIVABLE = '1040';
     const CODE_SUPPLIER_CREDIT = '1045';
     const CODE_EMPLOYEE_ADVANCES = '1048';
     const CODE_INVENTORY_ASSET = '1200';
     const CODE_DAMAGED_LOSS = '1250';
-    const CODE_VOUCHER_LIABILITY = '2010';
     const CODE_SUPPLIER_PAYABLE = '2020';
     const CODE_CHEQUES_ISSUED = '2025';
     const CODE_SALARY_PAYABLE = '2050';
@@ -77,61 +75,292 @@ class Accounting
     }
 
     /**
+     * Get all active Cash in Hand / Safe accounts from Chart of Accounts
+     * (including 1010 Main Safe and any manually added custom cash accounts like 1011)
+     */
+    public static function getCashAccounts(?int $branchId = null): array
+    {
+        try {
+            $branchClause = "";
+            $params = [];
+            if ($branchId !== null && $branchId > 0) {
+                $branchClause = " AND (branch_id IS NULL OR branch_id = :branch_id) ";
+                $params[':branch_id'] = $branchId;
+            } elseif ($branchId === null && isset($_SESSION['branch_id'])) {
+                $bId = (int)($_SESSION['branch_id'] ?? $_SESSION['active_branch_id'] ?? 1);
+                if ($bId > 0 && empty($_SESSION['all_branches_view'])) {
+                    $branchClause = " AND (branch_id IS NULL OR branch_id = :branch_id) ";
+                    $params[':branch_id'] = $bId;
+                }
+            }
+
+            return Database::fetchAll("
+                SELECT id, account_code, account_name, is_system, branch_id
+                FROM chart_of_accounts
+                WHERE status = 'active'
+                  AND account_type = 'asset'
+                  AND (
+                      account_code = '1010'
+                      OR account_code LIKE '101%'
+                      OR LOWER(account_name) LIKE '%cash in hand%'
+                      OR LOWER(account_name) LIKE '%cash safe%'
+                      OR LOWER(account_name) LIKE '%cash with%'
+                  )
+                  AND account_code NOT IN ('1012', '1015')
+                  $branchClause
+                ORDER BY 
+                  CASE WHEN account_code = '1010' THEN 0 ELSE 1 END,
+                  account_code ASC
+            ", $params);
+        } catch (Throwable $e) {
+            Logger::error("Failed to fetch cash accounts: " . $e->getMessage(), $e);
+            return [];
+        }
+    }
+
+    /**
+     * Resolve Chart of Accounts ID for any payment method / account string
+     * Supports standard keywords ('Cash in Hand', 'Cash Drawer', 'Petty Cash', 'Cheque', 'Bank Transfer'),
+     * 'Bank:ID', 'COA:ID/Code', and custom COA cash/bank account names (e.g. 'Cash in Hand (Buwaneka)').
+     */
+    public static function resolvePaymentAccountId(string $method, ?int $bankAccountId = null, ?int $explicitCoaId = null): int
+    {
+        if (!empty($explicitCoaId) && $explicitCoaId > 0) {
+            return (int)$explicitCoaId;
+        }
+
+        $cleanMethod = trim($method);
+        $lowerMethod = strtolower($cleanMethod);
+
+        // Check COA: prefix (e.g. 'COA:11' or 'COA:1011')
+        if (stripos($cleanMethod, 'COA:') === 0) {
+            $val = trim(substr($cleanMethod, 4));
+            if (is_numeric($val)) {
+                $acc = Database::fetchOne("SELECT id FROM chart_of_accounts WHERE (id = :id OR account_code = :code) AND status = 'active'", [':id' => (int)$val, ':code' => $val]);
+                if ($acc) return (int)$acc['id'];
+            }
+        }
+
+        // Check coa_ prefix (e.g. 'coa_11')
+        if (stripos($cleanMethod, 'coa_') === 0) {
+            $val = trim(substr($cleanMethod, 4));
+            if (is_numeric($val)) {
+                $acc = Database::fetchOne("SELECT id FROM chart_of_accounts WHERE (id = :id OR account_code = :code) AND status = 'active'", [':id' => (int)$val, ':code' => $val]);
+                if ($acc) return (int)$acc['id'];
+            }
+        }
+
+        // Check Bank: prefix (e.g. 'Bank:1')
+        if (stripos($cleanMethod, 'Bank:') === 0) {
+            $bId = (int)substr($cleanMethod, 5);
+            $bankAcc = Database::fetchOne("SELECT account_id FROM bank_accounts WHERE id = :id", [':id' => $bId]);
+            if ($bankAcc && !empty($bankAcc['account_id'])) return (int)$bankAcc['account_id'];
+            return self::getAccountIdByCode(self::CODE_BANK);
+        }
+
+        // Check Cheque: prefix (e.g. 'Cheque:1')
+        if (stripos($cleanMethod, 'Cheque:') === 0) {
+            return self::getAccountIdByCode(self::CODE_CHEQUES_ISSUED);
+        }
+
+        // Standard keywords
+        if ($lowerMethod === 'cash drawer' || $lowerMethod === 'cash_drawer') {
+            return self::getAccountIdByCode(self::CODE_CASH_DRAWER);
+        }
+        if ($lowerMethod === 'cash in hand' || $lowerMethod === 'cash_in_hand' || $lowerMethod === 'cash') {
+            return self::getAccountIdByCode(self::CODE_CASH_IN_HAND);
+        }
+        if ($lowerMethod === 'petty cash' || $lowerMethod === 'petty_cash') {
+            return self::getAccountIdByCode(self::CODE_PETTY_CASH);
+        }
+        if ($lowerMethod === 'cheque' || $lowerMethod === 'cheques') {
+            return self::getAccountIdByCode(self::CODE_CHEQUES_ISSUED);
+        }
+        if (in_array($lowerMethod, ['bank', 'bank transfer', 'bank_transfer'])) {
+            if (!empty($bankAccountId)) {
+                $bankAcc = Database::fetchOne("SELECT account_id FROM bank_accounts WHERE id = :id", [':id' => $bankAccountId]);
+                if ($bankAcc && !empty($bankAcc['account_id'])) return (int)$bankAcc['account_id'];
+            }
+            return self::getAccountIdByCode(self::CODE_BANK);
+        }
+        if ($lowerMethod === 'card') {
+            return self::getAccountIdByCode(self::CODE_CARD_RECEIVABLE);
+        }
+
+        // Lookup by exact COA account name or code (e.g. 'Cash in Hand (Buwaneka)' or '1011')
+        $matched = Database::fetchOne("
+            SELECT id FROM chart_of_accounts 
+            WHERE (LOWER(account_name) = LOWER(:m1) OR account_code = :m2) AND status = 'active'
+            LIMIT 1
+        ", [':m1' => $cleanMethod, ':m2' => $cleanMethod]);
+
+        if ($matched) {
+            return (int)$matched['id'];
+        }
+
+        // Fallback default
+        return self::getAccountIdByCode(self::CODE_CASH_IN_HAND);
+    }
+
+    /**
+     * Get all available payment accounts across the system (Cash accounts, Bank accounts, Cash Drawer, Petty Cash)
+     */
+    public static function getPaymentAccounts(?int $branchId = null): array
+    {
+        $cashAccounts = self::getCashAccounts($branchId);
+        $bankWhere = "ba.status = 'active' AND ba.deleted_at IS NULL";
+        $bankParams = [];
+        if ($branchId !== null && $branchId > 0) {
+            $bankWhere .= " AND (ba.branch_id IS NULL OR ba.branch_id = :branch_id)";
+            $bankParams[':branch_id'] = $branchId;
+        } elseif ($branchId === null && isset($_SESSION['branch_id'])) {
+            $bId = (int)($_SESSION['branch_id'] ?? $_SESSION['active_branch_id'] ?? 1);
+            if ($bId > 0 && empty($_SESSION['all_branches_view'])) {
+                $bankWhere .= " AND (ba.branch_id IS NULL OR ba.branch_id = :branch_id)";
+                $bankParams[':branch_id'] = $bId;
+            }
+        }
+        $bankAccounts = Database::fetchAll("
+            SELECT ba.id, ba.bank_name, ba.account_name, ba.account_number, ba.account_id, ba.branch_id
+            FROM bank_accounts ba
+            WHERE $bankWhere
+            ORDER BY ba.bank_name ASC
+        ", $bankParams);
+
+        $methods = [];
+        // Add Cash in Hand accounts (Main Safe + any custom cash accounts)
+        foreach ($cashAccounts as $ca) {
+            $isMain = ($ca['account_code'] === '1010');
+            $label = $isMain ? 'Cash in Hand (Main Safe)' : "{$ca['account_name']} ({$ca['account_code']})";
+            $key = $ca['account_name'];
+            $methods[] = [
+                'type'         => 'cash',
+                'key'          => $key,
+                'code'         => $ca['account_code'],
+                'label'        => $label,
+                'account_id'   => (int)$ca['id'],
+                'account_name' => $ca['account_name'],
+                'is_main'      => $isMain
+            ];
+        }
+
+        // Add Cash Drawer & Petty Cash
+        $methods[] = [
+            'type'         => 'drawer',
+            'key'          => 'Cash Drawer',
+            'code'         => '1012',
+            'label'        => 'Cash Drawer (POS Register)',
+            'account_id'   => self::getAccountIdByCode(self::CODE_CASH_DRAWER),
+            'account_name' => 'Cash Drawer'
+        ];
+        $methods[] = [
+            'type'         => 'petty_cash',
+            'key'          => 'Petty Cash',
+            'code'         => '1015',
+            'label'        => 'Petty Cash Account',
+            'account_id'   => self::getAccountIdByCode(self::CODE_PETTY_CASH),
+            'account_name' => 'Petty Cash'
+        ];
+
+        // Add Bank Accounts
+        foreach ($bankAccounts as $ba) {
+            $methods[] = [
+                'type'            => 'bank',
+                'key'             => "Bank:{$ba['id']}",
+                'bank_id'         => (int)$ba['id'],
+                'label'           => "Bank Transfer: {$ba['bank_name']} - {$ba['account_name']} ({$ba['account_number']})",
+                'account_id'      => (int)($ba['account_id'] ?? 0),
+                'bank_name'       => $ba['bank_name'],
+                'account_number'  => $ba['account_number']
+            ];
+        }
+
+        return [
+            'cash_accounts' => $cashAccounts,
+            'bank_accounts' => $bankAccounts,
+            'all_methods'   => $methods
+        ];
+    }
+
+    /**
      * List Chart of Accounts
      */
     public static function getCOA(array $filters = []): array
     {
         try {
-            $where = [];
+            $baseWhere = [];
             $params = [];
 
             if (!empty($filters['type'])) {
-                $where[] = "coa.account_type = :type";
+                $baseWhere[] = "coa.account_type = :type";
                 $params[':type'] = $filters['type'];
             }
 
             if (!empty($filters['status'])) {
-                $where[] = "coa.status = :status";
+                $baseWhere[] = "coa.status = :status";
                 $params[':status'] = $filters['status'];
             }
 
+            $jeBranchSql = "";
+            if (isset($filters['branch_id']) && $filters['branch_id'] !== '' && $filters['branch_id'] !== 'all') {
+                $baseWhere[] = "(coa.branch_id IS NULL OR coa.branch_id = :branch_id)";
+                $params[':branch_id'] = (int)$filters['branch_id'];
+                $jeBranchSql = "AND je.branch_id = :je_branch_id";
+                $params[':je_branch_id'] = (int)$filters['branch_id'];
+            }
+
+            $baseWhereSql = !empty($baseWhere) ? "WHERE " . implode(" AND ", $baseWhere) : "";
+
+            $outerWhere = [];
             if (!empty($filters['search'])) {
                 $searchVal = '%' . trim($filters['search']) . '%';
-                $where[] = "(coa.account_code LIKE :cs1 OR coa.account_name LIKE :cs2 OR coa.account_type LIKE :cs3 OR p.account_name LIKE :cs4)";
-                $params[':cs1'] = $searchVal;
-                $params[':cs2'] = $searchVal;
-                $params[':cs3'] = $searchVal;
-                $params[':cs4'] = $searchVal;
+                $outerWhere[] = "(
+                    sub.account_code LIKE :s1 OR 
+                    sub.account_name LIKE :s2 OR 
+                    sub.account_type LIKE :s3 OR 
+                    (sub.parent_name IS NOT NULL AND sub.parent_name LIKE :s4) OR 
+                    (sub.branch_name IS NOT NULL AND sub.branch_name LIKE :s5) OR 
+                    sub.status LIKE :s6 OR 
+                    (CASE WHEN sub.is_system = 1 THEN 'system' ELSE 'custom' END) LIKE :s7 OR 
+                    CAST(sub.current_balance AS CHAR) LIKE :s8 OR 
+                    FORMAT(sub.current_balance, 2) LIKE :s9 OR 
+                    CONCAT('LKR ', FORMAT(sub.current_balance, 2)) LIKE :s10
+                )";
+                for ($i = 1; $i <= 10; $i++) {
+                    $params[":s{$i}"] = $searchVal;
+                }
             }
 
-            if (isset($filters['branch_id']) && $filters['branch_id'] !== '') {
-                $where[] = "(coa.branch_id IS NULL OR coa.branch_id = :branch_id)";
-                $params[':branch_id'] = (int)$filters['branch_id'];
-            }
-
-            $whereSql = !empty($where) ? "WHERE " . implode(" AND ", $where) : "";
+            $outerWhereSql = !empty($outerWhere) ? "WHERE " . implode(" AND ", $outerWhere) : "";
 
             return Database::fetchAll("
-                SELECT 
-                    coa.*, 
-                    b.name AS branch_name, 
-                    p.account_name AS parent_name,
-                    COALESCE(
-                        SUM(
-                            CASE 
-                                WHEN coa.account_type IN ('asset', 'expense') THEN jl.debit - jl.credit
-                                ELSE jl.credit - jl.debit
-                            END
-                        ), 0.00
-                    ) AS current_balance
-                FROM chart_of_accounts coa
-                LEFT JOIN branches b ON coa.branch_id = b.id
-                LEFT JOIN chart_of_accounts p ON coa.parent_id = p.id
-                LEFT JOIN journal_lines jl ON coa.id = jl.account_id
-                LEFT JOIN journal_entries je ON jl.journal_entry_id = je.id AND je.posting_status = 'posted'
-                $whereSql
-                GROUP BY coa.id
-                ORDER BY coa.account_code ASC
+                SELECT * FROM (
+                    SELECT 
+                        coa.*, 
+                        b.name AS branch_name, 
+                        p.account_name AS parent_name,
+                        COALESCE(
+                            SUM(
+                                CASE 
+                                    WHEN coa.account_type IN ('asset', 'expense') THEN jl.debit - jl.credit
+                                    ELSE jl.credit - jl.debit
+                                END
+                            ), 0.00
+                        ) AS current_balance
+                    FROM chart_of_accounts coa
+                    LEFT JOIN branches b ON coa.branch_id = b.id
+                    LEFT JOIN chart_of_accounts p ON coa.parent_id = p.id
+                    LEFT JOIN (
+                        journal_lines jl
+                        INNER JOIN journal_entries je ON jl.journal_entry_id = je.id 
+                            AND je.posting_status = 'posted'
+                            $jeBranchSql
+                    ) ON coa.id = jl.account_id
+                    $baseWhereSql
+                    GROUP BY coa.id
+                ) sub
+                $outerWhereSql
+                ORDER BY sub.account_code ASC
             ", $params);
         } catch (Throwable $e) {
             Logger::error("Failed to list COA: " . $e->getMessage(), $e);
@@ -160,7 +389,7 @@ class Accounting
             $params = [':account_id' => $accountId];
 
             if ($branchId !== null && $branchId > 0) {
-                $where[] = "(je.branch_id = :branch_id OR coa.branch_id IS NULL)";
+                $where[] = "je.branch_id = :branch_id";
                 $params[':branch_id'] = (int)$branchId;
             }
 
@@ -233,15 +462,20 @@ class Accounting
                 return ['success' => false, 'message' => 'Valid code, name, and account type are required.'];
             }
 
-            $existing = Database::fetchOne("SELECT id FROM chart_of_accounts WHERE account_code = :code", [':code' => $code]);
-            if ($existing) {
+            $existingCode = Database::fetchOne("SELECT id FROM chart_of_accounts WHERE LOWER(account_code) = LOWER(:code)", [':code' => $code]);
+            if ($existingCode) {
                 return ['success' => false, 'message' => "Account code '{$code}' already exists."];
+            }
+
+            $existingName = Database::fetchOne("SELECT id FROM chart_of_accounts WHERE LOWER(account_name) = LOWER(:name)", [':name' => $name]);
+            if ($existingName) {
+                return ['success' => false, 'message' => "An account named '{$name}' already exists."];
             }
 
             $db = Database::getInstance()->getConnection();
             $stmt = $db->prepare("
-                INSERT INTO chart_of_accounts (account_code, account_name, account_type, parent_id, branch_id, is_system, status)
-                VALUES (:code, :name, :type, :parent_id, :branch_id, 0, 'active')
+                INSERT INTO chart_of_accounts (account_code, account_name, account_type, parent_id, branch_id, is_system, status, created_at, updated_at)
+                VALUES (:code, :name, :type, :parent_id, :branch_id, 0, 'active', NOW(), NOW())
             ");
 
             $stmt->execute([
@@ -276,12 +510,27 @@ class Accounting
                 return ['success' => false, 'message' => 'Account not found.'];
             }
 
-            if ($acc['is_system'] && isset($data['account_code']) && $data['account_code'] !== $acc['account_code']) {
-                return ['success' => false, 'message' => 'System account codes cannot be modified.'];
+            if ($acc['is_system']) {
+                if (isset($data['account_code']) && $data['account_code'] !== $acc['account_code']) {
+                    return ['success' => false, 'message' => 'System account codes cannot be modified.'];
+                }
+                if (isset($data['status']) && $data['status'] === 'inactive') {
+                    return ['success' => false, 'message' => 'System core accounts cannot be deactivated.'];
+                }
             }
 
             $name = trim($data['account_name'] ?? $acc['account_name']);
             $status = $data['status'] ?? $acc['status'];
+
+            if ($name !== $acc['account_name']) {
+                $dup = Database::fetchOne("SELECT id FROM chart_of_accounts WHERE LOWER(account_name) = LOWER(:name) AND id != :id", [
+                    ':name' => $name,
+                    ':id'   => $id
+                ]);
+                if ($dup) {
+                    return ['success' => false, 'message' => "Another account named '{$name}' already exists."];
+                }
+            }
 
             $db = Database::getInstance()->getConnection();
             $stmt = $db->prepare("
@@ -310,6 +559,42 @@ class Accounting
     }
 
     /**
+     * Toggle COA account status (System accounts strictly protected)
+     */
+    public static function toggleAccountStatus(int $id, int $userId): array
+    {
+        try {
+            $acc = Database::fetchOne("SELECT * FROM chart_of_accounts WHERE id = :id", [':id' => $id]);
+            if (!$acc) {
+                return ['success' => false, 'message' => 'Account not found.'];
+            }
+            if ($acc['is_system']) {
+                return ['success' => false, 'message' => 'System core accounts cannot be deactivated.'];
+            }
+
+            $newStatus = ($acc['status'] === 'active') ? 'inactive' : 'active';
+            $db = Database::getInstance()->getConnection();
+            $stmt = $db->prepare("UPDATE chart_of_accounts SET status = :status, updated_at = NOW() WHERE id = :id");
+            $stmt->execute([':status' => $newStatus, ':id' => $id]);
+
+            Audit::log('COA_ACCOUNT_STATUS_TOGGLED', 'accounting', (string)$id, [
+                'status' => $acc['status']
+            ], [
+                'status' => $newStatus
+            ]);
+
+            return [
+                'success'    => true,
+                'new_status' => $newStatus,
+                'message'    => "Account '{$acc['account_name']}' status set to " . ucfirst($newStatus) . "."
+            ];
+        } catch (Throwable $e) {
+            Logger::error("Failed to toggle COA account #{$id} status: " . $e->getMessage(), $e);
+            return ['success' => false, 'message' => 'Failed to toggle account status: ' . $e->getMessage()];
+        }
+    }
+
+    /**
      * Delete COA Account (Protected against System accounts & Accounts with Journal/Sub-ledger History)
      */
     public static function deleteAccount(int $id, int $userId): array
@@ -324,7 +609,7 @@ class Accounting
             $systemCodes = [
                 self::CODE_CASH, self::CODE_PETTY_CASH, self::CODE_BANK, self::CODE_CARD_RECEIVABLE,
                 self::CODE_CHEQUES_HAND, self::CODE_CUSTOMER_RECEIVABLE, self::CODE_SUPPLIER_CREDIT,
-                self::CODE_INVENTORY_ASSET, self::CODE_DAMAGED_LOSS, self::CODE_VOUCHER_LIABILITY,
+                self::CODE_INVENTORY_ASSET, self::CODE_DAMAGED_LOSS,
                 self::CODE_SUPPLIER_PAYABLE, self::CODE_CHEQUES_ISSUED, self::CODE_EQUITY,
                 self::CODE_SALES_REVENUE, self::CODE_SALES_RETURNS, self::CODE_OTHER_INCOME,
                 self::CODE_COGS, self::CODE_INVENTORY_ADJUSTMENTS, self::CODE_DISCOUNTS,
@@ -420,10 +705,39 @@ class Accounting
 
             // Check duplicate posting if source_type & source_id are specified (except manual/reversal)
             if ($sourceId !== null && !in_array($sourceType, ['manual', 'reversal'])) {
-                $existing = Database::fetchOne("
-                    SELECT id, entry_number FROM journal_entries 
-                    WHERE source_type = :stype AND source_id = :sid AND posting_status = 'posted' FOR UPDATE
-                ", [':stype' => $sourceType, ':sid' => $sourceId]);
+                if ($sourceType === 'opening_balance') {
+                    // Opening balance entries originate from products, bank accounts, or suppliers with potentially overlapping numeric IDs.
+                    // Verify the primary non-equity account in journal_lines so Product #2 does not collide with Bank Account #2!
+                    $equityAccId = (int)(self::getAccountIdByCode(self::CODE_EQUITY) ?? 0);
+                    $primaryAccountIds = [];
+                    foreach ($lines as $ln) {
+                        $accId = (int)($ln['account_id'] ?? 0);
+                        if ($accId > 0 && $accId !== $equityAccId) {
+                            $primaryAccountIds[] = $accId;
+                        }
+                    }
+
+                    if (!empty($primaryAccountIds)) {
+                        $inCl = implode(',', array_fill(0, count($primaryAccountIds), '?'));
+                        $existing = Database::fetchOne("
+                            SELECT je.id, je.entry_number 
+                            FROM journal_entries je
+                            JOIN journal_lines jl ON jl.journal_entry_id = je.id
+                            WHERE je.source_type = 'opening_balance' 
+                              AND je.source_id = ? 
+                              AND je.posting_status = 'posted'
+                              AND jl.account_id IN ($inCl)
+                            LIMIT 1 FOR UPDATE
+                        ", array_merge([$sourceId], $primaryAccountIds));
+                    } else {
+                        $existing = null;
+                    }
+                } else {
+                    $existing = Database::fetchOne("
+                        SELECT id, entry_number FROM journal_entries 
+                        WHERE source_type = :stype AND source_id = :sid AND posting_status = 'posted' FOR UPDATE
+                    ", [':stype' => $sourceType, ':sid' => $sourceId]);
+                }
 
                 if ($existing) {
                     if (!$inTransaction) $db->rollBack();
@@ -545,12 +859,13 @@ class Accounting
             ]);
 
             return [
-                'success'      => true,
-                'journal_id'   => $journalId,
-                'entry_number' => $entryNumber,
-                'total_debit'  => $totalDebit,
-                'total_credit' => $totalCredit,
-                'message'      => "Journal Entry {$entryNumber} posted successfully."
+                'success'          => true,
+                'journal_id'       => $journalId,
+                'journal_entry_id' => $journalId,
+                'entry_number'     => $entryNumber,
+                'total_debit'      => $totalDebit,
+                'total_credit'     => $totalCredit,
+                'message'          => "Journal Entry {$entryNumber} posted successfully."
             ];
 
         } catch (Throwable $e) {
@@ -567,6 +882,10 @@ class Accounting
      */
     public static function reverseJournalEntry(int $journalId, string $reason, int $userId): array
     {
+        if (empty(trim($reason))) {
+            return ['success' => false, 'message' => 'Reversal reason is required.'];
+        }
+
         $db = Database::getInstance()->getConnection();
         $inTransaction = $db->inTransaction();
 
@@ -738,32 +1057,11 @@ class Accounting
 
             $apAccId = self::getAccountIdByCode(self::CODE_SUPPLIER_PAYABLE);
 
-            // Determine payment account
-            $method = strtolower($pmt['payment_method']);
-            if ($method === 'cash drawer' || $method === 'cash_drawer') {
-                $creditAccId = self::getAccountIdByCode(self::CODE_CASH_DRAWER);
-            } elseif ($method === 'cash in hand' || $method === 'cash_in_hand' || $method === 'cash') {
-                $creditAccId = self::getAccountIdByCode(self::CODE_CASH_IN_HAND);
-            } elseif ($method === 'petty cash' || $method === 'petty_cash') {
-                $creditAccId = self::getAccountIdByCode(self::CODE_PETTY_CASH);
-            } elseif ($method === 'cheque') {
-                $creditAccId = self::getAccountIdByCode(self::CODE_CHEQUES_ISSUED);
-            } elseif (in_array($method, ['bank', 'bank_transfer'])) {
-                if (!empty($pmt['bank_account_id'])) {
-                    $bankAcc = Database::fetchOne("SELECT account_id FROM bank_accounts WHERE id = :bid", [':bid' => $pmt['bank_account_id']]);
-                    if ($bankAcc && !empty($bankAcc['account_id'])) {
-                        $creditAccId = (int)$bankAcc['account_id'];
-                    } else {
-                        $creditAccId = self::getAccountIdByCode(self::CODE_BANK);
-                    }
-                } else {
-                    $creditAccId = self::getAccountIdByCode(self::CODE_BANK);
-                }
-            } elseif ($method === 'card') {
-                $creditAccId = self::getAccountIdByCode(self::CODE_CARD_RECEIVABLE);
-            } else {
-                $creditAccId = self::getAccountIdByCode(self::CODE_CASH_IN_HAND);
-            }
+            // Determine payment account (Cash in Hand, custom COA cash, Bank Transfer, Drawer, etc.)
+            $creditAccId = self::resolvePaymentAccountId(
+                $pmt['payment_method'],
+                !empty($pmt['bank_account_id']) ? (int)$pmt['bank_account_id'] : null
+            );
 
             $header = [
                 'branch_id'   => (int)$pmt['branch_id'],
@@ -837,9 +1135,7 @@ class Accounting
             $cashAccId       = self::getAccountIdByCode(self::CODE_CASH_DRAWER); // 1012 Cash Drawer for POS sales
             $cashInHandAccId = self::getAccountIdByCode(self::CODE_CASH_IN_HAND);
             $cardAccId       = self::getAccountIdByCode(self::CODE_CARD_RECEIVABLE);
-            $kokoAccId       = self::getAccountIdByCode(self::CODE_KOKO_RECEIVABLE);
             $bankAccId       = self::getAccountIdByCode(self::CODE_BANK);
-            $voucherAccId    = self::getAccountIdByCode(self::CODE_VOUCHER_LIABILITY);
             $arAccId         = self::getAccountIdByCode(self::CODE_CUSTOMER_RECEIVABLE);
             $revAccId        = self::getAccountIdByCode(self::CODE_SALES_REVENUE);
             $cogsAccId       = self::getAccountIdByCode(self::CODE_COGS);
@@ -848,27 +1144,39 @@ class Accounting
 
             // Calculate Gross Sales, Total Item Cost, Total Discounts
             $grossSales = 0.00;
+            $productRevenue = 0.00;
+            $voucherLiability = 0.00;
             $totalCost  = 0.00;
             $itemDiscounts = 0.00;
 
             foreach ($items as $item) {
                 $qty = (float)$item['quantity'];
-                $unitPrice = (float)$item['unit_price'];
+                $unitPrice = (float)($item['original_price'] > 0 ? $item['original_price'] : $item['unit_price']);
                 $unitCost = (float)$item['unit_cost'];
-                $lineDisc = (float)($item['discount_amount'] ?? 0);
+                $lineDisc = (float)($item['discount_amount'] ?? 0) + (float)($item['promo_discount_amount'] ?? 0);
+                $lineGross = ($unitPrice * $qty);
 
-                $grossSales += ($unitPrice * $qty);
-                $totalCost += ($unitCost * $qty);
+                $grossSales += $lineGross;
                 $itemDiscounts += $lineDisc;
+                $productRevenue += $lineGross;
+                $totalCost += ($unitCost * $qty);
             }
 
             $grossSales = round($grossSales, 2);
+            $productRevenue = round($productRevenue, 2);
             $totalCost = round($totalCost, 2);
             $itemDiscounts = round($itemDiscounts, 2);
 
-            $headerDiscount = round((float)($sale['discount_amount'] ?? 0), 2);
+            $itemPromoTotal = array_sum(array_column($items, 'promo_discount_amount'));
+            $invoicePromo = max(0.00, round((float)($sale['promo_discount_amount'] ?? 0) - $itemPromoTotal, 2));
+            $headerDiscount = round((float)($sale['discount_amount'] ?? 0) + $invoicePromo, 2);
             $totalDiscount  = round($itemDiscounts + $headerDiscount, 2);
             $grandTotal     = round((float)($sale['total_amount'] ?? $sale['grand_total'] ?? 0), 2);
+
+            // Precision balance guarantee
+            if (abs(($grossSales - $totalDiscount) - $grandTotal) > 0.001) {
+                $totalDiscount = round(max(0.00, $grossSales - $grandTotal), 2);
+            }
 
             $journalLines = [];
 
@@ -895,11 +1203,6 @@ class Accounting
                 } elseif ($pMethod === 'card') {
                     $paidTotal += $pAmount;
                     $journalLines[] = ['account_id' => $cardAccId, 'debit' => $pAmount, 'credit' => 0.00, 'memo' => "Card payment"];
-                } elseif ($pMethod === 'koko' || $pMethod === 'kokopay' || $pMethod === 'koko_pay') {
-                    $paidTotal += $pAmount;
-                    $targetKokoAccId = $kokoAccId ?: $cardAccId;
-                    $refStr = !empty($p['reference_no']) ? " (Ref: {$p['reference_no']})" : "";
-                    $journalLines[] = ['account_id' => $targetKokoAccId, 'debit' => $pAmount, 'credit' => 0.00, 'memo' => "KOKO BNPL payment{$refStr}"];
                 } elseif (in_array($pMethod, ['bank', 'bank_transfer', 'cheque'], true)) {
                     $paidTotal += $pAmount;
                     $targetBankCoaId = $bankAccId;
@@ -912,9 +1215,6 @@ class Accounting
                         }
                     }
                     $journalLines[] = ['account_id' => $targetBankCoaId, 'debit' => $pAmount, 'credit' => 0.00, 'memo' => "Bank payment"];
-                } elseif ($pMethod === 'voucher') {
-                    $paidTotal += $pAmount;
-                    $journalLines[] = ['account_id' => $voucherAccId, 'debit' => $pAmount, 'credit' => 0.00, 'memo' => "Voucher redemption"];
                 } elseif ($pMethod === 'on_account' || $pMethod === 'credit') {
                     $paidTotal += $pAmount;
                     $journalLines[] = ['account_id' => $arAccId, 'debit' => $pAmount, 'credit' => 0.00, 'memo' => "Credit sale"];
@@ -938,8 +1238,10 @@ class Accounting
                 $journalLines[] = ['account_id' => $discAccId, 'debit' => $totalDiscount, 'credit' => 0.00, 'memo' => "Sales Discount"];
             }
 
-            // Gross Sales Revenue line
-            $journalLines[] = ['account_id' => $revAccId, 'debit' => 0.00, 'credit' => $grossSales, 'memo' => "Gross Sales Revenue"];
+            // Gross Sales Revenue line (for physical products)
+            if ($productRevenue > 0.00) {
+                $journalLines[] = ['account_id' => $revAccId, 'debit' => 0.00, 'credit' => $productRevenue, 'memo' => "Gross Sales Revenue"];
+            }
 
             // Exact Lot COGS & Inventory lines
             if ($totalCost > 0.00) {
@@ -1002,33 +1304,11 @@ class Accounting
 
             $arAccId = self::getAccountIdByCode(self::CODE_CUSTOMER_RECEIVABLE);
 
-            $method = strtolower($pmt['payment_method'] ?? 'cash');
-            if ($method === 'cash drawer' || $method === 'cash_drawer') {
-                $debitAccId = self::getAccountIdByCode(self::CODE_CASH_DRAWER);
-            } elseif ($method === 'cash in hand' || $method === 'cash_in_hand' || $method === 'cash') {
-                $debitAccId = self::getAccountIdByCode(self::CODE_CASH_IN_HAND);
-            } elseif ($method === 'petty cash' || $method === 'petty_cash') {
-                $debitAccId = self::getAccountIdByCode(self::CODE_PETTY_CASH);
-            } elseif ($method === 'card') {
-                $debitAccId = self::getAccountIdByCode(self::CODE_CARD_RECEIVABLE);
-            } elseif ($method === 'cheque') {
-                $debitAccId = self::getAccountIdByCode(self::CODE_CHEQUES_HAND);
-            } elseif (in_array($method, ['bank', 'bank_transfer'])) {
-                if (!empty($pmt['bank_account_id'])) {
-                    $bankAcc = Database::fetchOne("SELECT account_id FROM bank_accounts WHERE id = :bid", [':bid' => $pmt['bank_account_id']]);
-                    if ($bankAcc && !empty($bankAcc['account_id'])) {
-                        $debitAccId = (int)$bankAcc['account_id'];
-                    } else {
-                        $debitAccId = self::getAccountIdByCode(self::CODE_BANK);
-                    }
-                } else {
-                    $debitAccId = self::getAccountIdByCode(self::CODE_BANK);
-                }
-            } elseif ($method === 'voucher') {
-                $debitAccId = self::getAccountIdByCode(self::CODE_VOUCHER_LIABILITY);
-            } else {
-                $debitAccId = self::getAccountIdByCode(self::CODE_CASH_IN_HAND);
-            }
+            // Determine payment collection account (Cash in Hand, custom COA cash, Bank Transfer, Drawer, etc.)
+            $debitAccId = self::resolvePaymentAccountId(
+                $pmt['payment_method'] ?? 'Cash in Hand',
+                !empty($pmt['bank_account_id']) ? (int)$pmt['bank_account_id'] : null
+            );
 
             $refNo = $pmt['reference_no'] ?? ($pmt['receipt_number'] ?? $paymentId);
 
@@ -1166,7 +1446,6 @@ class Accounting
             $cashAccId       = self::getAccountIdByCode(self::CODE_CASH);
             $cardAccId       = self::getAccountIdByCode(self::CODE_CARD_RECEIVABLE);
             $bankAccId       = self::getAccountIdByCode(self::CODE_BANK);
-            $voucherAccId    = self::getAccountIdByCode(self::CODE_VOUCHER_LIABILITY);
             $arAccId         = self::getAccountIdByCode(self::CODE_CUSTOMER_RECEIVABLE);
             $returnsAccId    = self::getAccountIdByCode(self::CODE_SALES_RETURNS);
             $cogsAccId       = self::getAccountIdByCode(self::CODE_COGS);
@@ -1284,12 +1563,11 @@ class Accounting
                             }
                         }
                         $journalLines[] = ['account_id' => $targetBankCoaId, 'debit' => 0.00, 'credit' => $rpAmount, 'memo' => ucfirst($method) . " refund"];
-                    } elseif ($method === 'voucher' || $method === 'gift_voucher') {
-                        $journalLines[] = ['account_id' => $voucherAccId, 'debit' => 0.00, 'credit' => $rpAmount, 'memo' => "Gift Voucher issued"];
                     } elseif ($method === 'customer_credit' || $method === 'credit' || $method === 'exchange' || $method === 'store_credit') {
                         $journalLines[] = ['account_id' => $arAccId, 'debit' => 0.00, 'credit' => $rpAmount, 'memo' => "Customer credit adjustment"];
                     } else {
-                        $journalLines[] = ['account_id' => $cashAccId, 'debit' => 0.00, 'credit' => $rpAmount, 'memo' => "Refund ({$method})"];
+                        $resolvedAccId = self::resolvePaymentAccountId($method, !empty($rp['bank_account_id']) ? (int)$rp['bank_account_id'] : null);
+                        $journalLines[] = ['account_id' => $resolvedAccId, 'debit' => 0.00, 'credit' => $rpAmount, 'memo' => "Refund ({$method})"];
                     }
                 }
 
@@ -1438,21 +1716,8 @@ class Accounting
                 }
             }
 
-            // 4. Customer Collections
-            $custPmts = Database::fetchAll("SELECT id FROM customer_credit_ledger WHERE transaction_type = 'payment' ORDER BY id ASC");
-            foreach ($custPmts as $cp) {
-                $res = self::postCustomerCollection((int)$cp['id']);
-                if ($res['success']) {
-                    if (!empty($res['already_posted'])) {
-                        $stats['skipped']++;
-                    } else {
-                        $stats['customer_collections_posted']++;
-                        $stats['total_posted']++;
-                    }
-                } else {
-                    $stats['errors'][] = "Customer Collection #{$cp['id']}: " . $res['message'];
-                }
-            }
+            // 4. Customer Collections (Disabled - Customer Credit removed)
+            // Customer credit system removed
 
             // 5. Completed Sales Returns
             $returns = Database::fetchAll("SELECT id FROM sales_returns ORDER BY id ASC");
@@ -1720,31 +1985,26 @@ class Accounting
                     "CAST(je.total_credit AS CHAR) LIKE :s10",
                     "FORMAT(je.total_debit, 2) LIKE :s11",
                     "FORMAT(je.total_credit, 2) LIKE :s12",
+                    "CONCAT('LKR ', FORMAT(je.total_debit, 2)) LIKE :s13",
+                    "CONCAT('LKR ', FORMAT(je.total_credit, 2)) LIKE :s14",
                     "EXISTS (
                         SELECT 1 FROM journal_lines jl_s 
                         JOIN chart_of_accounts coa_s ON jl_s.account_id = coa_s.id 
                         WHERE jl_s.journal_entry_id = je.id 
                         AND (
-                            coa_s.account_code LIKE :s13 
-                            OR coa_s.account_name LIKE :s14 
-                            OR jl_s.memo LIKE :s15
-                            OR CAST(jl_s.debit AS CHAR) LIKE :s16
-                            OR CAST(jl_s.credit AS CHAR) LIKE :s17
-                            OR FORMAT(jl_s.debit, 2) LIKE :s18
-                            OR FORMAT(jl_s.credit, 2) LIKE :s19
+                            coa_s.account_code LIKE :s15 
+                            OR coa_s.account_name LIKE :s16 
+                            OR jl_s.memo LIKE :s17
+                            OR CAST(jl_s.debit AS CHAR) LIKE :s18
+                            OR CAST(jl_s.credit AS CHAR) LIKE :s19
+                            OR FORMAT(jl_s.debit, 2) LIKE :s20
+                            OR FORMAT(jl_s.credit, 2) LIKE :s21
+                            OR CONCAT('LKR ', FORMAT(jl_s.debit, 2)) LIKE :s22
+                            OR CONCAT('LKR ', FORMAT(jl_s.credit, 2)) LIKE :s23
                         )
                     )"
                 ];
 
-                if ($searchCleanNum !== '' && is_numeric($searchCleanNum)) {
-                    $conds[] = "CAST(je.total_debit AS CHAR) LIKE :s20";
-                    $conds[] = "CAST(je.total_credit AS CHAR) LIKE :s21";
-                    $conds[] = "FORMAT(je.total_debit, 2) LIKE :s22";
-                    $conds[] = "FORMAT(je.total_credit, 2) LIKE :s23";
-                }
-
-                $where[] = "(" . implode(" OR ", $conds) . ")";
-                
                 $params[':s1']  = $searchVal;
                 $params[':s2']  = $searchVal;
                 $params[':s3']  = $searchVal;
@@ -1764,13 +2024,25 @@ class Accounting
                 $params[':s17'] = $searchVal;
                 $params[':s18'] = $searchVal;
                 $params[':s19'] = $searchVal;
+                $params[':s20'] = $searchVal;
+                $params[':s21'] = $searchVal;
+                $params[':s22'] = $searchVal;
+                $params[':s23'] = $searchVal;
+
                 if ($searchCleanNum !== '' && is_numeric($searchCleanNum)) {
+                    $conds[] = "CAST(je.total_debit AS CHAR) LIKE :s24";
+                    $conds[] = "CAST(je.total_credit AS CHAR) LIKE :s25";
+                    $conds[] = "REPLACE(FORMAT(je.total_debit, 2), ',', '') LIKE :s26";
+                    $conds[] = "REPLACE(FORMAT(je.total_credit, 2), ',', '') LIKE :s27";
+                    
                     $numVal = '%' . $searchCleanNum . '%';
-                    $params[':s20'] = $numVal;
-                    $params[':s21'] = $numVal;
-                    $params[':s22'] = $numVal;
-                    $params[':s23'] = $numVal;
+                    $params[':s24'] = $numVal;
+                    $params[':s25'] = $numVal;
+                    $params[':s26'] = $numVal;
+                    $params[':s27'] = $numVal;
                 }
+
+                $where[] = "(" . implode(" OR ", $conds) . ")";
             }
 
             $whereSql = !empty($where) ? "WHERE " . implode(" AND ", $where) : "";
@@ -1784,7 +2056,8 @@ class Accounting
             ", $params);
 
             $totalItems = (int)($countRow['total'] ?? 0);
-            $offset = ($page - 1) * $limit;
+            $limit = max(1, min(500, (int)$limit));
+            $offset = (int)(($page - 1) * $limit);
 
             $items = Database::fetchAll("
                 SELECT 
@@ -1795,7 +2068,7 @@ class Accounting
                 LEFT JOIN branches b ON je.branch_id = b.id
                 LEFT JOIN users u ON je.created_by = u.id
                 $whereSql
-                ORDER BY je.id DESC
+                ORDER BY je.entry_date DESC, je.id DESC
                 LIMIT $limit OFFSET $offset
             ", $params);
 
@@ -1901,17 +2174,20 @@ class Accounting
                     "je.description LIKE :gs6",
                     "jl.memo LIKE :gs7",
                     "b.name LIKE :gs8",
-                    "CAST(jl.debit AS CHAR) LIKE :gs9",
-                    "CAST(jl.credit AS CHAR) LIKE :gs10",
-                    "FORMAT(jl.debit, 2) LIKE :gs11",
-                    "FORMAT(jl.credit, 2) LIKE :gs12"
+                    "je.source_type LIKE :gs9",
+                    "CAST(jl.debit AS CHAR) LIKE :gs10",
+                    "CAST(jl.credit AS CHAR) LIKE :gs11",
+                    "FORMAT(jl.debit, 2) LIKE :gs12",
+                    "FORMAT(jl.credit, 2) LIKE :gs13",
+                    "CONCAT('LKR ', FORMAT(jl.debit, 2)) LIKE :gs14",
+                    "CONCAT('LKR ', FORMAT(jl.credit, 2)) LIKE :gs15"
                 ];
 
                 if ($searchCleanNum !== '' && is_numeric($searchCleanNum)) {
-                    $conds[] = "CAST(jl.debit AS CHAR) LIKE :gs13";
-                    $conds[] = "CAST(jl.credit AS CHAR) LIKE :gs14";
-                    $conds[] = "FORMAT(jl.debit, 2) LIKE :gs15";
-                    $conds[] = "FORMAT(jl.credit, 2) LIKE :gs16";
+                    $conds[] = "CAST(jl.debit AS CHAR) LIKE :gs16";
+                    $conds[] = "CAST(jl.credit AS CHAR) LIKE :gs17";
+                    $conds[] = "FORMAT(jl.debit, 2) LIKE :gs18";
+                    $conds[] = "FORMAT(jl.credit, 2) LIKE :gs19";
                 }
 
                 $where[] = "(" . implode(" OR ", $conds) . ")";
@@ -1928,12 +2204,15 @@ class Accounting
                 $params[':gs10'] = $searchVal;
                 $params[':gs11'] = $searchVal;
                 $params[':gs12'] = $searchVal;
+                $params[':gs13'] = $searchVal;
+                $params[':gs14'] = $searchVal;
+                $params[':gs15'] = $searchVal;
                 if ($searchCleanNum !== '' && is_numeric($searchCleanNum)) {
                     $numVal = '%' . $searchCleanNum . '%';
-                    $params[':gs13'] = $numVal;
-                    $params[':gs14'] = $numVal;
-                    $params[':gs15'] = $numVal;
                     $params[':gs16'] = $numVal;
+                    $params[':gs17'] = $numVal;
+                    $params[':gs18'] = $numVal;
+                    $params[':gs19'] = $numVal;
                 }
             }
 
@@ -1948,8 +2227,10 @@ class Accounting
                 WHERE $whereSql
             ", $params);
 
+            $limit = in_array((int)$limit, [25, 50, 75, 100, 500], true) ? (int)$limit : 25;
+            $page = max(1, (int)$page);
             $totalItems = (int)($countRow['total'] ?? 0);
-            $offset = ($page - 1) * $limit;
+            $offset = (int)(($page - 1) * $limit);
 
             $items = Database::fetchAll("
                 SELECT 

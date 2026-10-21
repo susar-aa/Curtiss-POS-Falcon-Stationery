@@ -8,6 +8,7 @@ require_once __DIR__ . '/config/config.php';
 require_once __DIR__ . '/core/Auth.php';
 require_once __DIR__ . '/core/Banking.php';
 require_once __DIR__ . '/core/BusinessDay.php';
+require_once __DIR__ . '/core/MaskingHelper.php';
 
 Auth::requireLogin();
 if (!Auth::hasPermission('view_bank_accounts')) {
@@ -17,9 +18,12 @@ if (!Auth::hasPermission('view_bank_accounts')) {
 
 $user = Auth::user();
 $userId = (int)$user['id'];
-$branchId = (int)($_SESSION['branch_id'] ?? 1);
+$branchId = (int)($_SESSION['branch_id'] ?? $_SESSION['active_branch_id'] ?? 1);
 
-$bankAccounts = Banking::getBankAccounts(null, false);
+$view = $_GET['view'] ?? 'active';
+$isDeletedView = ($view === 'deleted');
+
+$bankAccounts = Banking::getBankAccounts($branchId, false, $isDeletedView);
 $activeDay = BusinessDay::getOrCreateActiveDay($branchId, $userId);
 $closedDays = Database::fetchAll("SELECT id, business_date, cash_to_deposit, closed_at FROM business_days WHERE branch_id = :b AND status = 'closed' ORDER BY id DESC LIMIT 30", [':b' => $branchId]);
 $branches = Database::fetchAll("SELECT id, name FROM branches WHERE status = 'active' ORDER BY name ASC");
@@ -27,10 +31,14 @@ $branches = Database::fetchAll("SELECT id, name FROM branches WHERE status = 'ac
 $totalBankFunds = 0.00;
 $activeAccountCount = 0;
 foreach ($bankAccounts as $ba) {
-    if ($ba['status'] === 'active') {
+    if ($ba['status'] === 'active' && empty($ba['deleted_at'])) {
         $totalBankFunds += (float)$ba['current_balance'];
         $activeAccountCount++;
     }
+}
+
+if (MaskingHelper::isSpecialUser()) {
+    $totalBankFunds = MaskingHelper::maskValue($totalBankFunds);
 }
 
 $registerAccountId = (int)($_GET['register_id'] ?? $_GET['account_id'] ?? 0);
@@ -40,6 +48,7 @@ View::render('bank_accounts/index', [
     'user'               => $user,
     'userId'             => $userId,
     'branchId'           => $branchId,
+    'view'               => $view,
     'bankAccounts'       => $bankAccounts,
     'activeDay'          => $activeDay,
     'closedDays'         => $closedDays,

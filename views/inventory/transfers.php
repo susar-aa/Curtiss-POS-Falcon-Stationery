@@ -1,30 +1,28 @@
 <?php
 /**
- * Curtiss POS - Branch Stock Transfers Master View (Redesign Theme & Design Rules Enforced)
- * Glassmorphism layout, floating bottom nav search, top-right header searchable select filter & detail drawer.
+ * Curtiss POS - Branch Stock Transfers Master View
+ * Adheres strictly to Curtiss Master Rules:
+ * Fixed Viewport, Zebra Striping (48px rows), Sticky Headers,
+ * Inline 34px Filter Selects, Floating Bottom Nav Realtime Search,
+ * Server-Side Pagination (25, 50, 75, 100, 500) & Slide-in Detail Drawer.
  */
 ?>
 <link rel="stylesheet" href="assets/css/curtiss_select.css">
+<script src="assets/js/curtiss_select.js"></script>
 
-<!-- Floating Top-Right Action Header -->
+<!-- Floating Top-Right Action Header (Action Controls Only - Rule 19) -->
 <div id="curtiss-floating-header-right" style="position: fixed; top: 16px; right: 20px; z-index: 1050; display: flex; align-items: center; gap: 8px;">
-    <form method="GET" action="stock_transfers.php" id="headerTransferFilterForm" style="margin: 0; padding: 0;">
-        <input type="hidden" name="branch_id" value="<?= $branchId ?>">
-        <select name="status" id="headerTransferStatusSelect" class="inv-select curtiss-select-enhance" style="height: 38px; padding: 0 16px; border-radius: 999px; font-size: 12px; font-weight: 700; background: rgba(255,255,255,0.96); border: 1px solid rgba(226,232,240,0.9); color: #0f172a; min-width: 190px;" onchange="this.form.submit()">
-            <option value="">All Transfer Statuses</option>
-            <option value="draft" <?= ($statusFilter === 'draft') ? 'selected' : '' ?>>Draft Transfers</option>
-            <option value="sent" <?= ($statusFilter === 'sent') ? 'selected' : '' ?>>Sent / In-Transit</option>
-            <option value="received" <?= ($statusFilter === 'received') ? 'selected' : '' ?>>Received / Completed</option>
-            <option value="cancelled" <?= ($statusFilter === 'cancelled') ? 'selected' : '' ?>>Cancelled</option>
-        </select>
-    </form>
-
-    <?php if (Auth::hasPermission('create_stock_transfer')): ?>
+    <?php if (Auth::hasPermission('create_stock_transfer') || Auth::hasRole(ROLE_SUPER_ADMIN, ROLE_ADMIN, ROLE_MANAGER)): ?>
     <a href="stock_transfer_create" class="inv-btn inv-btn-primary">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         New Stock Transfer
     </a>
     <?php endif; ?>
+
+    <button type="button" class="inv-btn inv-btn-ghost" onclick="exportTransfersCsv()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Export CSV
+    </button>
 
     <a href="inventory.php" class="inv-btn inv-btn-ghost">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
@@ -33,29 +31,21 @@
 </div>
 
 <style>
-/* ── Page Layout & Typography ── */
-.inv-header {
-    margin-bottom: 1.25rem;
-}
+/* ── Typography & Standard Buttons ── */
 .inv-title {
     font-size: 1.35rem;
     font-weight: 800;
     color: #0f172a;
     letter-spacing: -0.025em;
     line-height: 1.2;
+    margin: 0;
 }
-.inv-subtitle {
-    font-size: 0.8rem;
-    color: #94a3b8;
-    margin-top: 4px;
-    font-weight: 500;
-}
-
 .inv-btn {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    padding: 8px 16px;
+    padding: 0 16px;
+    height: 34px;
     border-radius: 999px;
     font-size: 12px;
     font-weight: 700;
@@ -65,9 +55,10 @@
     transition: all 0.18s ease;
     white-space: nowrap;
     font-family: inherit;
+    box-sizing: border-box;
 }
 .inv-btn-ghost {
-    background: rgba(255,255,255,0.9);
+    background: rgba(255,255,255,0.94);
     border-color: rgba(226,232,240,0.9);
     color: #0f172a;
     box-shadow: 0 2px 8px rgba(0,0,0,0.04);
@@ -106,340 +97,272 @@
     transform: translateY(-1px);
 }
 
-/* Glassmorphism Container */
-.inv-card {
+/* ── Standard Fixed Viewport & Zebra Striped Table ── */
+.prod-table-panel {
     background: rgba(255, 255, 255, 0.94);
     backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
     border: 1px solid rgba(226, 232, 240, 0.9);
     border-radius: 16px;
-    box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.05), 0 4px 12px -2px rgba(0, 0, 0, 0.03);
-    margin-bottom: 1.25rem;
-    padding: 1.25rem;
+    overflow: hidden;
+    box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.05);
+}
+.prod-table {
     width: 100%;
+    border-collapse: collapse;
+    font-size: 12.5px;
+    table-layout: auto;
+}
+.prod-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: #f8fafc;
+    border-bottom: 1px solid #e2e8f0;
+    padding: 10px 14px;
+    font-size: 10px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: #64748b;
+    white-space: nowrap;
+}
+.prod-table tbody tr {
+    height: 48px;
+    min-height: 48px;
+    transition: background 0.12s ease;
+    cursor: pointer;
+}
+.prod-table tbody tr:nth-child(even) { background: rgba(248, 250, 252, 0.57); }
+.prod-table tbody tr:nth-child(odd)  { background: #ffffff; }
+.prod-table tbody tr:hover            { background: #f1f5f9 !important; }
+.prod-table td {
+    height: 48px;
+    padding: 0 14px;
+    color: #1e293b;
+    vertical-align: middle;
+    border-bottom: 1px solid rgba(241, 245, 249, 0.8);
     box-sizing: border-box;
 }
 
-/* Table Styling */
-.inv-table-wrap {
-    width: 100%;
-    overflow-x: auto;
-    border-radius: 12px;
-}
-.inv-table {
-    width: 100%;
-    border-collapse: separate;
-    border-spacing: 0;
-    font-size: 0.83rem;
-}
-.inv-table th {
-    background: #f8fafc;
-    color: #64748b;
-    font-size: 0.68rem;
-    font-weight: 800;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    padding: 10px 14px;
-    border-bottom: 1px solid #e2e8f0;
-    text-align: left;
+/* Explicit Alignment Rules */
+.prod-table th.col-left, .prod-table td.col-left   { text-align: left; }
+.prod-table th.col-right, .prod-table td.col-right { text-align: right; }
+.prod-table th.col-center, .prod-table td.col-center { text-align: center; }
+
+/* In-Cell Badges & Pills */
+.inv-code-pill {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 11px;
+    background: #f1f5f9;
+    color: #334155;
+    padding: 2px 6px;
+    border-radius: 6px;
+    font-weight: 600;
     white-space: nowrap;
 }
-.inv-table td {
-    padding: 12px 14px;
-    border-bottom: 1px solid #f1f5f9;
-    color: #334155;
-    vertical-align: middle;
-    transition: background 0.15s ease;
-}
-.inv-row {
-    cursor: pointer;
-}
-.inv-row:hover td {
-    background: #f8fafc;
-}
-.inv-row:last-child td {
-    border-bottom: none;
-}
-
-/* Code Pills & Badges */
-.inv-code-pill {
-    display: inline-block;
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    font-size: 0.75rem;
-    font-weight: 800;
-    background: #f1f5f9;
-    color: #0f172a;
-    padding: 3px 8px;
-    border-radius: 6px;
-    border: 1px solid #e2e8f0;
-}
-
 .trf-status-badge {
+    height: 28px;
+    min-height: 28px;
+    line-height: 26px;
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 4px;
-    padding: 3px 10px;
+    padding: 0 12px;
     border-radius: 999px;
-    font-size: 0.68rem;
+    font-size: 11px;
     font-weight: 800;
     letter-spacing: 0.02em;
     white-space: nowrap;
     text-transform: uppercase;
+    box-sizing: border-box;
+    vertical-align: middle;
 }
 .trf-status-draft { background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; }
-.trf-status-sent { background: #fef3c7; color: #b45309; border: 1px solid #fde68a; }
-.trf-status-received { background: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; }
-.trf-status-cancelled { background: #ffe4e6; color: #be123c; border: 1px solid #fecdd3; }
+.trf-status-sent { background: #fffbeb; color: #b45309; border: 1px solid #fde68a; }
+.trf-status-received { background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; }
+.trf-status-cancelled { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
 
-/* Slide-in Drawer */
+/* ── Slide-in Detail Drawer ── */
 .inv-drawer-backdrop {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
-    background: rgba(15, 23, 42, 0.4);
-    backdrop-filter: blur(4px);
-    z-index: 2000;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.25s ease;
+    position: fixed; inset: 0; background: rgba(15, 23, 42, 0.45);
+    backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+    z-index: 9990; opacity: 0; visibility: hidden; transition: all 0.25s ease;
 }
-.inv-drawer-backdrop.active {
-    opacity: 1;
-    pointer-events: auto;
-}
+.inv-drawer-backdrop.active { opacity: 1; visibility: visible; }
 .inv-drawer {
-    position: fixed;
-    top: 0;
-    right: -520px;
-    width: 480px;
-    max-width: 92vw;
-    height: 100vh;
-    background: #ffffff;
-    box-shadow: -10px 0 40px rgba(0, 0, 0, 0.15);
-    z-index: 2001;
-    transition: right 0.28s cubic-bezier(0.16, 1, 0.3, 1);
-    display: flex;
-    flex-direction: column;
+    position: fixed; top: 0; right: 0; bottom: 0; width: 520px; max-width: 95vw;
+    background: rgba(255, 255, 255, 0.98); backdrop-filter: blur(20px);
+    border-left: 1px solid rgba(226, 232, 240, 0.9); box-shadow: -10px 0 40px rgba(0,0,0,0.15);
+    z-index: 9991; transform: translateX(100%); transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+    display: flex; flex-direction: column;
 }
-.inv-drawer-backdrop.active .inv-drawer {
-    right: 0;
-}
+.inv-drawer-backdrop.active .inv-drawer { transform: translateX(0); }
 .inv-drawer-header {
-    padding: 1.25rem 1.5rem;
-    border-bottom: 1px solid #e2e8f0;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    background: #f8fafc;
+    padding: 16px 20px; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: space-between; background: #ffffff;
 }
-.inv-drawer-body {
-    padding: 1.5rem;
-    overflow-y: auto;
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    gap: 1.25rem;
-}
+.inv-drawer-body { padding: 18px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 14px; }
 .inv-drawer-footer {
-    padding: 1rem 1.5rem;
-    border-top: 1px solid #e2e8f0;
-    background: #f8fafc;
-    display: flex;
-    justify-content: flex-end;
-    gap: 8px;
-}
-.inv-drawer-close {
-    background: transparent;
-    border: none;
-    color: #64748b;
-    cursor: pointer;
-    padding: 4px;
-    border-radius: 6px;
-}
-.inv-drawer-close:hover {
-    background: #e2e8f0;
-    color: #0f172a;
-}
-
-/* Modals */
-.inv-modal-backdrop {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
-    background: rgba(15, 23, 42, 0.45);
-    backdrop-filter: blur(4px);
-    z-index: 2100;
-    display: none;
-    align-items: center;
-    justify-content: center;
-}
-.inv-modal-backdrop.active {
-    display: flex;
-}
-.inv-modal-box {
-    background: #ffffff;
-    border-radius: 16px;
-    width: 100%;
-    max-width: 620px;
-    box-shadow: 0 20px 40px rgba(0,0,0,0.18);
-    overflow: hidden;
-    animation: modalSlideUp 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-@keyframes modalSlideUp {
-    from { opacity: 0; transform: translateY(12px); }
-    to { opacity: 1; transform: translateY(0); }
-}
-.inv-modal-header {
-    padding: 1.25rem 1.5rem;
-    background: #f8fafc;
-    border-bottom: 1px solid #e2e8f0;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-.inv-modal-body {
-    padding: 1.5rem;
-    display: flex;
-    flex-direction: column;
-    gap: 1.1rem;
-}
-.inv-modal-footer {
-    padding: 1rem 1.5rem;
-    background: #f8fafc;
-    border-top: 1px solid #e2e8f0;
-    display: flex;
-    justify-content: flex-end;
-    gap: 8px;
-}
-.inv-field {
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-}
-.inv-label {
-    font-size: 0.75rem;
-    font-weight: 700;
-    color: #475569;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
-}
-.inv-input {
-    width: 100%;
-    height: 38px;
-    border: 1px solid #cbd5e1;
-    border-radius: 10px;
-    padding: 0 12px;
-    font-size: 0.85rem;
-    color: #0f172a;
-    outline: none;
-    box-sizing: border-box;
-    transition: border-color 0.15s ease;
-}
-.inv-input:focus {
-    border-color: #0f172a;
+    padding: 14px 20px; border-top: 1px solid #e2e8f0; background: #ffffff; display: flex; align-items: center; justify-content: flex-end; gap: 8px;
 }
 </style>
 
-<!-- Header Title -->
-<div class="inv-header">
-    <h1 class="inv-title">Branch Stock Transfers</h1>
-    <p class="inv-subtitle">Transfer inventory between branches with in-transit tracking and exact cost preservation.</p>
-</div>
+<!-- Fixed Screen Viewport Container -->
+<div style="width: 100%; max-width: 100%; height: calc(100vh - 110px); display: flex; flex-direction: column; box-sizing: border-box; overflow: hidden; padding-bottom: 8px;">
 
-<!-- Main Table Card -->
-<div class="inv-card">
-    <div class="inv-table-wrap">
-        <table class="inv-table" id="transfersTable">
-            <thead>
-                <tr>
-                    <th>Transfer #</th>
-                    <th>Date</th>
-                    <th>From Branch</th>
-                    <th>To Branch</th>
-                    <th>Status</th>
-                    <th>Created By</th>
-                    <th style="text-align: right;">Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php if (empty($transfers)): ?>
+    <!-- Page Header (Headline Only + Inline 34px Filter Select - Rule 3 & 5) -->
+    <div class="inv-header" style="flex-shrink: 0; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 0.85rem;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+            <div style="width: 8px; height: 8px; border-radius: 50%; background: #0f172a;"></div>
+            <h1 class="inv-title">Branch Stock Transfers</h1>
+        </div>
+
+        <!-- Inline Filter Controls Above Table Right Corner (Height: 34px) -->
+        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-left: auto;">
+            <div style="display: flex; align-items: center; gap: 6px;">
+                <span style="font-size: 11px; font-weight: 800; color: #64748b; text-transform: uppercase;">Status:</span>
+                <select id="filterTransferStatus" class="curtiss-select-enhance" onchange="applyTransferFilter()" style="height: 34px; min-height: 34px; padding: 0 14px; border-radius: 999px; font-size: 12px; font-weight: 700; color: #334155; background: rgba(255,255,255,0.95); border: 1px solid rgba(203,213,225,0.9); box-shadow: 0 2px 8px rgba(0,0,0,0.04); min-width: 190px;">
+                    <option value="">All Transfer Statuses</option>
+                    <option value="draft" <?= ($statusFilter === 'draft') ? 'selected' : '' ?>>Draft Transfers</option>
+                    <option value="sent" <?= ($statusFilter === 'sent') ? 'selected' : '' ?>>Sent / In-Transit</option>
+                    <option value="received" <?= ($statusFilter === 'received') ? 'selected' : '' ?>>Received / Completed</option>
+                    <option value="cancelled" <?= ($statusFilter === 'cancelled') ? 'selected' : '' ?>>Cancelled</option>
+                </select>
+            </div>
+            <?php if (!empty($statusFilter) || !empty($search)): ?>
+                <a href="stock_transfers.php" class="inv-btn" style="height: 34px; min-height: 34px; padding: 0 14px; border-radius: 999px; font-size: 11px; font-weight: 700; text-decoration: none; color: #dc2626; background: #fef2f2; border: 1px solid #fca5a5;">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    Reset
+                </a>
+            <?php endif; ?>
+        </div>
+    </div>
+
+    <!-- Main Stock Transfers Data Table Panel -->
+    <div class="prod-table-panel" style="flex: 1; min-height: 0; display: flex; flex-direction: column;">
+        <div class="prod-table-scroll" style="overflow-y: auto; flex: 1;">
+            <table class="prod-table" id="transfersTable">
+                <thead>
                     <tr>
-                        <td colspan="7" style="text-align: center; color: #94a3b8; padding: 2.5rem 1rem; font-weight: 500;">
-                            No stock transfers recorded for this branch yet.
-                        </td>
+                        <th class="col-left" style="width: 140px;">TRANSFER #</th>
+                        <th class="col-left" style="width: 130px;">DATE</th>
+                        <th class="col-left">FROM BRANCH</th>
+                        <th class="col-left">TO BRANCH</th>
+                        <th class="col-center" style="width: 150px;">STATUS</th>
+                        <th class="col-left" style="width: 140px;">CREATED BY</th>
+                        <th class="col-right" style="width: 200px;">ACTIONS</th>
                     </tr>
-                <?php else: ?>
-                    <?php foreach ($transfers as $trf): ?>
-                        <?php
-                        $st = strtolower($trf['status']);
-                        $badgeClass = match($st) {
-                            'draft'     => 'trf-status-draft',
-                            'sent'      => 'trf-status-sent',
-                            'received'  => 'trf-status-received',
-                            'cancelled' => 'trf-status-cancelled',
-                            default     => 'trf-status-draft'
-                        };
-                        $statusLabel = match($st) {
-                            'draft'     => 'Draft',
-                            'sent'      => 'Sent (In-Transit)',
-                            'received'  => 'Received',
-                            'cancelled' => 'Cancelled',
-                            default     => ucfirst($st)
-                        };
-                        $isSender = (int)$trf['from_branch_id'] === $branchId;
-                        $isReceiver = (int)$trf['to_branch_id'] === $branchId;
-                        $searchData = strtolower(($trf['transfer_number'] ?? '') . ' ' . ($trf['from_branch_name'] ?? '') . ' ' . ($trf['to_branch_name'] ?? '') . ' ' . ($trf['creator_name'] ?? '') . ' ' . ($trf['notes'] ?? ''));
-                        ?>
-                        <tr class="inv-row" data-search="<?= View::escape($searchData) ?>" onclick="openTransferDetailDrawer(<?= (int)$trf['id'] ?>)">
-                            <td>
-                                <span class="inv-code-pill" style="color: #0284c7; background: #e0f2fe; border-color: #bae6fd;"><?= View::escape($trf['transfer_number']) ?></span>
-                            </td>
-                            <td style="color: #64748b; font-size: 0.78rem;">
-                                <?= View::formatDate($trf['transfer_date']) ?>
-                            </td>
-                            <td>
-                                <strong style="color: #0f172a;"><?= View::escape($trf['from_branch_name']) ?></strong>
-                            </td>
-                            <td>
-                                <strong style="color: #0f172a;"><?= View::escape($trf['to_branch_name']) ?></strong>
-                            </td>
-                            <td>
-                                <span class="trf-status-badge <?= $badgeClass ?>"><?= $statusLabel ?></span>
-                            </td>
-                            <td style="color: #475569; font-weight: 600; font-size: 0.78rem;">
-                                <?= View::escape($trf['creator_name']) ?>
-                            </td>
-                            <td style="text-align: right;" onclick="event.stopPropagation()">
-                                <?php if ($st === 'draft' && $isSender && Auth::hasPermission('create_stock_transfer')): ?>
-                                    <a href="stock_transfer_create?id=<?= (int)$trf['id'] ?>" class="inv-btn inv-btn-ghost" style="padding: 4px 10px; font-size: 11px;">
-                                        Edit
-                                    </a>
-                                    <button type="button" class="inv-btn inv-btn-warning" style="padding: 4px 10px; font-size: 11px;" onclick="handleSendTransfer(<?= (int)$trf['id'] ?>)">
-                                        Send (In-Transit)
-                                    </button>
-                                <?php endif; ?>
-
-                                <?php 
-                                $canReceive = ($isReceiver || Auth::hasRole(ROLE_SUPER_ADMIN, ROLE_ADMIN)) && Auth::hasPermission('receive_stock_transfer');
-                                if ($st === 'sent' && $canReceive): ?>
-                                    <button type="button" class="inv-btn inv-btn-success" style="padding: 4px 10px; font-size: 11px;" onclick="handleReceiveTransfer(<?= (int)$trf['id'] ?>)">
-                                        Confirm Receive
-                                    </button>
-                                <?php endif; ?>
-
-                                <button type="button" class="inv-btn inv-btn-ghost" style="padding: 4px 10px; font-size: 11px;" onclick="openTransferDetailDrawer(<?= (int)$trf['id'] ?>)">
-                                    Details
-                                </button>
+                </thead>
+                <tbody>
+                    <?php if (empty($transfers)): ?>
+                        <tr id="noRecordsRow">
+                            <td colspan="7" style="text-align: center; color: #94a3b8; padding: 48px 16px;">
+                                No stock transfers found matching your filters for <strong><?= View::escape($activeBranchName) ?></strong>.
                             </td>
                         </tr>
-                    <?php endforeach; ?>
-                <?php endif; ?>
-            </tbody>
-        </table>
+                    <?php else: ?>
+                        <?php foreach ($transfers as $trf): ?>
+                            <?php
+                            $st = strtolower($trf['status']);
+                            $badgeClass = match($st) {
+                                'draft'     => 'trf-status-draft',
+                                'sent'      => 'trf-status-sent',
+                                'received'  => 'trf-status-received',
+                                'cancelled' => 'trf-status-cancelled',
+                                default     => 'trf-status-draft'
+                            };
+                            $statusLabel = match($st) {
+                                'draft'     => 'Draft',
+                                'sent'      => 'Sent (In-Transit)',
+                                'received'  => 'Received',
+                                'cancelled' => 'Cancelled',
+                                default     => ucfirst($st)
+                            };
+                            $isSender = (int)$trf['from_branch_id'] === $branchId;
+                            $isReceiver = (int)$trf['to_branch_id'] === $branchId;
+                            $searchBlob = implode(' ', [
+                                $trf['transfer_number'],
+                                $trf['transfer_date'],
+                                $trf['from_branch_name'],
+                                $trf['to_branch_name'],
+                                $st,
+                                $statusLabel,
+                                $trf['creator_name'],
+                                $trf['notes'] ?? ''
+                            ]);
+                            ?>
+                            <tr class="inv-row" data-search="<?= htmlspecialchars(strtolower($searchBlob), ENT_QUOTES, 'UTF-8') ?>" onclick="openTransferDetailDrawer(<?= (int)$trf['id'] ?>)">
+                                <td class="col-left">
+                                    <span class="inv-code-pill" style="color: #0284c7; background: #e0f2fe; border: 1px solid #bae6fd;"><?= View::escape($trf['transfer_number']) ?></span>
+                                </td>
+                                <td class="col-left" style="color: #64748b; font-size: 11.5px; font-family: ui-monospace, monospace;">
+                                    <?= View::formatDate($trf['transfer_date']) ?>
+                                </td>
+                                <td class="col-left">
+                                    <strong style="color: #0f172a;"><?= View::escape($trf['from_branch_name']) ?></strong>
+                                </td>
+                                <td class="col-left">
+                                    <strong style="color: #0f172a;"><?= View::escape($trf['to_branch_name']) ?></strong>
+                                </td>
+                                <td class="col-center">
+                                    <span class="trf-status-badge <?= $badgeClass ?>"><?= $statusLabel ?></span>
+                                </td>
+                                <td class="col-left" style="color: #475569; font-weight: 600; font-size: 12px;">
+                                    <?= View::escape($trf['creator_name']) ?>
+                                </td>
+                                <td class="col-right" onclick="event.stopPropagation()">
+                                    <?php if ($st === 'draft' && $isSender && (Auth::hasPermission('create_stock_transfer') || Auth::hasRole(ROLE_SUPER_ADMIN, ROLE_ADMIN, ROLE_MANAGER))): ?>
+                                        <a href="stock_transfer_create?id=<?= (int)$trf['id'] ?>" class="inv-btn inv-btn-ghost" style="height: 28px; line-height: 26px; padding: 0 10px; font-size: 11px;">
+                                            Edit
+                                        </a>
+                                        <button type="button" class="inv-btn inv-btn-warning" style="height: 28px; line-height: 26px; padding: 0 10px; font-size: 11px;" onclick="handleSendTransfer(<?= (int)$trf['id'] ?>)">
+                                            Send
+                                        </button>
+                                        <button type="button" class="inv-btn" style="height: 28px; line-height: 26px; padding: 0 10px; font-size: 11px; color: #dc2626; background: #fef2f2; border: 1px solid #fca5a5;" onclick="handleCancelTransfer(<?= (int)$trf['id'] ?>)">
+                                            Cancel
+                                        </button>
+                                    <?php endif; ?>
+
+                                    <?php 
+                                    $canReceive = $isReceiver && (Auth::hasPermission('receive_stock_transfer') || Auth::hasRole(ROLE_SUPER_ADMIN, ROLE_ADMIN, ROLE_MANAGER));
+                                    if ($st === 'sent' && $canReceive): ?>
+                                        <button type="button" class="inv-btn inv-btn-success" style="height: 28px; line-height: 26px; padding: 0 10px; font-size: 11px;" onclick="handleReceiveTransfer(<?= (int)$trf['id'] ?>)">
+                                            Confirm Receive
+                                        </button>
+                                    <?php endif; ?>
+
+                                    <button type="button" class="inv-btn inv-btn-ghost" style="height: 28px; line-height: 26px; padding: 0 10px; font-size: 11px;" onclick="openTransferDetailDrawer(<?= (int)$trf['id'] ?>)">
+                                        Details →
+                                    </button>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Standard Table Pagination Footer (Limits: 25, 50, 75, 100, 500) -->
+        <div class="prod-table-footer" style="flex-shrink: 0; display: flex; justify-content: space-between; align-items: center; padding: 10px 16px; background: #ffffff; border-top: 1px solid #e2e8f0;">
+            <div style="font-size: 12px; color: #64748b; font-weight: 600;" id="tableEntriesInfo">
+                Showing <?= $totalItems > 0 ? (($page - 1) * $limit + 1) : 0 ?> to <?= min($page * $limit, $totalItems) ?> of <?= $totalItems ?> entries
+            </div>
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <div style="display: flex; align-items: center; gap: 6px;">
+                    <span style="font-size: 11px; font-weight: 700; color: #64748b;">Per Page:</span>
+                    <select id="tableLimitSelect" onchange="changeTransfersLimit(this.value)" style="height: 28px; padding: 0 8px; border-radius: 6px; font-size: 12px; font-weight: 700; border: 1px solid #cbd5e1; background: #fff;">
+                        <?php foreach ([25, 50, 75, 100, 500] as $lim): ?>
+                            <option value="<?= $lim ?>" <?= ($limit === $lim) ? 'selected' : '' ?>><?= $lim ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div style="display: flex; gap: 4px;">
+                    <button type="button" class="inv-btn inv-btn-ghost" style="height: 28px; padding: 0 10px; font-size: 11px;" <?= ($page <= 1) ? 'disabled style="opacity:0.4; cursor:not-allowed;"' : 'onclick="goToTransfersPage(' . ($page - 1) . ')"' ?>>← Prev</button>
+                    <span style="font-size: 12px; font-weight: 700; padding: 4px 8px; color: #0f172a;"><?= $page ?> / <?= max(1, $totalPages) ?></span>
+                    <button type="button" class="inv-btn inv-btn-ghost" style="height: 28px; padding: 0 10px; font-size: 11px;" <?= ($page >= $totalPages) ? 'disabled style="opacity:0.4; cursor:not-allowed;"' : 'onclick="goToTransfersPage(' . ($page + 1) . ')"' ?>>Next →</button>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -448,25 +371,23 @@
     <div class="inv-drawer" onclick="event.stopPropagation()">
         <div class="inv-drawer-header">
             <div>
-                <span class="inv-code-pill" id="drawerTrfNumber" style="font-size: 0.85rem;"></span>
+                <span class="inv-code-pill" id="drawerTrfNumber" style="font-size: 0.85rem; color: #0284c7; background: #e0f2fe; border: 1px solid #bae6fd;"></span>
                 <span id="drawerTrfStatusBadge" style="margin-left: 6px;"></span>
             </div>
-            <button class="inv-drawer-close" onclick="closeTransferDetailDrawer()">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-            </button>
+            <button type="button" onclick="closeTransferDetailDrawer()" style="background: none; border: none; font-size: 1.2rem; cursor: pointer; color: #64748b;">✕</button>
         </div>
         <div class="inv-drawer-body">
             <!-- Branch Flow Card -->
             <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px; display: grid; grid-template-columns: 1fr auto 1fr; gap: 12px; align-items: center; text-align: center;">
                 <div>
-                    <span style="font-size: 0.65rem; font-weight: 800; color: #64748b; text-transform: uppercase;">FROM BRANCH</span>
+                    <span style="font-size: 10px; font-weight: 800; color: #64748b; text-transform: uppercase;">FROM BRANCH</span>
                     <div id="drawerFromBranch" style="font-size: 0.95rem; font-weight: 800; color: #0f172a; margin-top: 2px;"></div>
                 </div>
                 <div style="color: #94a3b8;">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
                 </div>
                 <div>
-                    <span style="font-size: 0.65rem; font-weight: 800; color: #64748b; text-transform: uppercase;">TO BRANCH</span>
+                    <span style="font-size: 10px; font-weight: 800; color: #64748b; text-transform: uppercase;">TO BRANCH</span>
                     <div id="drawerToBranch" style="font-size: 0.95rem; font-weight: 800; color: #0f172a; margin-top: 2px;"></div>
                 </div>
             </div>
@@ -474,26 +395,26 @@
             <!-- Transfer Meta Details -->
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
                 <div style="background: #f8fafc; border: 1px solid #f1f5f9; border-radius: 10px; padding: 10px 12px;">
-                    <span style="font-size: 0.65rem; font-weight: 800; color: #64748b; text-transform: uppercase;">DATE</span>
-                    <div id="drawerDate" style="font-size: 0.88rem; font-weight: 700; color: #0f172a; margin-top: 2px;"></div>
+                    <span style="font-size: 10px; font-weight: 800; color: #64748b; text-transform: uppercase;">DATE</span>
+                    <div id="drawerDate" style="font-size: 12.5px; font-weight: 700; color: #0f172a; margin-top: 2px;"></div>
                 </div>
                 <div style="background: #f8fafc; border: 1px solid #f1f5f9; border-radius: 10px; padding: 10px 12px;">
-                    <span style="font-size: 0.65rem; font-weight: 800; color: #64748b; text-transform: uppercase;">CREATED BY</span>
-                    <div id="drawerCreator" style="font-size: 0.88rem; font-weight: 700; color: #0f172a; margin-top: 2px;"></div>
+                    <span style="font-size: 10px; font-weight: 800; color: #64748b; text-transform: uppercase;">CREATED BY</span>
+                    <div id="drawerCreator" style="font-size: 12.5px; font-weight: 700; color: #0f172a; margin-top: 2px;"></div>
                 </div>
             </div>
 
             <!-- Transferred Items List -->
             <div>
-                <h4 style="margin: 0 0 10px 0; font-size: 0.88rem; font-weight: 800; color: #0f172a; text-transform: uppercase; letter-spacing: 0.03em;">Transferred Items & Lots</h4>
-                <div id="drawerItemsContainer" style="display: flex; flex-direction: column; gap: 10px;">
+                <h4 style="margin: 0 0 10px 0; font-size: 11px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;">Transferred Items & Lots</h4>
+                <div id="drawerItemsContainer" style="display: flex; flex-direction: column; gap: 8px;">
                     <!-- Rendered via JS -->
                 </div>
             </div>
 
             <div id="drawerNotesBox" style="background: #f8fafc; border: 1px solid #f1f5f9; border-radius: 10px; padding: 10px 12px; display: none;">
-                <span style="font-size: 0.65rem; font-weight: 800; color: #64748b; text-transform: uppercase;">NOTES</span>
-                <div id="drawerNotes" style="font-size: 0.85rem; color: #334155; margin-top: 2px; white-space: pre-wrap;"></div>
+                <span style="font-size: 10px; font-weight: 800; color: #64748b; text-transform: uppercase;">NOTES</span>
+                <div id="drawerNotes" style="font-size: 12px; color: #334155; margin-top: 2px; white-space: pre-wrap;"></div>
             </div>
         </div>
         <div class="inv-drawer-footer" id="drawerFooterActions">
@@ -502,101 +423,7 @@
     </div>
 </div>
 
-<!-- Modal: Create Stock Transfer -->
-<div class="inv-modal-backdrop" id="createTransferModal">
-    <div class="inv-modal-box">
-        <div class="inv-modal-header">
-            <h3 style="margin:0; font-size: 1.1rem; font-weight: 800; color: #0f172a;">Create Branch Stock Transfer</h3>
-            <button class="inv-drawer-close" onclick="closeCreateTransferModal()">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-            </button>
-        </div>
-        <form id="createTransferForm" onsubmit="handleCreateTransferSubmit(event)">
-            <input type="hidden" name="from_branch_id" value="<?= $branchId ?>">
-            <div class="inv-modal-body">
-                <div class="inv-field">
-                    <label class="inv-label">Destination Branch *</label>
-                    <select class="inv-input curtiss-select-enhance" name="to_branch_id" id="trf_to_branch_id" required>
-                        <option value="">-- Select Destination Branch --</option>
-                        <?php foreach ($branches as $b): if ((int)$b['id'] !== $branchId): ?>
-                        <option value="<?= (int)$b['id'] ?>"><?= View::escape($b['name']) ?></option>
-                        <?php endif; endforeach; ?>
-                    </select>
-                </div>
-
-                <div class="inv-field">
-                    <label class="inv-label">1. Select Product *</label>
-                    <select class="inv-input curtiss-select-enhance" id="trf_product_id" onchange="onTransferProductChanged()" required>
-                        <option value="">-- Select Product --</option>
-                        <?php foreach ($uniqueProducts as $p): ?>
-                        <option value="<?= (int)$p['id'] ?>">
-                            <?= View::escape($p['name']) ?> (<?= View::escape($p['barcode']) ?>)
-                        </option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-
-                <div class="inv-field">
-                    <label class="inv-label">2. Select Source Lot *</label>
-                    <select class="inv-input curtiss-select-enhance" id="trf_lot_id" onchange="onTransferLotChanged()" disabled required>
-                        <option value="">-- Select Product First --</option>
-                    </select>
-                </div>
-
-                <!-- Selected Lot Summary Card (Cost, Selling Price, Avail Qty) -->
-                <div id="trf_lot_summary_box" style="display: none; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px; margin-bottom: 8px;">
-                        <span class="inv-code-pill" id="summaryLotNumber" style="font-size: 0.78rem;"></span>
-                        <span style="font-size: 0.72rem; font-weight: 800; color: #15803d; background: #dcfce7; padding: 2px 8px; border-radius: 999px; border: 1px solid #bbf7d0;">Active Lot</span>
-                    </div>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; text-align: center;">
-                        <div style="background: #ffffff; border: 1px solid #f1f5f9; border-radius: 8px; padding: 6px;">
-                            <div style="font-size: 0.62rem; font-weight: 800; color: #64748b; text-transform: uppercase;">COST PRICE</div>
-                            <div id="summaryCostPrice" style="font-size: 0.88rem; font-weight: 800; font-family: ui-monospace, monospace; color: #0f172a; margin-top: 2px;">LKR 0.00</div>
-                        </div>
-                        <div style="background: #ffffff; border: 1px solid #f1f5f9; border-radius: 8px; padding: 6px;">
-                            <div style="font-size: 0.62rem; font-weight: 800; color: #64748b; text-transform: uppercase;">SELLING PRICE</div>
-                            <div id="summarySellingPrice" style="font-size: 0.88rem; font-weight: 800; font-family: ui-monospace, monospace; color: #0f172a; margin-top: 2px;">LKR 0.00</div>
-                        </div>
-                        <div style="background: #ffffff; border: 1px solid #f1f5f9; border-radius: 8px; padding: 6px;">
-                            <div style="font-size: 0.62rem; font-weight: 800; color: #64748b; text-transform: uppercase;">AVAIL STOCK</div>
-                            <div id="summaryAvailQty" style="font-size: 0.88rem; font-weight: 800; font-family: ui-monospace, monospace; color: #166534; margin-top: 2px;">0.00</div>
-                        </div>
-                    </div>
-                </div>
-
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-                    <div class="inv-field">
-                        <label class="inv-label">Quantity to Transfer *</label>
-                        <input type="number" step="0.01" min="0.01" class="inv-input" id="trf_quantity" placeholder="0.00" required>
-                    </div>
-                    <div class="inv-field">
-                        <label class="inv-label">Submit Action</label>
-                        <select class="inv-input" name="send_now">
-                            <option value="1">Send Immediately (In-Transit)</option>
-                            <option value="0">Save as Draft</option>
-                        </select>
-                    </div>
-                </div>
-
-                <div class="inv-field">
-                    <label class="inv-label">Transfer Notes</label>
-                    <textarea class="inv-input" name="notes" rows="2" style="height: auto; padding: 8px 12px;" placeholder="Optional notes..."></textarea>
-                </div>
-            </div>
-            <div class="inv-modal-footer">
-                <button type="button" class="inv-btn inv-btn-ghost" onclick="closeCreateTransferModal()">Cancel</button>
-                <button type="submit" class="inv-btn inv-btn-primary" id="saveTransferBtn">Submit Transfer</button>
-            </div>
-        </form>
-    </div>
-</div>
-
-<script src="assets/js/curtiss_select.js"></script>
 <script>
-const allProductsWithLots = <?= json_encode($productsWithLots, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
-let selectedTransferLot = null;
-
 function esc(str) {
     if (!str) return '';
     const d = document.createElement('div');
@@ -605,211 +432,128 @@ function esc(str) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    // Register Real-time Search Hook on Floating Bottom Nav Bar
-    function registerBottomSearch() {
-        if (window.CurtissNav && window.CurtissNav.enablePageSearch) {
-            window.CurtissNav.enablePageSearch({
-                placeholder: 'Search Transfer #, Branch, Status, User...',
-                onSearch: function(query) {
-                    filterTransfersTableRealtime(query);
-                }
-            });
-        } else {
-            setTimeout(registerBottomSearch, 50);
-        }
-    }
-    registerBottomSearch();
-
+    // Enhance filter select with CurtissSearchableSelect
     document.querySelectorAll('.curtiss-select-enhance').forEach(el => {
         if (window.CurtissSearchableSelect) {
             CurtissSearchableSelect.attach(el);
         }
     });
+
+    // Register Real-time Search Hook on Floating Bottom Nav Bar
+    function registerBottomSearch() {
+        if (window.CurtissNav && window.CurtissNav.enablePageSearch) {
+            window.CurtissNav.enablePageSearch({
+                placeholder: 'Search Transfer #, branch, creator, notes...',
+                initialValue: <?= json_encode($search) ?>,
+                onSearch: function(query) {
+                    filterTransfersTableRealtime(query);
+                },
+                onEnter: function(query) {
+                    const params = new URLSearchParams(window.location.search);
+                    if (query && query.trim()) {
+                        params.set('search', query.trim());
+                    } else {
+                        params.delete('search');
+                    }
+                    params.set('page', '1');
+                    window.location.href = 'stock_transfers.php?' + params.toString();
+                }
+            });
+        } else {
+            setTimeout(registerBottomSearch, 40);
+        }
+    }
+    registerBottomSearch();
 });
 
+function applyTransferFilter() {
+    const st = document.getElementById('filterTransferStatus').value;
+    const params = new URLSearchParams(window.location.search);
+    if (st) {
+        params.set('status', st);
+    } else {
+        params.delete('status');
+    }
+    params.set('page', '1');
+    window.location.href = 'stock_transfers.php?' + params.toString();
+}
+
+function changeTransfersLimit(limitVal) {
+    const params = new URLSearchParams(window.location.search);
+    params.set('limit', limitVal);
+    params.set('page', '1');
+    window.location.href = 'stock_transfers.php?' + params.toString();
+}
+
+function goToTransfersPage(targetPage) {
+    const params = new URLSearchParams(window.location.search);
+    params.set('page', targetPage);
+    window.location.href = 'stock_transfers.php?' + params.toString();
+}
+
+function exportTransfersCsv() {
+    const params = new URLSearchParams(window.location.search);
+    window.location.href = 'stock_transfers_export.php?' + params.toString();
+}
+
 function filterTransfersTableRealtime(query) {
-    const q = query.toLowerCase().trim();
+    const q = (query || '').toLowerCase().trim();
     const rows = document.querySelectorAll('#transfersTable tbody tr.inv-row');
+    let visibleCount = 0;
 
     rows.forEach(tr => {
-        const searchAttr = tr.getAttribute('data-search') || '';
-        if (!q || searchAttr.includes(q)) {
+        const searchAttr = (tr.getAttribute('data-search') || '').toLowerCase();
+        // Exclude action column buttons/links
+        const cells = Array.from(tr.querySelectorAll('td:not(.col-right:last-child)'));
+        const rowText = cells.map(td => td.textContent.toLowerCase()).join(' ');
+
+        const match = !q || searchAttr.includes(q) || rowText.includes(q);
+
+        if (match) {
             tr.style.display = '';
+            visibleCount++;
         } else {
             tr.style.display = 'none';
         }
     });
-}
 
-function openCreateTransferModal() {
-    document.getElementById('createTransferForm').reset();
-    selectedTransferLot = null;
-
-    const lotSelect = document.getElementById('trf_lot_id');
-    lotSelect.innerHTML = '<option value="">-- Select Product First --</option>';
-    lotSelect.disabled = true;
-    if (lotSelect._curtissSelect) lotSelect._curtissSelect.refreshOptions();
-
-    const prodSelect = document.getElementById('trf_product_id');
-    if (prodSelect && prodSelect._curtissSelect) prodSelect._curtissSelect.refreshOptions();
-
-    document.getElementById('trf_lot_summary_box').style.display = 'none';
-    document.getElementById('createTransferModal').classList.add('active');
-}
-
-function closeCreateTransferModal() {
-    document.getElementById('createTransferModal').classList.remove('active');
-}
-
-function onTransferProductChanged() {
-    const prodId = parseInt(document.getElementById('trf_product_id').value || 0);
-    const lotSelect = document.getElementById('trf_lot_id');
-    const summaryBox = document.getElementById('trf_lot_summary_box');
-
-    selectedTransferLot = null;
-    summaryBox.style.display = 'none';
-
-    lotSelect.innerHTML = '';
-
-    if (!prodId) {
-        lotSelect.innerHTML = '<option value="">-- Select Product First --</option>';
-        lotSelect.disabled = true;
-        if (lotSelect._curtissSelect) lotSelect._curtissSelect.refreshOptions();
-        return;
+    const noRow = document.getElementById('noRecordsRow');
+    if (noRow) {
+        noRow.style.display = (visibleCount === 0 && rows.length > 0) ? '' : 'none';
     }
 
-    const availableLots = allProductsWithLots.filter(item => parseInt(item.product_id) === prodId);
-
-    if (availableLots.length === 0) {
-        lotSelect.innerHTML = '<option value="">-- No Active Lots Available --</option>';
-        lotSelect.disabled = true;
-        if (lotSelect._curtissSelect) lotSelect._curtissSelect.refreshOptions();
-        return;
-    }
-
-    let optionsHtml = '<option value="">-- Select Source Lot --</option>';
-    availableLots.forEach(lot => {
-        const cost = parseFloat(lot.cost || 0).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
-        const price = parseFloat(lot.selling_price || 0).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
-        const qty = parseFloat(lot.remaining_quantity || 0).toFixed(2);
-
-        optionsHtml += `<option value='${JSON.stringify(lot).replace(/'/g, "&#39;")}'>Lot: ${esc(lot.lot_number)} | Cost: LKR ${cost} | Selling: LKR ${price} | Avail: ${qty}</option>`;
-    });
-
-    lotSelect.innerHTML = optionsHtml;
-    lotSelect.disabled = false;
-
-    if (lotSelect._curtissSelect) {
-        lotSelect._curtissSelect.refreshOptions();
-    }
-}
-
-function onTransferLotChanged() {
-    const lotSelect = document.getElementById('trf_lot_id');
-    const val = lotSelect.value;
-    const summaryBox = document.getElementById('trf_lot_summary_box');
-
-    if (!val) {
-        selectedTransferLot = null;
-        summaryBox.style.display = 'none';
-        return;
-    }
-
-    try {
-        selectedTransferLot = JSON.parse(val);
-        const cost = parseFloat(selectedTransferLot.cost || 0).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
-        const price = parseFloat(selectedTransferLot.selling_price || 0).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
-        const qty = parseFloat(selectedTransferLot.remaining_quantity || 0).toFixed(2);
-
-        document.getElementById('summaryLotNumber').textContent = 'Lot: ' + (selectedTransferLot.lot_number || '');
-        document.getElementById('summaryCostPrice').textContent = 'LKR ' + cost;
-        document.getElementById('summarySellingPrice').textContent = 'LKR ' + price;
-        document.getElementById('summaryAvailQty').textContent = qty + ' units';
-
-        summaryBox.style.display = 'block';
-    } catch (e) {
-        console.error(e);
-        selectedTransferLot = null;
-        summaryBox.style.display = 'none';
-    }
-}
-
-async function handleCreateTransferSubmit(e) {
-    e.preventDefault();
-    if (!selectedTransferLot) {
-        alert('Please select a valid product & lot.');
-        return;
-    }
-    const qty = parseFloat(document.getElementById('trf_quantity').value);
-    if (!qty || qty <= 0) {
-        alert('Please enter a valid transfer quantity greater than 0.');
-        return;
-    }
-
-    const btn = document.getElementById('saveTransferBtn');
-    btn.disabled = true;
-
-    const formData = new FormData(e.target);
-    const data = Object.fromEntries(formData.entries());
-    data.items = [{
-        product_id: selectedTransferLot.product_id,
-        lot_id: selectedTransferLot.lot_id,
-        quantity: qty
-    }];
-
-    try {
-        const res = await fetch('inventory_api.php?action=create_transfer', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data)
-        });
-        const result = await res.json();
-        if (result.success) {
-            alert(result.message);
-            location.reload();
+    const info = document.getElementById('tableEntriesInfo');
+    if (info) {
+        if (q) {
+            info.textContent = `Showing ${visibleCount} filtered results for "${query}"`;
         } else {
-            alert('Error: ' + result.message);
+            info.textContent = `Showing <?= $totalItems > 0 ? (($page - 1) * $limit + 1) : 0 ?> to <?= min($page * $limit, $totalItems) ?> of <?= $totalItems ?> entries`;
         }
-    } catch (err) {
-        alert('Server error: ' + err.message);
-    } finally {
-        btn.disabled = false;
     }
 }
 
 async function openTransferDetailDrawer(transferId) {
-    const backdrop = document.getElementById('transferDrawerBackdrop');
-    backdrop.classList.add('active');
-
-    const itemsContainer = document.getElementById('drawerItemsContainer');
-    itemsContainer.innerHTML = '<div style="text-align: center; color: #94a3b8; padding: 20px;">Loading transfer details...</div>';
-
     try {
         const res = await fetch(`inventory_api.php?action=get_transfer_details&transfer_id=${transferId}`);
         const data = await res.json();
-
         if (!data.success) {
-            itemsContainer.innerHTML = `<div style="color: #dc2626; text-align: center; padding: 20px;">${esc(data.message)}</div>`;
+            alert(data.message || 'Failed to fetch transfer details');
             return;
         }
 
-        const trf = data.transfer;
+        const t = data.transfer;
         const items = data.items || [];
 
-        document.getElementById('drawerTrfNumber').textContent = trf.transfer_number || '';
-        document.getElementById('drawerFromBranch').textContent = trf.from_branch_name || 'N/A';
-        document.getElementById('drawerToBranch').textContent = trf.to_branch_name || 'N/A';
-        document.getElementById('drawerDate').textContent = trf.transfer_date || 'N/A';
-        document.getElementById('drawerCreator').textContent = trf.creator_name || 'System';
-
-        const st = (trf.status || 'draft').toLowerCase();
+        document.getElementById('drawerTrfNumber').textContent = t.transfer_number || ('TRF-#' + t.id);
+        
+        const st = (t.status || '').toLowerCase();
         const badgeClass = {
             'draft': 'trf-status-draft',
             'sent': 'trf-status-sent',
             'received': 'trf-status-received',
             'cancelled': 'trf-status-cancelled'
         }[st] || 'trf-status-draft';
-
+        
         const statusLabel = {
             'draft': 'Draft',
             'sent': 'Sent (In-Transit)',
@@ -817,89 +561,77 @@ async function openTransferDetailDrawer(transferId) {
             'cancelled': 'Cancelled'
         }[st] || st.toUpperCase();
 
-        document.getElementById('drawerTrfStatusBadge').className = 'trf-status-badge ' + badgeClass;
-        document.getElementById('drawerTrfStatusBadge').textContent = statusLabel;
+        const badgeBox = document.getElementById('drawerTrfStatusBadge');
+        badgeBox.className = 'trf-status-badge ' + badgeClass;
+        badgeBox.textContent = statusLabel;
+
+        document.getElementById('drawerFromBranch').textContent = t.from_branch_name || 'N/A';
+        document.getElementById('drawerToBranch').textContent = t.to_branch_name || 'N/A';
+        document.getElementById('drawerDate').textContent = t.transfer_date || 'N/A';
+        document.getElementById('drawerCreator').textContent = t.creator_name || 'System';
 
         const notesBox = document.getElementById('drawerNotesBox');
-        if (trf.notes) {
+        if (t.notes) {
+            document.getElementById('drawerNotes').textContent = t.notes;
             notesBox.style.display = 'block';
-            document.getElementById('drawerNotes').textContent = trf.notes;
         } else {
             notesBox.style.display = 'none';
         }
 
-        let itemsHtml = '';
-        let totalCostVal = 0;
-
-        items.forEach(item => {
-            const qty = parseFloat(item.quantity || 0);
-            const cost = parseFloat(item.cost || 0);
-            const price = parseFloat(item.selling_price || 0);
-            const subtotal = qty * cost;
-            totalCostVal += subtotal;
-
-            itemsHtml += `
-                <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.02); display: flex; flex-direction: column; gap: 6px;">
-                    <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-                        <div>
-                            <div style="font-weight: 800; color: #0f172a; font-size: 0.88rem;">${esc(item.product_name)}</div>
-                            <span class="inv-code-pill" style="font-size: 0.68rem; margin-top: 2px;">${esc(item.barcode)}</span>
-                        </div>
-                        <span class="inv-code-pill" style="background: #f8fafc; color: #475569;">Lot: ${esc(item.lot_number || 'N/A')}</span>
-                    </div>
-
-                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; background: #f8fafc; padding: 8px; border-radius: 8px; margin-top: 4px; font-size: 0.75rem;">
-                        <div>
-                            <span style="color: #64748b; font-size: 0.65rem; font-weight: 700;">QTY</span>
-                            <div style="font-weight: 800; color: #0f172a;">${qty.toFixed(2)}</div>
-                        </div>
-                        <div>
-                            <span style="color: #64748b; font-size: 0.65rem; font-weight: 700;">COST</span>
-                            <div style="font-weight: 800; font-family: monospace; color: #0f172a;">LKR ${cost.toFixed(2)}</div>
-                        </div>
-                        <div>
-                            <span style="color: #64748b; font-size: 0.65rem; font-weight: 700;">SELLING</span>
-                            <div style="font-weight: 800; font-family: monospace; color: #0f172a;">LKR ${price.toFixed(2)}</div>
+        const itemsContainer = document.getElementById('drawerItemsContainer');
+        itemsContainer.innerHTML = '';
+        if (!items.length) {
+            itemsContainer.innerHTML = '<div style="color: #94a3b8; font-size: 12px;">No items attached to this transfer.</div>';
+        } else {
+            items.forEach(it => {
+                const itemDiv = document.createElement('div');
+                itemDiv.style.cssText = 'background: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 12px; display: flex; justify-content: space-between; align-items: center;';
+                itemDiv.innerHTML = `
+                    <div>
+                        <strong style="color: #0f172a; font-size: 13px;">${esc(it.product_name)}</strong>
+                        <div style="display: flex; gap: 6px; margin-top: 4px;">
+                            <span class="inv-code-pill">${esc(it.barcode || 'N/A')}</span>
+                            ${it.lot_number ? `<span class="inv-code-pill" style="background:#eff6ff; color:#1d4ed8; border:1px solid #dbeafe;">${esc(it.lot_number)}</span>` : ''}
                         </div>
                     </div>
-                </div>
-            `;
-        });
+                    <div style="text-align: right;">
+                        <span style="font-size: 10px; font-weight: 800; color: #64748b; text-transform: uppercase;">QUANTITY</span>
+                        <div style="font-size: 1.05rem; font-weight: 800; font-family: ui-monospace, monospace; color: #0f172a;">${parseFloat(it.quantity || 0).toFixed(2)}</div>
+                    </div>
+                `;
+                itemsContainer.appendChild(itemDiv);
+            });
+        }
 
-        itemsHtml += `
-            <div style="display: flex; justify-content: space-between; align-items: center; background: #0f172a; color: #ffffff; padding: 12px 14px; border-radius: 12px; font-size: 0.85rem;">
-                <span style="font-weight: 700;">Total Inventory Cost Value:</span>
-                <span style="font-weight: 800; font-family: monospace; font-size: 1rem;">LKR ${totalCostVal.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
-            </div>
-        `;
+        // Render dynamic drawer footer actions
+        const footerBox = document.getElementById('drawerFooterActions');
+        footerBox.innerHTML = '';
 
-        itemsContainer.innerHTML = itemsHtml;
+        const currentBranchId = <?= (int)$branchId ?>;
+        const isSender = (parseInt(t.from_branch_id) === currentBranchId);
+        const isReceiver = (parseInt(t.to_branch_id) === currentBranchId);
 
-        // Render Action Buttons
-        const footerActions = document.getElementById('drawerFooterActions');
-        const currentBranchId = <?= $branchId ?>;
-        let actionButtonsHtml = '<button class="inv-btn inv-btn-ghost" onclick="closeTransferDetailDrawer()">Close</button>';
-
-        const canReceiveTransfer = <?= (Auth::hasRole(ROLE_SUPER_ADMIN, ROLE_ADMIN) || Auth::hasPermission('receive_stock_transfer')) ? 'true' : 'false' ?>;
-
-        if (st === 'draft' && parseInt(trf.from_branch_id) === currentBranchId) {
-            actionButtonsHtml += `
-                <button class="inv-btn inv-btn-warning" onclick="handleSendTransfer(${trf.id})">
-                    Send (In-Transit)
-                </button>
-            `;
-        } else if (st === 'sent' && (parseInt(trf.to_branch_id) === currentBranchId || canReceiveTransfer)) {
-            actionButtonsHtml += `
-                <button class="inv-btn inv-btn-success" onclick="handleReceiveTransfer(${trf.id})">
-                    Confirm Receive
-                </button>
+        if (st === 'draft' && isSender) {
+            footerBox.innerHTML += `
+                <a href="stock_transfer_create?id=${t.id}" class="inv-btn inv-btn-ghost">Edit Transfer</a>
+                <button type="button" class="inv-btn inv-btn-warning" onclick="handleSendTransfer(${t.id})">Send (In-Transit)</button>
+                <button type="button" class="inv-btn" style="color: #dc2626; background: #fef2f2; border: 1px solid #fca5a5;" onclick="handleCancelTransfer(${t.id})">Cancel</button>
             `;
         }
 
-        footerActions.innerHTML = actionButtonsHtml;
+        const canReceivePermission = <?= (Auth::hasPermission('receive_stock_transfer') || Auth::hasRole(ROLE_SUPER_ADMIN, ROLE_ADMIN, ROLE_MANAGER)) ? 'true' : 'false' ?>;
+        if (st === 'sent' && isReceiver && canReceivePermission) {
+            footerBox.innerHTML += `
+                <button type="button" class="inv-btn inv-btn-success" onclick="handleReceiveTransfer(${t.id})">Confirm Receive</button>
+            `;
+        }
+
+        footerBox.innerHTML += `<button type="button" class="inv-btn inv-btn-ghost" onclick="closeTransferDetailDrawer()">Close</button>`;
+
+        document.getElementById('transferDrawerBackdrop').classList.add('active');
     } catch (e) {
         console.error(e);
-        itemsContainer.innerHTML = '<div style="color: #dc2626; text-align: center; padding: 20px;">Failed to load transfer details.</div>';
+        alert('Failed to load transfer details.');
     }
 }
 
@@ -907,35 +639,66 @@ function closeTransferDetailDrawer() {
     document.getElementById('transferDrawerBackdrop').classList.remove('active');
 }
 
-async function handleSendTransfer(transferId) {
-    if (!confirm('Send this stock transfer? Inventory will be deducted from source branch and marked In-Transit.')) return;
+async function handleCancelTransfer(transferId) {
+    if (!confirm('Are you sure you want to cancel this stock transfer?')) return;
     try {
-        const res = await fetch('inventory_api.php?action=send_transfer', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ transfer_id: transferId })
-        });
-        const result = await res.json();
-        alert(result.message);
-        location.reload();
-    } catch (err) {
-        alert('Error: ' + err.message);
+        const formData = new FormData();
+        formData.append('action', 'cancel_transfer');
+        formData.append('transfer_id', transferId);
+
+        const res = await fetch('inventory_api.php', { method: 'POST', body: formData });
+        const data = await res.json();
+        if (data.success) {
+            alert(data.message || 'Transfer cancelled successfully');
+            window.location.reload();
+        } else {
+            alert(data.message || 'Failed to cancel transfer');
+        }
+    } catch (e) {
+        console.error(e);
+        alert('An error occurred while cancelling transfer.');
+    }
+}
+
+async function handleSendTransfer(transferId) {
+    if (!confirm('Are you sure you want to send this stock transfer? Stock will be marked In-Transit.')) return;
+    try {
+        const formData = new FormData();
+        formData.append('action', 'send_transfer');
+        formData.append('transfer_id', transferId);
+
+        const res = await fetch('inventory_api.php', { method: 'POST', body: formData });
+        const data = await res.json();
+        if (data.success) {
+            alert(data.message || 'Transfer sent successfully');
+            window.location.reload();
+        } else {
+            alert(data.message || 'Failed to send transfer');
+        }
+    } catch (e) {
+        console.error(e);
+        alert('An error occurred while sending transfer.');
     }
 }
 
 async function handleReceiveTransfer(transferId) {
-    if (!confirm('Confirm receiving this stock transfer into destination branch inventory?')) return;
+    if (!confirm('Confirm receiving this stock transfer? Stock will be added to your branch inventory.')) return;
     try {
-        const res = await fetch('inventory_api.php?action=receive_transfer', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ transfer_id: transferId })
-        });
-        const result = await res.json();
-        alert(result.message);
-        location.reload();
-    } catch (err) {
-        alert('Error: ' + err.message);
+        const formData = new FormData();
+        formData.append('action', 'receive_transfer');
+        formData.append('transfer_id', transferId);
+
+        const res = await fetch('inventory_api.php', { method: 'POST', body: formData });
+        const data = await res.json();
+        if (data.success) {
+            alert(data.message || 'Transfer received successfully');
+            window.location.reload();
+        } else {
+            alert(data.message || 'Failed to receive transfer');
+        }
+    } catch (e) {
+        console.error(e);
+        alert('An error occurred while receiving transfer.');
     }
 }
 </script>

@@ -23,6 +23,11 @@
     </a>
     <?php endif; ?>
 
+    <button type="button" class="inv-btn inv-btn-ghost" onclick="exportInventoryCsv()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Export CSV
+    </button>
+
     <?php if (Auth::hasRole(ROLE_SUPER_ADMIN, ROLE_ADMIN, ROLE_MANAGER) && !Auth::isSpecialUser()): ?>
     <button type="button" class="inv-btn inv-btn-primary" onclick="openAddLotModal()">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -229,6 +234,7 @@
     background: rgba(255, 255, 255, 0.98); backdrop-filter: blur(20px);
     border: 1px solid rgba(226, 232, 240, 0.9); border-radius: 20px;
     box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); width: 100%; max-width: 520px; padding: 24px;
+    max-height: calc(100vh - 40px); overflow-y: auto;
     transform: scale(0.95); transition: transform 0.2s ease;
 }
 .curtiss-modal-backdrop.active .curtiss-modal { transform: scale(1); }
@@ -339,6 +345,8 @@
                         <?php foreach ($inventory as $item): ?>
                             <?php 
                             $qty = (float)$item['available_quantity']; 
+                            $cost = (float)$item['default_cost'];
+                            $price = (float)$item['default_price'];
                             $threshold = (float)$item['low_stock_threshold'];
                             $isLow = $qty <= $threshold;
                             $stockStatusText = ($qty <= 0) ? 'out of stock' : ($isLow ? 'low stock' : 'in stock');
@@ -349,10 +357,16 @@
                                 $item['barcode'] ?? '',
                                 $item['brand_name'] ?? '',
                                 $item['category_name'] ?? '',
-                                number_format((float)$item['default_cost'], 2),
-                                (string)(float)$item['default_cost'],
-                                number_format((float)$item['default_price'], 2),
-                                (string)(float)$item['default_price'],
+                                number_format($cost, 2),
+                                (string)$cost,
+                                'lkr ' . number_format($cost, 2),
+                                'rs. ' . number_format($cost, 2),
+                                'rs ' . number_format($cost, 2),
+                                number_format($price, 2),
+                                (string)$price,
+                                'lkr ' . number_format($price, 2),
+                                'rs. ' . number_format($price, 2),
+                                'rs ' . number_format($price, 2),
                                 number_format($qty, 2),
                                 (string)$qty,
                                 $stockStatusText,
@@ -489,8 +503,9 @@
             <h3 style="font-size: 1.05rem; font-weight: 800; color: #0f172a; margin: 0;">Add Stock Lot / Opening Stock</h3>
             <button type="button" onclick="closeAddLotModal()" style="background: none; border: none; font-size: 1.2rem; cursor: pointer; color: #64748b;">✕</button>
         </div>
-        <form method="POST" action="inventory.php" id="addLotForm" onsubmit="handleFormSubmit(this)">
+        <form method="POST" action="inventory.php" id="addLotForm" onsubmit="return handleFormSubmit(this)">
             <input type="hidden" name="action" value="add_lot">
+            <input type="hidden" name="csrf_token" value="<?= Auth::generateCsrfToken() ?>">
 
             <div style="display: flex; flex-direction: column; gap: 12px;">
                 <div class="inv-field">
@@ -562,9 +577,20 @@ document.addEventListener('DOMContentLoaded', () => {
     function registerBottomSearch() {
         if (window.CurtissNav && window.CurtissNav.enablePageSearch) {
             window.CurtissNav.enablePageSearch({
-                placeholder: 'Search SKU, barcode, product name...',
+                placeholder: 'Search SKU, barcode, product, amount (LKR)...',
+                initialValue: <?= json_encode($filters['search'] ?? '') ?>,
                 onSearch: function(query) {
                     filterInventoryTableRealtime(query);
+                },
+                onEnter: function(query) {
+                    const params = new URLSearchParams(window.location.search);
+                    if (query && query.trim()) {
+                        params.set('search', query.trim());
+                    } else {
+                        params.delete('search');
+                    }
+                    params.set('page', '1');
+                    window.location.href = 'inventory.php?' + params.toString();
                 }
             });
         } else {
@@ -607,14 +633,24 @@ function goToPage(targetPage) {
 }
 
 function filterInventoryTableRealtime(query) {
-    const q = query.toLowerCase().trim();
+    const q = (query || '').toLowerCase().trim();
+    const cleanQ = q.replace(/^lkr\s*/i, '').replace(/^rs\.?\s*/i, '').replace(/,/g, '').trim();
     const rows = document.querySelectorAll('#inventoryTable tbody tr.inv-row');
     let visibleCount = 0;
 
     rows.forEach(tr => {
-        const searchAttr = tr.getAttribute('data-search') || '';
-        const rowText = tr.textContent.toLowerCase();
-        if (!q || searchAttr.includes(q) || rowText.includes(q)) {
+        const searchAttr = (tr.getAttribute('data-search') || '').toLowerCase();
+        // Exclude action column button/link text
+        const cells = Array.from(tr.querySelectorAll('td:not(.col-right:last-child)'));
+        const rowText = cells.map(td => td.textContent.toLowerCase()).join(' ');
+
+        const match = !q || 
+                      searchAttr.includes(q) || 
+                      (cleanQ && searchAttr.includes(cleanQ)) ||
+                      rowText.includes(q) ||
+                      (cleanQ && rowText.includes(cleanQ));
+
+        if (match) {
             tr.style.display = '';
             visibleCount++;
         } else {
@@ -626,6 +662,19 @@ function filterInventoryTableRealtime(query) {
     if (noRow) {
         noRow.style.display = (visibleCount === 0 && rows.length > 0) ? '' : 'none';
     }
+    const info = document.getElementById('tableEntriesInfo');
+    if (info) {
+        if (q) {
+            info.textContent = `Showing ${visibleCount} filtered results for "${query}"`;
+        } else {
+            info.textContent = `Showing <?= $totalItems > 0 ? (($page - 1) * $limit + 1) : 0 ?> to <?= min($page * $limit, $totalItems) ?> of <?= $totalItems ?> entries`;
+        }
+    }
+}
+
+function exportInventoryCsv() {
+    const params = new URLSearchParams(window.location.search);
+    window.location.href = 'inventory_export.php?' + params.toString();
 }
 
 function openAddLotModal() {
@@ -652,7 +701,10 @@ function autoFillLotPrices() {
     }
 }
 
+let isLotSubmitting = false;
 function handleFormSubmit(form) {
+    if (isLotSubmitting) return false;
+    isLotSubmitting = true;
     const btn = form.querySelector('#btnSubmitLot');
     if (btn) {
         btn.disabled = true;

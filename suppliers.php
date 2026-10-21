@@ -17,6 +17,15 @@ if (!Auth::hasRole(ROLE_SUPER_ADMIN, ROLE_ADMIN, ROLE_MANAGER)) {
 
 $user = Auth::user();
 $userId = (int)($user['id'] ?? 1);
+
+// Handle Super Admin / Admin branch switching via GET parameter
+if (Auth::hasRole(ROLE_SUPER_ADMIN, ROLE_ADMIN) && isset($_GET['branch_id'])) {
+    $reqBranchId = (int)$_GET['branch_id'];
+    if ($reqBranchId > 0) {
+        Auth::switchBranch($reqBranchId);
+    }
+}
+
 $branchId = (int)($_SESSION['branch_id'] ?? $_SESSION['active_branch_id'] ?? 1);
 
 $errorMsg = null;
@@ -87,7 +96,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $errorMsg = $res['message'];
         }
     } elseif ($action === 'post_opening_balance') {
-        $res = SupplierOpeningBalance::postOpeningBalance($_POST, $userId, $branchId);
+        $targetBranchId = !empty($_POST['branch_id']) ? (int)$_POST['branch_id'] : $branchId;
+        $res = SupplierOpeningBalance::postOpeningBalance($_POST, $userId, $targetBranchId);
         if ($res['success']) {
             $successMsg = $res['message'];
         } else {
@@ -96,14 +106,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif ($action === 'reverse_opening_balance') {
         $obId = (int)($_POST['opening_balance_id'] ?? 0);
         $reason = $_POST['reversal_reason'] ?? '';
-        $res = SupplierOpeningBalance::reverseOpeningBalance($obId, $reason, $userId, $branchId);
+        $targetBranchId = !empty($_POST['branch_id']) ? (int)$_POST['branch_id'] : $branchId;
+        $res = SupplierOpeningBalance::reverseOpeningBalance($obId, $reason, $userId, $targetBranchId);
         if ($res['success']) {
             $successMsg = $res['message'];
         } else {
             $errorMsg = $res['message'];
         }
     } elseif ($action === 'process_supplier_payment') {
-        $res = SupplierPayment::processPayment($_POST, $userId, $branchId);
+        $targetBranchId = !empty($_POST['branch_id']) ? (int)$_POST['branch_id'] : $branchId;
+        $res = SupplierPayment::processPayment($_POST, $userId, $targetBranchId);
         if ($res['success']) {
             $successMsg = $res['message'];
         } else {
@@ -121,11 +133,17 @@ $deletedCount = count($deletedSuppliers);
 if ($viewMode === 'deleted') {
     $suppliers = $deletedSuppliers;
 } else {
-    $suppliers = Supplier::all(false, $search);
+    $suppliers = Supplier::all(false, $search, $branchId);
 }
 
-// Fetch active bank accounts for supplier payment bank/cheque options
+// Fetch active bank accounts and all cash accounts for supplier payment options
 $bankAccounts = Database::fetchAll("SELECT * FROM bank_accounts WHERE status = 'active' ORDER BY bank_name ASC");
+$cashAccounts = Accounting::getCashAccounts();
+
+// Fetch active branch name for context display and all branches for filter selector
+$branchInfo = Database::fetchOne("SELECT name FROM branches WHERE id = :id", [':id' => $branchId]);
+$branchName = $branchInfo['name'] ?? "Branch #{$branchId}";
+$branches = Database::fetchAll("SELECT id, name, code FROM branches WHERE status = 'active' AND deleted_at IS NULL ORDER BY id ASC");
 
 // Enrich suppliers list with outstanding balances, active OB, and summary stats using single batched query
 $incompleteCount = 0;
@@ -163,6 +181,10 @@ if ($viewMode !== 'deleted') {
 View::render('suppliers/index', [
     'suppliers'       => $suppliers,
     'bankAccounts'    => $bankAccounts,
+    'cashAccounts'    => $cashAccounts,
+    'branchId'        => $branchId,
+    'branchName'      => $branchName,
+    'branches'        => $branches,
     'incompleteCount' => $incompleteCount,
     'deletedCount'    => $deletedCount,
     'viewMode'        => $viewMode,

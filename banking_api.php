@@ -15,11 +15,12 @@ require_once __DIR__ . '/core/Banking.php';
 Auth::requireLogin();
 $user = Auth::user();
 $userId = (int)$user['id'];
-$branchId = (int)($_SESSION['branch_id'] ?? 1);
+$branchId = (int)($_SESSION['branch_id'] ?? $_SESSION['active_branch_id'] ?? 1);
 
 $action = $_GET['action'] ?? $_POST['action'] ?? '';
 
-if (Auth::isSpecialUser() && $action !== 'get_accounts') {
+$readActions = ['get_accounts', 'get_account', 'get_register', 'get_cheques'];
+if (Auth::isSpecialUser() && !in_array($action, $readActions, true)) {
     echo json_encode(['success' => false, 'message' => 'Permission denied: Special User is restricted from bank transactions and mutations.']);
     exit;
 }
@@ -32,8 +33,9 @@ try {
                 echo json_encode(['success' => false, 'message' => 'Permission denied to view bank accounts.']);
                 exit;
             }
+            $isDeletedView = (isset($_GET['view']) && $_GET['view'] === 'deleted') || (isset($_GET['deleted']) && $_GET['deleted'] === '1');
             $activeOnly = isset($_GET['all']) && $_GET['all'] === '1' ? false : true;
-            $accounts = Banking::getBankAccounts(null, $activeOnly);
+            $accounts = Banking::getBankAccounts($branchId, $activeOnly, $isDeletedView);
             echo json_encode(['success' => true, 'data' => $accounts]);
             break;
 
@@ -61,6 +63,39 @@ try {
             echo json_encode($res);
             break;
 
+        case 'delete_account':
+            if (!Auth::hasPermission('manage_bank_accounts')) {
+                echo json_encode(['success' => false, 'message' => 'Permission denied to delete bank accounts.']);
+                exit;
+            }
+            $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
+            $id = (int)($input['id'] ?? $_GET['id'] ?? 0);
+            $res = Banking::deleteBankAccount($id, $userId);
+            echo json_encode($res);
+            break;
+
+        case 'restore_account':
+            if (!Auth::hasPermission('manage_bank_accounts')) {
+                echo json_encode(['success' => false, 'message' => 'Permission denied to restore bank accounts.']);
+                exit;
+            }
+            $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
+            $id = (int)($input['id'] ?? $_GET['id'] ?? 0);
+            $res = Banking::restoreBankAccount($id, $userId);
+            echo json_encode($res);
+            break;
+
+        case 'toggle_status':
+            if (!Auth::hasPermission('manage_bank_accounts')) {
+                echo json_encode(['success' => false, 'message' => 'Permission denied to update bank account status.']);
+                exit;
+            }
+            $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
+            $id = (int)($input['id'] ?? $_GET['id'] ?? 0);
+            $res = Banking::toggleAccountStatus($id, $userId);
+            echo json_encode($res);
+            break;
+
         case 'create_deposit':
             if (!Auth::hasPermission('make_bank_deposit')) {
                 echo json_encode(['success' => false, 'message' => 'Permission denied to make cash deposits.']);
@@ -78,7 +113,7 @@ try {
             }
             $bankAccountId = (int)($_GET['bank_account_id'] ?? 0);
             $page = max(1, (int)($_GET['page'] ?? 1));
-            $limit = max(1, min(1000, (int)($_GET['limit'] ?? 500)));
+            $limit = (int)($_GET['limit'] ?? 25);
             $filters = [
                 'start_date' => $_GET['start_date'] ?? null,
                 'end_date'   => $_GET['end_date'] ?? null,

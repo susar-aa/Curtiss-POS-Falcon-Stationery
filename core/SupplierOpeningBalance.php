@@ -14,27 +14,32 @@ require_once __DIR__ . '/Supplier.php';
 class SupplierOpeningBalance
 {
     /**
-     * Get active posted opening balance for a supplier
+     * Get active posted opening balance for a supplier in a specific branch
      */
-    public static function getActiveOpeningBalance(int $supplierId): ?array
+    public static function getActiveOpeningBalance(int $supplierId, ?int $branchId = null): ?array
     {
         try {
+            $activeBranchId = ($branchId !== null && $branchId > 0) ? $branchId : (int)($_SESSION['branch_id'] ?? $_SESSION['active_branch_id'] ?? 1);
             return Database::fetchOne("
                 SELECT 
                     ob.*, 
                     u.full_name AS created_by_name, 
                     ru.full_name AS reversed_by_name,
                     je.entry_number AS journal_number,
-                    rje.entry_number AS reversal_journal_number
+                    rje.entry_number AS reversal_journal_number,
+                    b.name AS branch_name
                 FROM supplier_opening_balances ob
-                JOIN users u ON ob.created_by = u.id
+                LEFT JOIN users u ON ob.created_by = u.id
                 LEFT JOIN users ru ON ob.reversed_by = ru.id
                 LEFT JOIN journal_entries je ON ob.journal_entry_id = je.id
                 LEFT JOIN journal_entries rje ON ob.reversal_journal_id = rje.id
-                WHERE ob.supplier_id = :supplier_id AND ob.status = 'posted'
+                LEFT JOIN branches b ON ob.branch_id = b.id
+                WHERE ob.supplier_id = :supplier_id 
+                  AND ob.branch_id = :branch_id 
+                  AND ob.status = 'posted'
                 ORDER BY ob.id DESC
                 LIMIT 1
-            ", [':supplier_id' => $supplierId]);
+            ", [':supplier_id' => $supplierId, ':branch_id' => $activeBranchId]);
         } catch (Throwable $e) {
             Logger::error("Failed to fetch active opening balance for supplier #{$supplierId}: " . $e->getMessage(), $e);
             return null;
@@ -42,26 +47,35 @@ class SupplierOpeningBalance
     }
 
     /**
-     * Get all opening balance history (posted & reversed) for a supplier
+     * Get all opening balance history (posted & reversed) for a supplier in a specific branch
      */
-    public static function getHistory(int $supplierId): array
+    public static function getHistory(int $supplierId, ?int $branchId = null): array
     {
         try {
+            $where = ["ob.supplier_id = :supplier_id"];
+            $params = [':supplier_id' => $supplierId];
+            if ($branchId !== null && $branchId > 0) {
+                $where[] = "ob.branch_id = :branch_id";
+                $params[':branch_id'] = $branchId;
+            }
+            $whereSql = implode(" AND ", $where);
             return Database::fetchAll("
                 SELECT 
                     ob.*, 
                     u.full_name AS created_by_name, 
                     ru.full_name AS reversed_by_name,
                     je.entry_number AS journal_number,
-                    rje.entry_number AS reversal_journal_number
+                    rje.entry_number AS reversal_journal_number,
+                    b.name AS branch_name
                 FROM supplier_opening_balances ob
                 JOIN users u ON ob.created_by = u.id
                 LEFT JOIN users ru ON ob.reversed_by = ru.id
                 LEFT JOIN journal_entries je ON ob.journal_entry_id = je.id
                 LEFT JOIN journal_entries rje ON ob.reversal_journal_id = rje.id
-                WHERE ob.supplier_id = :supplier_id
+                LEFT JOIN branches b ON ob.branch_id = b.id
+                WHERE {$whereSql}
                 ORDER BY ob.id DESC
-            ", [':supplier_id' => $supplierId]);
+            ", $params);
         } catch (Throwable $e) {
             Logger::error("Failed to fetch opening balance history for supplier #{$supplierId}: " . $e->getMessage(), $e);
             return [];
@@ -83,6 +97,14 @@ class SupplierOpeningBalance
             $referenceNo = !empty($data['reference_no']) ? trim($data['reference_no']) : null;
             $notes       = !empty($data['notes']) ? trim($data['notes']) : 'Initial Supplier Opening Balance';
 
+            $targetBranchId = !empty($data['branch_id']) ? (int)$data['branch_id'] : $branchId;
+            if ($targetBranchId <= 0) {
+                $targetBranchId = (int)($_SESSION['branch_id'] ?? $_SESSION['active_branch_id'] ?? 1);
+            }
+            if ($targetBranchId <= 0) {
+                $targetBranchId = 1;
+            }
+
             if ($supplierId <= 0) {
                 return ['success' => false, 'message' => 'Valid supplier is required.'];
             }
@@ -100,13 +122,14 @@ class SupplierOpeningBalance
                 return ['success' => false, 'message' => 'Supplier not found.'];
             }
 
-            // Prevent duplicate active opening balances
-            $existing = self::getActiveOpeningBalance($supplierId);
+            // Prevent duplicate active opening balances for this branch
+            $existing = self::getActiveOpeningBalance($supplierId, $targetBranchId);
             if ($existing) {
+                $branchLabel = $existing['branch_name'] ?? "Branch #{$targetBranchId}";
                 $typeLabel = ($existing['balance_type'] === 'owe_supplier') ? 'We Owe Supplier' : 'Supplier Owes Us';
                 return [
                     'success' => false, 
-                    'message' => "Supplier '{$supplier['name']}' already has an active posted opening balance of LKR " . number_format($existing['amount'], 2) . " ({$typeLabel}). Unsafe direct editing is prevented. Please reverse the existing opening balance first."
+                    'message' => "Supplier '{$supplier['name']}' already has an active posted opening balance of LKR " . number_format($existing['amount'], 2) . " ({$typeLabel}) for {$branchLabel}. Unsafe direct editing is prevented. Please reverse the existing opening balance first."
                 ];
             }
 
@@ -123,7 +146,7 @@ class SupplierOpeningBalance
 
             $stmt->execute([
                 ':supplier_id'  => $supplierId,
-                ':branch_id'    => $branchId,
+                ':branch_id'    => $targetBranchId,
                 ':entry_date'   => $entryDate,
                 ':balance_type' => $balanceType,
                 ':amount'       => $amount,
@@ -143,7 +166,7 @@ class SupplierOpeningBalance
             $descStr = "Supplier Opening Balance ({$supCode} - {$supplier['name']}): " . ($balanceType === 'owe_supplier' ? 'We Owe Supplier (Payable)' : 'Supplier Owes Us (Credit)');
 
             $journalHeader = [
-                'branch_id'   => $branchId,
+                'branch_id'   => $targetBranchId,
                 'entry_date'  => $entryDate,
                 'source_type' => 'opening_balance',
                 'source_id'   => $obId,
@@ -174,7 +197,7 @@ class SupplierOpeningBalance
                 ");
                 $crdStmt->execute([
                     ':supplier_id'   => $supplierId,
-                    ':branch_id'     => $branchId,
+                    ':branch_id'     => $targetBranchId,
                     ':credit_number' => "OB-CRD-{$obId}",
                     ':credit_date'   => $entryDate,
                     ':amount1'       => $amount,
@@ -239,7 +262,13 @@ class SupplierOpeningBalance
                 return ['success' => false, 'message' => 'Reversal reason/note is required to perform an auditable correction.'];
             }
 
-            $ob = Database::fetchOne("SELECT * FROM supplier_opening_balances WHERE id = :id FOR UPDATE", [':id' => $obId]);
+            $ob = Database::fetchOne("
+                SELECT ob.*, b.name AS branch_name, je.branch_id AS orig_je_branch_id 
+                FROM supplier_opening_balances ob 
+                LEFT JOIN branches b ON ob.branch_id = b.id 
+                LEFT JOIN journal_entries je ON ob.journal_entry_id = je.id
+                WHERE ob.id = :id FOR UPDATE
+            ", [':id' => $obId]);
             if (!$ob) {
                 return ['success' => false, 'message' => 'Opening balance record not found.'];
             }
@@ -255,10 +284,25 @@ class SupplierOpeningBalance
                 ];
             }
 
+            // Strictly resolve branch from the original journal entry or opening balance record
+            $targetBranchId = !empty($ob['orig_je_branch_id']) ? (int)$ob['orig_je_branch_id'] : ((int)($ob['branch_id'] ?? 0));
+            if ($targetBranchId <= 0) {
+                $targetBranchId = $branchId > 0 ? $branchId : 1;
+            }
+
             $supplier = Supplier::find((int)$ob['supplier_id']);
             $supName = $supplier['name'] ?? ('Supplier #' . $ob['supplier_id']);
 
             $db->beginTransaction();
+
+            // Ensure the opening balance record itself has the resolved branch_id
+            if (empty($ob['branch_id']) || (int)$ob['branch_id'] !== $targetBranchId) {
+                $db->prepare("UPDATE supplier_opening_balances SET branch_id = :br WHERE id = :id")->execute([
+                    ':br' => $targetBranchId,
+                    ':id' => $obId
+                ]);
+                $ob['branch_id'] = $targetBranchId;
+            }
 
             // Reverse Double-Entry Journal
             $equityAccId  = Accounting::getAccountIdByCode(Accounting::CODE_EQUITY);          // 3010
@@ -269,7 +313,7 @@ class SupplierOpeningBalance
             $balanceType = $ob['balance_type'];
 
             $journalHeader = [
-                'branch_id'   => $branchId,
+                'branch_id'   => $targetBranchId,
                 'entry_date'  => date('Y-m-d'),
                 'source_type' => 'reversal',
                 'source_id'   => $obId,

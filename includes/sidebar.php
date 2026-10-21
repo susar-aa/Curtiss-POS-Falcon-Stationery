@@ -91,46 +91,6 @@ $currentScript = basename($_SERVER['SCRIPT_NAME']);
         <?php endif; ?>
 
 
-        <!-- Stage 5 Customers & Credit -->
-        <div class="nav-section-title">Customers & Credit</div>
-
-        <?php if (Auth::hasRole(ROLE_SUPER_ADMIN, ROLE_ADMIN, ROLE_MANAGER, ROLE_ACCOUNTANT, ROLE_CASHIER, ROLE_SPECIAL_USER)): ?>
-        <a href="customers.php" class="nav-item <?= (in_array($currentScript, ['customers.php', 'customer_create.php', 'customer_edit.php', 'customer_profile.php'])) ? 'active' : '' ?>">
-            <span class="nav-icon">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-                    <circle cx="9" cy="7" r="4"></circle>
-                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
-                    <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-                </svg>
-            </span>
-            <span>Customers & Credit</span>
-        </a>
-
-        <?php if (Auth::hasPermission('customers.pay')): ?>
-        <a href="customers.php" class="nav-item <?= ($currentScript === 'customers.php' && ($_GET['action'] ?? '') === 'collections') ? 'active' : '' ?>">
-            <span class="nav-icon">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <line x1="12" y1="1" x2="12" y2="23"></line>
-                    <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
-                </svg>
-            </span>
-            <span>Customer Collections</span>
-        </a>
-        <?php endif; ?>
-
-        <?php if (Auth::hasPermission('vouchers.view')): ?>
-        <a href="vouchers.php" class="nav-item <?= ($currentScript === 'vouchers.php') ? 'active' : '' ?>">
-            <span class="nav-icon">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M20 12V8H4v4a2 2 0 1 0 0 4v4h16v-4a2 2 0 1 0 0-4z"></path>
-                    <path d="M12 12v.01"></path>
-                </svg>
-            </span>
-            <span>Gift Vouchers</span>
-        </a>
-        <?php endif; ?>
-        <?php endif; ?>
 
         <!-- Stage 4 Purchasing & GRN -->
         <div class="nav-section-title">Purchasing & GRN</div>
@@ -264,6 +224,18 @@ $currentScript = basename($_SERVER['SCRIPT_NAME']);
                 </svg>
             </span>
             <span>Product Master</span>
+        </a>
+        <?php endif; ?>
+
+        <?php if (Auth::hasRole(ROLE_SUPER_ADMIN, ROLE_ADMIN, ROLE_MANAGER, ROLE_ACCOUNTANT)): ?>
+        <a href="quick_products.php" class="nav-item <?= ($currentScript === 'quick_products.php') ? 'active' : '' ?>">
+            <span class="nav-icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                </svg>
+            </span>
+            <span>Quick Product Editor</span>
         </a>
         <?php endif; ?>
 

@@ -15,13 +15,14 @@ class Audit
     public static function log(
         string $action,
         string $module,
-        ?string $recordId = null,
+        string|int|null $recordId = null,
         array|object|null $oldValues = null,
         array|object|null $newValues = null
     ): bool {
         try {
+            $recordIdStr = $recordId !== null ? (string)$recordId : null;
             $userId = $_SESSION['user_id'] ?? null;
-            $branchId = $_SESSION['active_branch_id'] ?? null;
+            $branchId = $_SESSION['branch_id'] ?? $_SESSION['active_branch_id'] ?? null;
             $ip = $_SERVER['REMOTE_ADDR'] ?? 'CLI';
             $userAgent = $_SERVER['HTTP_USER_AGENT'] ?? 'CLI';
 
@@ -38,7 +39,7 @@ class Audit
                 ':branch_id'  => $branchId,
                 ':action'     => $action,
                 ':module'     => $module,
-                ':record_id'  => $recordId,
+                ':record_id'  => $recordIdStr,
                 ':old_values' => $oldJson,
                 ':new_values' => $newJson,
                 ':ip_address' => $ip,
@@ -51,58 +52,113 @@ class Audit
     }
 
     /**
+     * Build WHERE conditions and parameters for audit queries
+     */
+    protected static function buildWhere(array $filters): array
+    {
+        $where = ["1=1"];
+        $params = [];
+
+        if (!empty($filters['module'])) {
+            $where[] = "a.module = :module";
+            $params[':module'] = $filters['module'];
+        }
+
+        if (!empty($filters['action'])) {
+            $where[] = "a.action = :action";
+            $params[':action'] = $filters['action'];
+        }
+
+        if (!empty($filters['user_id'])) {
+            $where[] = "a.user_id = :user_id";
+            $params[':user_id'] = (int)$filters['user_id'];
+        }
+
+        if (!empty($filters['branch_id'])) {
+            $where[] = "a.branch_id = :branch_id";
+            $params[':branch_id'] = (int)$filters['branch_id'];
+        }
+
+        if (!empty($filters['date_from'])) {
+            $where[] = "a.created_at >= :date_from";
+            $params[':date_from'] = $filters['date_from'] . ' 00:00:00';
+        }
+
+        if (!empty($filters['date_to'])) {
+            $where[] = "a.created_at <= :date_to";
+            $params[':date_to'] = $filters['date_to'] . ' 23:59:59';
+        }
+
+        if (!empty($filters['search'])) {
+            $rawTerm = trim($filters['search']);
+            $searchTerm = '%' . $rawTerm . '%';
+
+            $cleanNum = rtrim(rtrim(str_replace(',', '', $rawTerm), '0'), '.');
+            $hasNumAlt = (is_numeric($cleanNum) && $cleanNum !== '' && $cleanNum !== $rawTerm);
+            $cleanNumTerm = '%' . $cleanNum . '%';
+
+            $where[] = "(
+                CAST(a.id AS CHAR) LIKE :s1 OR
+                CONCAT('#', a.id) LIKE :s2 OR
+                a.created_at LIKE :s3 OR
+                a.action LIKE :s4 OR
+                a.module LIKE :s5 OR
+                a.record_id LIKE :s6 OR
+                a.ip_address LIKE :s7 OR
+                u.full_name LIKE :s8 OR
+                u.username LIKE :s9 OR
+                b.name LIKE :s10 OR
+                a.old_values LIKE :s11 OR
+                a.new_values LIKE :s12 OR
+                a.user_agent LIKE :s13" . ($hasNumAlt ? " OR a.old_values LIKE :s14 OR a.new_values LIKE :s15" : "") . "
+            )";
+            for ($i = 1; $i <= 13; $i++) {
+                $params[":s{$i}"] = $searchTerm;
+            }
+            if ($hasNumAlt) {
+                $params[':s14'] = $cleanNumTerm;
+                $params[':s15'] = $cleanNumTerm;
+            }
+        }
+
+        return [$where, $params];
+    }
+
+    /**
+     * Count matching audit logs
+     */
+    public static function count(array $filters = []): int
+    {
+        try {
+            list($where, $params) = self::buildWhere($filters);
+            $whereSql = implode(' AND ', $where);
+
+            $sql = "
+                SELECT COUNT(*) as total
+                FROM audit_logs a
+                LEFT JOIN users u ON a.user_id = u.id
+                LEFT JOIN branches b ON a.branch_id = b.id
+                WHERE {$whereSql}
+            ";
+
+            $row = Database::fetchOne($sql, $params);
+            return (int)($row['total'] ?? 0);
+        } catch (Throwable $e) {
+            Logger::error("Audit Count Error: " . $e->getMessage(), $e);
+            return 0;
+        }
+    }
+
+    /**
      * Fetch audit logs with filtering and explicit user/branch JOINs
      */
     public static function all(array $filters = []): array
     {
         try {
-            $where = ["1=1"];
-            $params = [];
-
-            if (!empty($filters['module'])) {
-                $where[] = "a.module = :module";
-                $params[':module'] = $filters['module'];
-            }
-
-            if (!empty($filters['action'])) {
-                $where[] = "a.action = :action";
-                $params[':action'] = $filters['action'];
-            }
-
-            if (!empty($filters['user_id'])) {
-                $where[] = "a.user_id = :user_id";
-                $params[':user_id'] = (int)$filters['user_id'];
-            }
-
-            if (!empty($filters['branch_id'])) {
-                $where[] = "a.branch_id = :branch_id";
-                $params[':branch_id'] = (int)$filters['branch_id'];
-            }
-
-            if (!empty($filters['date_from'])) {
-                $where[] = "a.created_at >= :date_from";
-                $params[':date_from'] = $filters['date_from'] . ' 00:00:00';
-            }
-
-            if (!empty($filters['date_to'])) {
-                $where[] = "a.created_at <= :date_to";
-                $params[':date_to'] = $filters['date_to'] . ' 23:59:59';
-            }
-
-            if (!empty($filters['search'])) {
-                $searchTerm = '%' . trim($filters['search']) . '%';
-                $where[] = "(
-                    a.action LIKE :s1 OR a.module LIKE :s2 OR a.record_id LIKE :s3 OR
-                    a.ip_address LIKE :s4 OR u.full_name LIKE :s5 OR u.username LIKE :s6 OR
-                    b.name LIKE :s7 OR a.old_values LIKE :s8 OR a.new_values LIKE :s9
-                )";
-                for ($i = 1; $i <= 9; $i++) {
-                    $params[":s{$i}"] = $searchTerm;
-                }
-            }
-
+            list($where, $params) = self::buildWhere($filters);
             $whereSql = implode(' AND ', $where);
-            $limit = isset($filters['limit']) ? (int)$filters['limit'] : 1000;
+            $limit = isset($filters['limit']) ? max(1, (int)$filters['limit']) : 1000;
+            $offset = isset($filters['offset']) ? max(0, (int)$filters['offset']) : 0;
 
             $sql = "
                 SELECT 
@@ -125,7 +181,7 @@ class Audit
                 LEFT JOIN branches b ON a.branch_id = b.id
                 WHERE {$whereSql}
                 ORDER BY a.id DESC
-                LIMIT {$limit}
+                LIMIT {$limit} OFFSET {$offset}
             ";
 
             return Database::fetchAll($sql, $params);
@@ -133,6 +189,31 @@ class Audit
             Logger::error("Audit Fetch Error: " . $e->getMessage(), $e);
             return [];
         }
+    }
+
+    /**
+     * Server-side paginated audit logs
+     */
+    public static function paginate(array $filters = [], int $page = 1, int $limit = 25): array
+    {
+        $page = max(1, $page);
+        $limit = max(1, $limit);
+        $total = self::count($filters);
+        $pages = max(1, (int)ceil($total / $limit));
+        if ($page > $pages) $page = $pages;
+        $offset = ($page - 1) * $limit;
+
+        $filters['limit'] = $limit;
+        $filters['offset'] = $offset;
+        $data = self::all($filters);
+
+        return [
+            'data'        => $data,
+            'total'       => $total,
+            'page'        => $page,
+            'limit'       => $limit,
+            'total_pages' => $pages
+        ];
     }
 
     /**

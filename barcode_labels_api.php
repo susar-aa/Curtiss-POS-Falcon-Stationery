@@ -129,24 +129,23 @@ try {
             }
 
             $settings = [
-                'printer_model'      => Settings::get('label_printer_model', 'Zenpert / TSC 3-Up'),
-                'label_width_mm'     => (float)Settings::get('label_width_mm', '30'),
-                'label_height_mm'    => (float)Settings::get('label_height_mm', '15'),
-                'labels_per_row'     => (int)Settings::get('labels_per_row', '3'),
-                'label_roll_width_mm'=> (float)Settings::get('label_roll_width_mm', '100'),
-                'column_gap_mm'      => (float)Settings::get('label_column_gap_mm', '2'),
-                'row_gap_mm'         => (float)Settings::get('label_row_gap_mm', '2'),
-                'margin_top_mm'      => (float)Settings::get('label_margin_top_mm', '0'),
-                'margin_left_mm'     => (float)Settings::get('label_margin_left_mm', '2'),
-                'rotation_deg'       => (int)Settings::get('label_rotation_deg', '0'),
-                'shop_name'          => Settings::get('label_shop_name_custom', $shopName),
-                'price_prefix'       => Settings::get('label_price_prefix', $currency),
-                'show_shop_name'     => (int)Settings::get('label_show_shop_name', '0'),
-                'show_product_code'  => (int)Settings::get('label_show_product_code', '0'),
-                'show_price'         => (int)Settings::get('label_show_price', '1'),
-                'barcode_height_mm'  => (float)Settings::get('label_barcode_height_mm', '6.5'),
-                'font_size_name_pt'  => (float)Settings::get('label_font_size_name_pt', '7'),
-                'font_size_price_pt' => (float)Settings::get('label_font_size_price_pt', '8.5')
+                'printer_model'     => Settings::get('label_printer_model', 'TSC TE244'),
+                'label_width_mm'    => (float)Settings::get('label_width_mm', '25'),
+                'label_height_mm'   => (float)Settings::get('label_height_mm', '40'),
+                'labels_per_row'    => (int)Settings::get('labels_per_row', '2'),
+                'column_gap_mm'     => (float)Settings::get('label_column_gap_mm', '2'),
+                'row_gap_mm'        => (float)Settings::get('label_row_gap_mm', '2'),
+                'margin_top_mm'     => (float)Settings::get('label_margin_top_mm', '0'),
+                'margin_left_mm'    => (float)Settings::get('label_margin_left_mm', '0'),
+                'rotation_deg'      => (int)Settings::get('label_rotation_deg', '0'),
+                'shop_name'         => Settings::get('label_shop_name_custom', $shopName),
+                'price_prefix'      => Settings::get('label_price_prefix', $currency),
+                'show_shop_name'    => (int)Settings::get('label_show_shop_name', '1'),
+                'show_product_code' => (int)Settings::get('label_show_product_code', '1'),
+                'show_price'        => (int)Settings::get('label_show_price', '1'),
+                'barcode_height_mm' => (float)Settings::get('label_barcode_height_mm', '12'),
+                'font_size_name_pt' => (float)Settings::get('label_font_size_name_pt', '8'),
+                'font_size_price_pt'=> (float)Settings::get('label_font_size_price_pt', '11')
             ];
 
             echo json_encode(['success' => true, 'settings' => $settings]);
@@ -159,24 +158,23 @@ try {
             }
 
             $allowedKeys = [
-                'label_printer_model'       => trim($_POST['printer_model'] ?? 'Zenpert / TSC 3-Up'),
-                'label_width_mm'            => (string)max(10, (float)($_POST['label_width_mm'] ?? 30)),
-                'label_height_mm'           => (string)max(10, (float)($_POST['label_height_mm'] ?? 15)),
-                'labels_per_row'            => (string)max(1, min(5, (int)($_POST['labels_per_row'] ?? 3))),
-                'label_roll_width_mm'       => (string)max(50, (float)($_POST['label_roll_width_mm'] ?? 100)),
+                'label_printer_model'       => trim($_POST['printer_model'] ?? 'TSC TE244'),
+                'label_width_mm'            => (string)max(10, (float)($_POST['label_width_mm'] ?? 25)),
+                'label_height_mm'           => (string)max(10, (float)($_POST['label_height_mm'] ?? 40)),
+                'labels_per_row'            => (string)max(1, min(4, (int)($_POST['labels_per_row'] ?? 2))),
                 'label_column_gap_mm'       => (string)max(0, (float)($_POST['column_gap_mm'] ?? 2)),
                 'label_row_gap_mm'          => (string)max(0, (float)($_POST['row_gap_mm'] ?? 2)),
                 'label_margin_top_mm'       => (string)max(0, (float)($_POST['margin_top_mm'] ?? 0)),
-                'label_margin_left_mm'      => (string)max(0, (float)($_POST['margin_left_mm'] ?? 2)),
+                'label_margin_left_mm'      => (string)max(0, (float)($_POST['margin_left_mm'] ?? 0)),
                 'label_rotation_deg'        => (string)(in_array((int)($_POST['rotation_deg'] ?? 0), [0, 90, 180, 270]) ? (int)$_POST['rotation_deg'] : 0),
-                'label_shop_name_custom'    => trim($_POST['shop_name'] ?? 'Falcon POS'),
+                'label_shop_name_custom'    => trim($_POST['shop_name'] ?? 'Kandy Kids'),
                 'label_price_prefix'        => trim($_POST['price_prefix'] ?? 'Rs.'),
                 'label_show_shop_name'      => !empty($_POST['show_shop_name']) ? '1' : '0',
                 'label_show_product_code'   => !empty($_POST['show_product_code']) ? '1' : '0',
                 'label_show_price'          => !empty($_POST['show_price']) ? '1' : '0',
-                'label_barcode_height_mm'   => (string)max(4, min(30, (float)($_POST['barcode_height_mm'] ?? 6.5))),
-                'label_font_size_name_pt'   => (string)max(5, min(14, (float)($_POST['font_size_name_pt'] ?? 7))),
-                'label_font_size_price_pt'  => (string)max(6, min(20, (float)($_POST['font_size_price_pt'] ?? 8.5)))
+                'label_barcode_height_mm'   => (string)max(6, min(30, (float)($_POST['barcode_height_mm'] ?? 12))),
+                'label_font_size_name_pt'   => (string)max(6, min(14, (float)($_POST['font_size_name_pt'] ?? 8))),
+                'label_font_size_price_pt'  => (string)max(8, min(20, (float)($_POST['font_size_price_pt'] ?? 11)))
             ];
 
             foreach ($allowedKeys as $k => $v) {
@@ -186,78 +184,6 @@ try {
             Audit::log('update_label_settings', 'inventory', 0, [], $allowedKeys);
             echo json_encode(['success' => true, 'message' => 'Barcode label printer settings saved successfully.']);
             break;
-
-        case 'generate_tspl':
-            $itemsJson = $_POST['items_json'] ?? '[]';
-            $items = json_decode($itemsJson, true) ?: [];
-            $pricePrefix = trim($_POST['price_prefix'] ?? 'Rs.');
-
-            // Expand products by qty
-            $flattened = [];
-            foreach ($items as $item) {
-                $qty = max(1, (int)($item['qty'] ?? 1));
-                for ($i = 0; $i < $qty; $i++) {
-                    $flattened[] = [
-                        'name'    => trim($item['name'] ?? ''),
-                        'barcode' => trim($item['barcode'] ?? ''),
-                        'price'   => trim($item['price'] ?? '')
-                    ];
-                }
-            }
-
-            if (empty($flattened)) {
-                echo json_encode(['success' => false, 'message' => 'No items provided for TSPL generation.']);
-                exit;
-            }
-
-            // TSPL setup commands for 100mm roll, 15mm label, 203 DPI (8 dots/mm)
-            // 30mm label = 240 dots; 2mm gap = 16 dots; 2mm margin = 16 dots
-            // Label 1 X = 16 dots
-            // Label 2 X = 16 + 240 + 16 = 272 dots
-            // Label 3 X = 272 + 240 + 16 = 528 dots
-            $tspl = "SIZE 100 mm, 15 mm\r\n";
-            $tspl .= "GAP 3 mm, 0 mm\r\n";
-            $tspl .= "DIRECTION 1\r\n";
-            $tspl .= "CLS\r\n";
-
-            $totalItems = count($flattened);
-            $xOffsets = [16, 272, 528]; // Left edge of each of the 3 labels
-
-            for ($idx = 0; $idx < $totalItems; $idx += 3) {
-                $tspl .= "CLS\r\n";
-                for ($col = 0; $col < 3; $col++) {
-                    $itemIndex = $idx + $col;
-                    if ($itemIndex >= $totalItems) {
-                        break; // Empty placeholder slot on the liner
-                    }
-                    $cur = $flattened[$itemIndex];
-                    $x = $xOffsets[$col];
-
-                    // Sanitize strings for TSPL
-                    $cleanName = substr(preg_replace('/[^A-Za-z0-9 \-\.\,\&]/', '', $cur['name']), 0, 18);
-                    $cleanBarcode = preg_replace('/[^A-Za-z0-9\-]/', '', $cur['barcode']);
-                    $cleanPrice = $pricePrefix . ' ' . preg_replace('/[^0-9\.\,]/', '', $cur['price']);
-
-                    // TSPL Commands:
-                    // 1. Product Name (Font 1 or 2, 8 dots/mm)
-                    $tspl .= "TEXT " . ($x + 8) . ",8,\"2\",0,1,1,\"" . addslashes($cleanName) . "\"\r\n";
-                    // 2. Code 128 Barcode: BARCODE X, Y, "128", height, human_readable(0=off,1=on), rotation, narrow, wide, "content"
-                    if (!empty($cleanBarcode)) {
-                        $tspl .= "BARCODE " . ($x + 8) . ",32,\"128\",48,0,0,2,2,\"" . $cleanBarcode . "\"\r\n";
-                    }
-                    // 3. Price (Bold Font 2 or 3)
-                    $tspl .= "TEXT " . ($x + 8) . ",88,\"2\",0,1,1,\"" . addslashes($cleanPrice) . "\"\r\n";
-                }
-                $tspl .= "PRINT 1,1\r\n";
-            }
-
-            echo json_encode([
-                'success' => true,
-                'tspl' => $tspl,
-                'total_labels' => $totalItems,
-                'total_rows' => ceil($totalItems / 3)
-            ]);
-            exit;
 
         case 'log_print':
             $count = (int)($_POST['total_labels'] ?? 0);

@@ -669,20 +669,16 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 .pos-modal {
     position: fixed;
     top: 0; left: 0; right: 0; bottom: 0;
-    background: rgba(15, 23, 42, 0.45);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-    display: flex;
+    background: rgba(15, 23, 42, 0.65);
+    display: none;
     align-items: center;
     justify-content: center;
     z-index: 100000;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.2s ease-out;
-}
-.pos-modal.active {
     opacity: 1;
     pointer-events: auto;
+}
+.pos-modal.active {
+    display: flex;
 }
 
 .pos-modal-content {
@@ -694,14 +690,14 @@ button:focus-visible, input:focus-visible, select:focus-visible {
     max-height: 88vh;
     display: flex;
     flex-direction: column;
-    box-shadow: var(--shadow-l);
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.2);
     color: var(--pos-text);
-    transform: scale(0.97);
-    transition: transform 0.2s ease-out;
     overflow: hidden;
+    transform: none !important;
+    transition: none !important;
 }
 .pos-modal.active .pos-modal-content {
-    transform: scale(1);
+    transform: none !important;
 }
 
 .pos-modal-header {

@@ -10,7 +10,6 @@ require_once __DIR__ . '/Logger.php';
 require_once __DIR__ . '/Audit.php';
 require_once __DIR__ . '/Inventory.php';
 require_once __DIR__ . '/Customer.php';
-require_once __DIR__ . '/GiftVoucher.php';
 require_once __DIR__ . '/Sale.php';
 
 class SaleReturn
@@ -422,14 +421,19 @@ class SaleReturn
                         ];
                     }
 
-                    // Default price/cost from exact invoice sold values
-                    if ($unitPrice <= 0) {
-                        $itemPrice = (float)$origItem['unit_price'];
-                        if (!empty($originalSale['subtotal']) && (float)$originalSale['subtotal'] > 0 && !empty($originalSale['discount_amount']) && (float)$originalSale['discount_amount'] > 0) {
-                            $discRatio = (float)$originalSale['discount_amount'] / (float)$originalSale['subtotal'];
-                            $itemPrice = round($itemPrice * (1.0 - $discRatio), 2);
-                        }
-                        $unitPrice = $itemPrice;
+                    // Default price/cost from exact invoice sold values (preserving promotional discount)
+                    $origSoldQty = (float)$origItem['quantity'];
+                    $effectiveNetUnitPrice = $origSoldQty > 0 ? round((float)$origItem['line_total'] / $origSoldQty, 2) : (float)$origItem['unit_price'];
+                    
+                    // Factor in invoice-level manual discount if applicable
+                    $totalInvoiceDiscount = (float)($originalSale['discount_amount'] ?? 0);
+                    if (!empty($originalSale['subtotal']) && (float)$originalSale['subtotal'] > 0 && $totalInvoiceDiscount > 0) {
+                        $discRatio = min(1.0, $totalInvoiceDiscount / (float)$originalSale['subtotal']);
+                        $effectiveNetUnitPrice = round($effectiveNetUnitPrice * (1.0 - $discRatio), 2);
+                    }
+
+                    if ($unitPrice <= 0 || $unitPrice > $effectiveNetUnitPrice) {
+                        $unitPrice = max(0.00, $effectiveNetUnitPrice);
                     }
                     if ($costPrice <= 0) {
                         $costPrice = (float)$origItem['unit_cost'];
@@ -828,13 +832,13 @@ class SaleReturn
                 $exPayments = $exchangeData['payments'] ?? [];
                 $totalPaidForEx = 0.00;
                 $stmtExPay = $db->prepare("
-                    INSERT INTO payments (payment_no, sale_id, branch_id, customer_id, payment_method, amount, reference_no, voucher_id, user_id)
-                    VALUES (:payment_no, :sale_id, :branch_id, :customer_id, :payment_method, :amount, :reference_no, :voucher_id, :user_id)
+                    INSERT INTO payments (payment_no, sale_id, branch_id, customer_id, payment_method, amount, reference_no, user_id)
+                    VALUES (:payment_no, :sale_id, :branch_id, :customer_id, :payment_method, :amount, :reference_no, :user_id)
                 ");
 
                 foreach ($exPayments as $exPay) {
                     $pMethod = ucfirst(strtolower(trim($exPay['payment_method'] ?? 'Cash')));
-                    if (!in_array($pMethod, ['Cash', 'Card', 'Bank', 'Credit', 'Voucher'])) {
+                    if (!in_array($pMethod, ['Cash', 'Card', 'Bank', 'Credit'])) {
                         $pMethod = 'Cash';
                     }
                     $pAmount = round((float)($exPay['amount'] ?? 0), 2);
@@ -851,7 +855,6 @@ class SaleReturn
                             ':payment_method' => $pMethod,
                             ':amount'         => $pAmount,
                             ':reference_no'   => $pRef,
-                            ':voucher_id'     => null,
                             ':user_id'        => $userId
                         ]);
                         if ($pMethod === 'Cash' && isset($activeDay) && $activeDay) {
@@ -881,7 +884,6 @@ class SaleReturn
                         ':payment_method' => 'Credit',
                         ':amount'         => $totalReturnAmount,
                         ':reference_no'   => "Applied Credit from Return #{$returnNo}",
-                        ':voucher_id'     => null,
                         ':user_id'        => $userId
                     ]);
                     $totalPaidForEx += $totalReturnAmount;
@@ -934,9 +936,9 @@ class SaleReturn
 
                 $db->prepare("
                     INSERT INTO refunds (
-                        sales_return_id, branch_id, bank_account_id, customer_id, refund_method, amount, reference_no, replacement_voucher_id, created_by
+                        sales_return_id, branch_id, bank_account_id, customer_id, refund_method, amount, reference_no, created_by
                     ) VALUES (
-                        :sales_return_id, :branch_id, NULL, :customer_id, 'credit', :amount, :reference_no, NULL, :created_by
+                        :sales_return_id, :branch_id, NULL, :customer_id, 'credit', :amount, :reference_no, :created_by
                     )
                 ")->execute([
                     ':sales_return_id' => $salesReturnId,
@@ -965,9 +967,9 @@ class SaleReturn
 
                 $stmtRefund = $db->prepare("
                     INSERT INTO refunds (
-                        sales_return_id, branch_id, bank_account_id, customer_id, refund_method, amount, reference_no, replacement_voucher_id, created_by
+                        sales_return_id, branch_id, bank_account_id, customer_id, refund_method, amount, reference_no, created_by
                     ) VALUES (
-                        :sales_return_id, :branch_id, :bank_account_id, :customer_id, :refund_method, :amount, :reference_no, :replacement_voucher_id, :created_by
+                        :sales_return_id, :branch_id, :bank_account_id, :customer_id, :refund_method, :amount, :reference_no, :created_by
                     )
                 ");
 
@@ -994,7 +996,7 @@ class SaleReturn
                     $rAmount = round((float)($rData['amount'] ?? 0), 2);
                     $rRef = !empty($rData['reference_no']) ? trim($rData['reference_no']) : null;
 
-                    if (!in_array($rMethod, ['cash', 'cash_drawer', 'petty_cash', 'card', 'bank', 'credit', 'voucher', 'cheque'])) {
+                    if (!in_array($rMethod, ['cash', 'cash_drawer', 'petty_cash', 'card', 'bank', 'credit', 'cheque'])) {
                         $db->rollBack();
                         return ['success' => false, 'message' => "Unsupported refund method '{$rMethod}'."];
                     }
@@ -1004,7 +1006,6 @@ class SaleReturn
                     }
 
                     $totalRefunded += $rAmount;
-                    $replacementVoucherId = null;
 
                     if ($rMethod === 'bank' && $rBankId <= 0) {
                         $db->rollBack();
@@ -1054,24 +1055,6 @@ class SaleReturn
                             'refund_amount'    => $rAmount,
                             'return_no'        => $returnNo
                         ]);
-
-                    } elseif ($rMethod === 'voucher') {
-                        // Issue NEW replacement Gift Voucher
-                        $expiryDate = date('Y-m-d', strtotime('+6 months'));
-                        $vRes = GiftVoucher::createVoucher($rAmount, $expiryDate, "Replacement voucher issued for Return #{$returnNo}", $userId);
-                        
-                        if (!$vRes['success']) {
-                            $db->rollBack();
-                            return ['success' => false, 'message' => "Failed to issue replacement gift voucher: " . $vRes['message']];
-                        }
-
-                        $replacementVoucherId = (int)$vRes['voucher_id'];
-
-                        Audit::log('REPLACEMENT_VOUCHER_ISSUED', 'vouchers', (string)$replacementVoucherId, null, [
-                            'voucher_code' => $vRes['voucher_code'],
-                            'amount'       => $rAmount,
-                            'return_no'    => $returnNo
-                        ]);
                     }
 
                     $stmtRefund->execute([
@@ -1082,7 +1065,6 @@ class SaleReturn
                         ':refund_method'          => $rMethod,
                         ':amount'                 => $rAmount,
                         ':reference_no'           => $rRef,
-                        ':replacement_voucher_id' => $replacementVoucherId,
                         ':created_by'             => $userId
                     ]);
 
@@ -1161,6 +1143,7 @@ class SaleReturn
                 'success'               => true,
                 'message'               => "Sales Return {$returnNo} processed successfully.",
                 'sales_return_id'       => $salesReturnId,
+                'return_id'             => $salesReturnId,
                 'return_no'             => $returnNo,
                 'total_return_amount'   => $totalReturnAmount,
                 'total_exchange_amount' => $totalExchangeAmount,
@@ -1297,28 +1280,89 @@ class SaleReturn
     /**
      * Get Paginated Sales Returns List
      */
-    public static function all(array $filters = [], int $page = 1, int $limit = 15): array
+    public static function all(array $filters = [], int $page = 1, int $limit = 25): array
     {
         try {
             $where = [];
             $params = [];
 
-            if (!empty($filters['branch_id'])) {
+            // Branch filtering
+            if (!empty($filters['branch_id']) && (int)$filters['branch_id'] > 0 && empty($filters['all_branches'])) {
                 $where[] = "sr.branch_id = :branch_id";
                 $params[':branch_id'] = (int)$filters['branch_id'];
             }
 
-            if (!empty($filters['search'])) {
-                $search = '%' . trim($filters['search']) . '%';
-                $where[] = "(sr.return_no LIKE :s1 OR s.invoice_no LIKE :s2 OR c.name LIKE :s3)";
-                $params[':s1'] = $search;
-                $params[':s2'] = $search;
-                $params[':s3'] = $search;
-            }
-
+            // Return type filter
             if (!empty($filters['return_type']) && in_array($filters['return_type'], ['return_only', 'exchange'])) {
                 $where[] = "sr.return_type = :return_type";
                 $params[':return_type'] = $filters['return_type'];
+            }
+
+            // Date presets
+            if (!empty($filters['date_preset']) && empty($filters['date_from']) && empty($filters['date_to'])) {
+                $today = date('Y-m-d');
+                if ($filters['date_preset'] === 'today') {
+                    $filters['date_from'] = $today;
+                    $filters['date_to'] = $today;
+                } elseif ($filters['date_preset'] === 'yesterday') {
+                    $yesterday = date('Y-m-d', strtotime('-1 day'));
+                    $filters['date_from'] = $yesterday;
+                    $filters['date_to'] = $yesterday;
+                } elseif ($filters['date_preset'] === 'week') {
+                    $filters['date_from'] = date('Y-m-d', strtotime('-7 days'));
+                    $filters['date_to'] = $today;
+                } elseif ($filters['date_preset'] === 'month') {
+                    $filters['date_from'] = date('Y-m-01');
+                    $filters['date_to'] = $today;
+                }
+            }
+
+            // Date Range
+            if (!empty($filters['date_from'])) {
+                $where[] = "sr.created_at >= :date_from";
+                $params[':date_from'] = $filters['date_from'] . ' 00:00:00';
+            }
+            if (!empty($filters['date_to'])) {
+                $where[] = "sr.created_at <= :date_to";
+                $params[':date_to'] = $filters['date_to'] . ' 23:59:59';
+            }
+
+            // Universal multi-column search across every displayed data column
+            if (!empty($filters['search'])) {
+                $search = trim($filters['search']);
+                $cleanSearch = ltrim($search, '#');
+                $like = '%' . $search . '%';
+                $cleanLike = '%' . $cleanSearch . '%';
+                $where[] = "(
+                    sr.return_no LIKE :s1 OR
+                    s.invoice_no LIKE :s2 OR
+                    c.name LIKE :s3 OR
+                    c.phone LIKE :s4 OR
+                    b.name LIKE :s5 OR
+                    b.code LIKE :s6 OR
+                    u.full_name LIKE :s7 OR
+                    u.username LIKE :s8 OR
+                    sr.return_type LIKE :s9 OR
+                    DATE_FORMAT(sr.created_at, '%Y-%m-%d') LIKE :s10 OR
+                    DATE_FORMAT(sr.created_at, '%h:%i %p') LIKE :s11 OR
+                    CAST(sr.total_return_amount AS CHAR) LIKE :s12 OR
+                    CONCAT('LKR ', FORMAT(sr.total_return_amount, 2)) LIKE :s13 OR
+                    FORMAT(sr.total_return_amount, 2) LIKE :s14
+                )";
+                $params[':s1']  = $cleanLike;
+                $params[':s2']  = $cleanLike;
+                $params[':s3']  = $like;
+                $params[':s4']  = $like;
+                $params[':s5']  = $like;
+                $params[':s6']  = $like;
+                $params[':s7']  = $like;
+                $params[':s8']  = $like;
+                $params[':s9']  = $like;
+                $params[':s10'] = $like;
+                $params[':s11'] = $like;
+                $params[':s12'] = $like;
+                $params[':s13'] = $like;
+                $params[':s14'] = $like;
             }
 
             $whereSql = !empty($where) ? "WHERE " . implode(' AND ', $where) : "";
@@ -1328,18 +1372,28 @@ class SaleReturn
                 FROM sales_returns sr 
                 LEFT JOIN sales s ON sr.sale_id = s.id 
                 LEFT JOIN customers c ON sr.customer_id = c.id 
+                JOIN branches b ON sr.branch_id = b.id
+                JOIN users u ON sr.created_by = u.id
                 $whereSql
             ", $params);
 
             $totalItems = (int)($countRow['total'] ?? 0);
+            $limit = in_array($limit, [25, 50, 75, 100, 500, 1000, 5000], true) ? $limit : 25;
+            $page = max(1, $page);
+            $totalPages = max(1, (int)ceil($totalItems / $limit));
+            if ($page > $totalPages && $totalPages > 0) {
+                $page = $totalPages;
+            }
             $offset = ($page - 1) * $limit;
 
-            $items = Database::fetchAll("
+            $dataSql = "
                 SELECT 
                     sr.*,
                     s.invoice_no AS original_invoice_no,
                     c.name AS customer_name,
+                    c.phone AS customer_phone,
                     b.name AS branch_name,
+                    b.code AS branch_code,
                     u.full_name AS created_by_name
                 FROM sales_returns sr
                 LEFT JOIN sales s ON sr.sale_id = s.id
@@ -1348,15 +1402,32 @@ class SaleReturn
                 JOIN users u ON sr.created_by = u.id
                 $whereSql
                 ORDER BY sr.id DESC
-                LIMIT $limit OFFSET $offset
-            ", $params);
+                LIMIT :limit OFFSET :offset
+            ";
+
+            $db = Database::getInstance()->getConnection();
+            $stmt = $db->prepare($dataSql);
+            foreach ($params as $k => $v) {
+                $stmt->bindValue($k, $v);
+            }
+            $stmt->bindValue(':limit', (int)$limit, PDO::PARAM_INT);
+            $stmt->bindValue(':offset', (int)$offset, PDO::PARAM_INT);
+            $stmt->execute();
+            $items = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            $isSpecial = MaskingHelper::isSpecialUser();
+            if ($isSpecial) {
+                foreach ($items as &$it) {
+                    $it['total_return_amount'] = MaskingHelper::maskValue((float)$it['total_return_amount'], true);
+                }
+            }
 
             return [
                 'items'      => $items,
                 'totalItems' => $totalItems,
                 'page'       => $page,
                 'limit'      => $limit,
-                'totalPages' => max(1, ceil($totalItems / $limit))
+                'totalPages' => $totalPages
             ];
         } catch (Throwable $e) {
             Logger::error("Failed to fetch sales returns list: " . $e->getMessage(), $e);
@@ -1402,9 +1473,8 @@ class SaleReturn
 
             // Refunds
             $refunds = Database::fetchAll("
-                SELECT r.*, gv.voucher_code AS replacement_voucher_code
+                SELECT r.*, NULL AS replacement_voucher_code
                 FROM refunds r
-                LEFT JOIN gift_vouchers gv ON r.replacement_voucher_id = gv.id
                 WHERE r.sales_return_id = :id
                 ORDER BY r.id ASC
             ", [':id' => $returnId]);
@@ -1437,6 +1507,28 @@ class SaleReturn
                         JOIN product_lots pl ON si.lot_id = pl.id
                         WHERE si.sale_id = :id
                     ", [':id' => $return['exchange_sale_id']]);
+                }
+            }
+
+            $isSpecial = MaskingHelper::isSpecialUser();
+            if ($isSpecial) {
+                $return['total_return_amount'] = MaskingHelper::maskValue((float)$return['total_return_amount'], true);
+                foreach ($items as &$it) {
+                    $it['unit_price'] = MaskingHelper::maskValue((float)$it['unit_price'], true);
+                    $it['cost_price'] = MaskingHelper::maskValue((float)$it['cost_price'], true);
+                    $it['line_total'] = MaskingHelper::maskValue((float)$it['line_total'], true);
+                }
+                foreach ($refunds as &$rf) {
+                    $rf['amount'] = MaskingHelper::maskValue((float)$rf['amount'], true);
+                }
+                if ($exchangeSale) {
+                    $exchangeSale['total_amount'] = MaskingHelper::maskValue((float)$exchangeSale['total_amount'], true);
+                    if (!empty($exchangeSale['items'])) {
+                        foreach ($exchangeSale['items'] as &$esi) {
+                            $esi['unit_price'] = MaskingHelper::maskValue((float)$esi['unit_price'], true);
+                            $esi['line_total'] = MaskingHelper::maskValue((float)$esi['line_total'], true);
+                        }
+                    }
                 }
             }
 

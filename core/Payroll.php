@@ -46,6 +46,7 @@ class Payroll
     public static function getPeriods(array $filters = [], int $page = 1, int $limit = 25): array
     {
         try {
+            $limit = in_array($limit, [25, 50, 75, 100, 500], true) ? $limit : 25;
             $where = [];
             $params = [];
 
@@ -61,15 +62,35 @@ class Payroll
 
             if (!empty($filters['search'])) {
                 $term = trim($filters['search']);
-                $where[] = "(pp.period_code LIKE :s1 OR pp.period_name LIKE :s2)";
-                $params[':s1'] = "%{$term}%";
-                $params[':s2'] = "%{$term}%";
+                $where[] = "(
+                    pp.period_code LIKE :s1 OR 
+                    pp.period_name LIKE :s2 OR 
+                    CAST(pp.start_date AS CHAR) LIKE :s3 OR 
+                    CAST(pp.end_date AS CHAR) LIKE :s4 OR 
+                    pp.status LIKE :s5 OR 
+                    b.name LIKE :s6 OR 
+                    CAST(pp.total_gross AS CHAR) LIKE :s7 OR 
+                    CONCAT('LKR ', FORMAT(pp.total_gross, 2)) LIKE :s8 OR 
+                    FORMAT(pp.total_gross, 2) LIKE :s9 OR 
+                    CAST(pp.total_net_salary AS CHAR) LIKE :s10 OR 
+                    CONCAT('LKR ', FORMAT(pp.total_net_salary, 2)) LIKE :s11 OR 
+                    FORMAT(pp.total_net_salary, 2) LIKE :s12 OR 
+                    CAST(pp.total_paid AS CHAR) LIKE :s13 OR 
+                    CONCAT('LKR ', FORMAT(pp.total_paid, 2)) LIKE :s14 OR 
+                    FORMAT(pp.total_paid, 2) LIKE :s15
+                )";
+                for ($i = 1; $i <= 15; $i++) {
+                    $params[":s{$i}"] = "%{$term}%";
+                }
             }
 
             $whereSql = !empty($where) ? implode(' AND ', $where) : '1=1';
 
             $countRow = Database::fetchOne("
-                SELECT COUNT(pp.id) AS total FROM payroll_periods pp WHERE {$whereSql}
+                SELECT COUNT(pp.id) AS total 
+                FROM payroll_periods pp 
+                LEFT JOIN branches b ON pp.branch_id = b.id
+                WHERE {$whereSql}
             ", $params);
             $total = (int)($countRow['total'] ?? 0);
 
@@ -1532,6 +1553,29 @@ class Payroll
                 ];
             }
 
+            // Custom Cash Accounts (e.g. 1011 Cash in Hand (Buwaneka))
+            $allCashAccounts = Accounting::getCashAccounts();
+            foreach ($allCashAccounts as $ca) {
+                if ($ca['account_code'] === '1010') continue;
+                $cRow = Database::fetchOne("
+                    SELECT COALESCE(SUM(jl.debit) - SUM(jl.credit), 0) AS balance
+                    FROM journal_lines jl
+                    JOIN journal_entries je ON jl.journal_entry_id = je.id
+                    WHERE jl.account_id = :acc_id AND je.posting_status = 'posted'
+                ", [':acc_id' => (int)$ca['id']]);
+                $caBalance = (float)($cRow['balance'] ?? 0);
+                $accounts[] = [
+                    'account_id'      => (int)$ca['id'],
+                    'account_code'    => $ca['account_code'],
+                    'account_name'    => $ca['account_name'],
+                    'payment_method'  => $ca['account_name'],
+                    'type'            => 'cash',
+                    'bank_account_id' => null,
+                    'balance'         => $caBalance,
+                    'formatted_label' => "{$ca['account_name']} ({$ca['account_code']}) [Bal: LKR " . number_format($caBalance, 2) . "]"
+                ];
+            }
+
             // 3. Petty Cash (1015)
             $pettyCoa = Accounting::getAccountByCode(Accounting::CODE_PETTY_CASH);
             $pettyBalance = PettyCash::getPettyCashBalance($branchId);
@@ -2526,6 +2570,7 @@ class Payroll
     public static function getAdvances(array $filters = [], int $page = 1, int $limit = 25): array
     {
         try {
+            $limit = in_array($limit, [25, 50, 75, 100, 500], true) ? $limit : 25;
             $where = [];
             $params = [];
 
@@ -2546,10 +2591,31 @@ class Payroll
 
             if (!empty($filters['search'])) {
                 $term = trim($filters['search']);
-                $where[] = "(ea.advance_no LIKE :s1 OR e.full_name LIKE :s2 OR e.employee_code LIKE :s3)";
-                $params[':s1'] = "%{$term}%";
-                $params[':s2'] = "%{$term}%";
-                $params[':s3'] = "%{$term}%";
+                $where[] = "(
+                    ea.advance_no LIKE :s1 OR 
+                    e.full_name LIKE :s2 OR 
+                    e.employee_code LIKE :s3 OR 
+                    e.phone LIKE :s4 OR 
+                    CAST(ea.disbursement_date AS CHAR) LIKE :s5 OR 
+                    ea.payment_method LIKE :s6 OR 
+                    coa.account_name LIKE :s7 OR 
+                    b.name LIKE :s8 OR 
+                    pp.period_name LIKE :s9 OR 
+                    pp.period_code LIKE :s10 OR 
+                    ea.status LIKE :s11 OR 
+                    CAST(ea.amount AS CHAR) LIKE :s12 OR 
+                    CONCAT('LKR ', FORMAT(ea.amount, 2)) LIKE :s13 OR 
+                    FORMAT(ea.amount, 2) LIKE :s14 OR 
+                    CAST(ea.recovered_amount AS CHAR) LIKE :s15 OR 
+                    CONCAT('LKR ', FORMAT(ea.recovered_amount, 2)) LIKE :s16 OR 
+                    FORMAT(ea.recovered_amount, 2) LIKE :s17 OR 
+                    CAST(ea.remaining_amount AS CHAR) LIKE :s18 OR 
+                    CONCAT('LKR ', FORMAT(ea.remaining_amount, 2)) LIKE :s19 OR 
+                    FORMAT(ea.remaining_amount, 2) LIKE :s20
+                )";
+                for ($i = 1; $i <= 20; $i++) {
+                    $params[":s{$i}"] = "%{$term}%";
+                }
             }
 
             $whereSql = !empty($where) ? implode(' AND ', $where) : '1=1';
@@ -2558,6 +2624,9 @@ class Payroll
                 SELECT COUNT(ea.id) AS total 
                 FROM employee_advances ea
                 JOIN employees e ON ea.employee_id = e.id
+                JOIN branches b ON ea.branch_id = b.id
+                LEFT JOIN payroll_periods pp ON ea.recovery_period_id = pp.id
+                LEFT JOIN chart_of_accounts coa ON ea.source_account_id = coa.id
                 WHERE {$whereSql}
             ", $params);
             $total = (int)($countRow['total'] ?? 0);
@@ -2762,9 +2831,9 @@ class Payroll
                 INNER JOIN employees e ON ea.employee_id = e.id
                 INNER JOIN branches b ON ea.branch_id = b.id
                 WHERE ea.status = 'active' AND ea.remaining_amount > 0" . 
-                (!empty($filters['branch_id']) ? " AND ea.branch_id = " . (int)$filters['branch_id'] : "") . "
+                (!empty($filters['branch_id']) ? " AND ea.branch_id = :agbid" : "") . "
                 ORDER BY days_outstanding DESC
-            ");
+            ", !empty($filters['branch_id']) ? [':agbid' => (int)$filters['branch_id']] : []);
 
             $agingSummary = [
                 'days_0_30'   => ['count' => 0, 'amount' => 0.00],

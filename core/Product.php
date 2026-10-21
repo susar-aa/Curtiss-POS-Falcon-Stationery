@@ -227,7 +227,7 @@ class Product
     {
         try {
             $activeBranchId = $branchId ?: (int)($_SESSION['branch_id'] ?? $_SESSION['active_branch_id'] ?? 1);
-            return Database::fetchOne("
+            $product = Database::fetchOne("
                 SELECT p.*, COALESCE(p.sku, p.barcode) AS sku,
                        b.name AS brand_name, c.name AS category_name, s.name AS supplier_name,
                        COALESCE(bi.quantity, 0.00) AS branch_stock
@@ -238,9 +238,119 @@ class Product
                 LEFT JOIN branch_inventory bi ON p.id = bi.product_id AND bi.branch_id = :branch_id
                 WHERE p.id = :id AND p.deleted_at IS NULL
             ", [':id' => $id, ':branch_id' => $activeBranchId]);
+
+            if ($product) {
+                $product['supplier_ids'] = self::getSupplierIds($id);
+                $product['suppliers'] = self::getProductSuppliers($id);
+
+                // Fetch lot expiry date and batch number if available
+                $lotInfo = Database::fetchOne("
+                    SELECT expiry_date, batch_number 
+                    FROM product_lots 
+                    WHERE product_id = :id AND branch_id = :branch_id
+                    ORDER BY (expiry_date IS NOT NULL AND expiry_date != '') DESC, id DESC 
+                    LIMIT 1
+                ", [':id' => $id, ':branch_id' => $activeBranchId]);
+
+                if ($lotInfo) {
+                    $product['expiry_date'] = $lotInfo['expiry_date'] ?? null;
+                    $product['batch_number'] = $lotInfo['batch_number'] ?? null;
+                }
+            }
+            return $product;
         } catch (Throwable $e) {
             Logger::error("Failed to find product #$id: " . $e->getMessage(), $e);
             return null;
+        }
+    }
+
+    /**
+     * Get all linked supplier IDs for a product
+     */
+    public static function getSupplierIds(int $productId): array
+    {
+        try {
+            $rows = Database::fetchAll("
+                SELECT supplier_id 
+                FROM product_suppliers 
+                WHERE product_id = :product_id 
+                ORDER BY is_primary DESC, id ASC
+            ", [':product_id' => $productId]);
+
+            $ids = array_map(fn($r) => (int)$r['supplier_id'], $rows);
+            if (empty($ids)) {
+                $p = Database::fetchOne("SELECT supplier_id FROM products WHERE id = :id", [':id' => $productId]);
+                if (!empty($p['supplier_id'])) {
+                    $ids[] = (int)$p['supplier_id'];
+                }
+            }
+            return array_values(array_unique($ids));
+        } catch (Throwable $e) {
+            Logger::error("Failed to getSupplierIds for product #$productId: " . $e->getMessage(), $e);
+            return [];
+        }
+    }
+
+    /**
+     * Get all linked supplier objects for a product
+     */
+    public static function getProductSuppliers(int $productId): array
+    {
+        try {
+            return Database::fetchAll("
+                SELECT s.id, s.name, s.phone, ps.is_primary
+                FROM product_suppliers ps
+                INNER JOIN suppliers s ON ps.supplier_id = s.id
+                WHERE ps.product_id = :product_id AND s.deleted_at IS NULL
+                ORDER BY ps.is_primary DESC, s.name ASC
+            ", [':product_id' => $productId]);
+        } catch (Throwable $e) {
+            Logger::error("Failed to getProductSuppliers for product #$productId: " . $e->getMessage(), $e);
+            return [];
+        }
+    }
+
+    /**
+     * Sync multiple suppliers to product_suppliers table
+     */
+    public static function syncSuppliers(int $productId, array $supplierIds, ?int $primarySupplierId = null): void
+    {
+        try {
+            $cleanIds = array_values(array_unique(array_filter(array_map('intval', $supplierIds))));
+            if (empty($cleanIds) && $primarySupplierId) {
+                $cleanIds = [$primarySupplierId];
+            }
+            if (empty($cleanIds)) {
+                return;
+            }
+
+            if (!$primarySupplierId || !in_array($primarySupplierId, $cleanIds, true)) {
+                $primarySupplierId = $cleanIds[0];
+            }
+
+            Database::execute("DELETE FROM product_suppliers WHERE product_id = :product_id", [
+                ':product_id' => $productId
+            ]);
+
+            foreach ($cleanIds as $sid) {
+                Database::execute("
+                    INSERT INTO product_suppliers (product_id, supplier_id, is_primary)
+                    VALUES (:product_id, :supplier_id, :is_primary)
+                    ON DUPLICATE KEY UPDATE is_primary = VALUES(is_primary)
+                ", [
+                    ':product_id'  => $productId,
+                    ':supplier_id' => $sid,
+                    ':is_primary'  => ($sid === $primarySupplierId) ? 1 : 0
+                ]);
+            }
+
+            // Keep products.supplier_id in sync with primary supplier
+            Database::execute("UPDATE products SET supplier_id = :supplier_id WHERE id = :id", [
+                ':supplier_id' => $primarySupplierId,
+                ':id'          => $productId
+            ]);
+        } catch (Throwable $e) {
+            Logger::error("Failed to syncSuppliers for product #$productId: " . $e->getMessage(), $e);
         }
     }
 
@@ -257,6 +367,10 @@ class Product
         $categoryId = (int)($data['category_id'] ?? 0);
         $name = trim($data['name'] ?? '');
         $supplierId = (int)($data['supplier_id'] ?? 0);
+        $supplierIds = !empty($data['supplier_ids']) ? array_filter(array_map('intval', (array)$data['supplier_ids'])) : [];
+        if ($supplierId <= 0 && !empty($supplierIds)) {
+            $supplierId = reset($supplierIds);
+        }
         $cost = (float)($data['cost'] ?? 0);
         $sellingPrice = (float)($data['selling_price'] ?? 0);
         $openingStock = (float)($data['opening_stock'] ?? 0);
@@ -276,7 +390,7 @@ class Product
             }
         }
 
-        if (!empty($sku)) {
+        if (!empty($sku) && $sku !== $barcode) {
             $sqlSku = "SELECT id FROM products WHERE sku = :sku AND deleted_at IS NULL";
             $paramsSku = [':sku' => $sku];
             if ($ignoreId) {
@@ -336,7 +450,18 @@ class Product
                     }
                 }
             } elseif ($openingStock > 0 && empty($data['expiry_date'])) {
-                $errors[] = 'Expiry Date is required for opening stock when expiry tracking is enabled.';
+                if ($ignoreId) {
+                    $hasRemainingStock = (float)Database::fetchValue("
+                        SELECT COALESCE(SUM(remaining_quantity), 0) 
+                        FROM product_lots 
+                        WHERE product_id = :id AND status = 'active'
+                    ", [':id' => $ignoreId]);
+                    if ($hasRemainingStock > 0) {
+                        $errors[] = 'Expiry Date is required for opening stock when expiry tracking is enabled.';
+                    }
+                } else {
+                    $errors[] = 'Expiry Date is required for opening stock when expiry tracking is enabled.';
+                }
             }
         }
 
@@ -358,6 +483,7 @@ class Product
             }
             $brandId = (int)$data['brand_id'];
             $categoryId = (int)$data['category_id'];
+            $description = trim($data['description'] ?? '');
             $name = trim($data['name']);
             $supplierId = (int)$data['supplier_id'];
             $cost = (float)$data['cost'];
@@ -374,8 +500,8 @@ class Product
             }
 
             $sql = "
-                INSERT INTO products (sku, barcode, brand_id, category_id, name, supplier_id, cost, selling_price, opening_stock, low_stock_threshold, status, has_expiry)
-                VALUES (:sku, :barcode, :brand_id, :category_id, :name, :supplier_id, :cost, :selling_price, :opening_stock, :low_stock_threshold, :status, :has_expiry)
+                INSERT INTO products (sku, barcode, brand_id, category_id, description, name, supplier_id, cost, selling_price, opening_stock, low_stock_threshold, status, has_expiry)
+                VALUES (:sku, :barcode, :brand_id, :category_id, :description, :name, :supplier_id, :cost, :selling_price, :opening_stock, :low_stock_threshold, :status, :has_expiry)
             ";
 
             Database::execute($sql, [
@@ -383,6 +509,7 @@ class Product
                 ':barcode'             => $barcode,
                 ':brand_id'            => $brandId,
                 ':category_id'         => $categoryId,
+                ':description'         => $description,
                 ':name'                => $name,
                 ':supplier_id'         => $supplierId,
                 ':cost'                => $cost,
@@ -394,6 +521,16 @@ class Product
             ]);
 
             $newId = (int)Database::lastInsertId();
+
+            // Sync suppliers to product_suppliers table
+            $supplierIds = !empty($data['supplier_ids']) ? array_filter(array_map('intval', (array)$data['supplier_ids'])) : [];
+            if ($supplierId > 0 && !in_array($supplierId, $supplierIds, true)) {
+                array_unshift($supplierIds, $supplierId);
+            }
+            if (empty($supplierIds) && $supplierId > 0) {
+                $supplierIds = [$supplierId];
+            }
+            self::syncSuppliers($newId, $supplierIds, $supplierId);
 
             // Create initial Stock Lot and Ledger Movement for active branch
             $totalOpeningVal = 0.00;
@@ -513,6 +650,7 @@ class Product
             $sku = self::normalizeSku($data['sku'] ?? ($product['sku'] ?: $barcode));
             $brandId = (int)$data['brand_id'];
             $categoryId = (int)$data['category_id'];
+            $description = trim($data['description'] ?? ($product['description'] ?? ''));
             $name = trim($data['name']);
             $supplierId = (int)$data['supplier_id'];
             $cost = (float)$data['cost'];
@@ -521,10 +659,13 @@ class Product
             $lowStockThreshold = isset($data['low_stock_threshold']) ? (float)$data['low_stock_threshold'] : (float)$product['low_stock_threshold'];
             $status = ($data['status'] ?? 'active') === 'inactive' ? 'inactive' : 'active';
             $hasExpiry = isset($data['has_expiry']) ? (!empty($data['has_expiry']) ? 1 : 0) : (int)($product['has_expiry'] ?? 0);
+            $expiryDate = !empty($data['expiry_date']) ? trim($data['expiry_date']) : null;
+            $batchNumber = !empty($data['batch_number']) ? trim($data['batch_number']) : null;
 
             $sql = "
                 UPDATE products
-                SET sku = :sku, barcode = :barcode, brand_id = :brand_id, category_id = :category_id, name = :name,
+                SET sku = :sku, barcode = :barcode, brand_id = :brand_id, category_id = :category_id,
+                    description = :description, name = :name,
                     supplier_id = :supplier_id, cost = :cost, selling_price = :selling_price, opening_stock = :opening_stock,
                     low_stock_threshold = :low_stock_threshold, status = :status, has_expiry = :has_expiry, updated_at = NOW()
                 WHERE id = :id
@@ -535,6 +676,7 @@ class Product
                 ':barcode'             => $barcode,
                 ':brand_id'            => $brandId,
                 ':category_id'         => $categoryId,
+                ':description'         => $description,
                 ':name'                => $name,
                 ':supplier_id'         => $supplierId,
                 ':cost'                => $cost,
@@ -546,8 +688,33 @@ class Product
                 ':id'                  => $id
             ]);
 
+            // If expiry tracking is turned on and an expiry date is provided, update stock lots that lack expiry or opening stock lot
+            if ($hasExpiry && !empty($expiryDate)) {
+                Database::execute("
+                    UPDATE product_lots 
+                    SET expiry_date = :expiry_date,
+                        batch_number = COALESCE(:batch_number, batch_number),
+                        updated_at = NOW()
+                    WHERE product_id = :product_id 
+                      AND (expiry_date IS NULL OR expiry_date = '' OR source_type = 'opening_stock')
+                ", [
+                    ':expiry_date'  => $expiryDate,
+                    ':batch_number' => $batchNumber,
+                    ':product_id'   => $id
+                ]);
+            }
+
+            // Sync suppliers to product_suppliers table
+            $supplierIds = !empty($data['supplier_ids']) ? array_filter(array_map('intval', (array)$data['supplier_ids'])) : [];
+            if ($supplierId > 0 && !in_array($supplierId, $supplierIds, true)) {
+                array_unshift($supplierIds, $supplierId);
+            }
+            if (!empty($supplierIds)) {
+                self::syncSuppliers($id, $supplierIds, $supplierId);
+            }
+
             Audit::log('PRODUCT_UPDATED', 'products', (string)$id, $product, [
-                'sku' => $sku, 'barcode' => $barcode, 'name' => $name, 'cost' => $cost, 'selling_price' => $sellingPrice, 'has_expiry' => $hasExpiry
+                'sku' => $sku, 'barcode' => $barcode, 'name' => $name, 'cost' => $cost, 'selling_price' => $sellingPrice, 'has_expiry' => $hasExpiry, 'expiry_date' => $expiryDate, 'batch_number' => $batchNumber
             ]);
 
             return ['success' => true, 'message' => 'Product updated successfully.'];
@@ -659,11 +826,6 @@ class Product
             return ['success' => false, 'message' => 'Product not found.'];
         }
 
-        $safety = self::canDelete($id);
-        if (!$safety['can_delete']) {
-            return ['success' => false, 'message' => $safety['reason']];
-        }
-
         try {
             Database::execute("UPDATE products SET deleted_at = NOW() WHERE id = :id", [':id' => $id]);
 
@@ -671,12 +833,19 @@ class Product
             Database::execute("UPDATE product_lots SET status = 'inactive' WHERE product_id = :id AND status = 'active'", [':id' => $id]);
 
             // Reverse opening stock journal entry if posted so financial statements reflect deleted product
+            require_once __DIR__ . '/Accounting.php';
+            $invAccId = (int)(Accounting::getAccountIdByCode(Accounting::CODE_INVENTORY_ASSET) ?? 0);
             $openingJe = Database::fetchOne("
-                SELECT id FROM journal_entries 
-                WHERE source_type = 'opening_balance' AND source_id = :id AND posting_status = 'posted'
-            ", [':id' => $id]);
+                SELECT je.id 
+                FROM journal_entries je
+                JOIN journal_lines jl ON jl.journal_entry_id = je.id
+                WHERE je.source_type = 'opening_balance' 
+                  AND je.source_id = :id 
+                  AND je.posting_status = 'posted'
+                  AND jl.account_id = :inv_acc_id
+                LIMIT 1
+            ", [':id' => $id, ':inv_acc_id' => $invAccId]);
             if ($openingJe) {
-                require_once __DIR__ . '/Accounting.php';
                 Accounting::reverseJournalEntry((int)$openingJe['id'], "Product #{$id} ({$product['name']}) moved to Trash Bin", (int)($_SESSION['user_id'] ?? 1));
             }
 
@@ -712,12 +881,19 @@ class Product
             Database::execute("UPDATE product_lots SET status = 'active' WHERE product_id = :id AND status = 'inactive' AND remaining_quantity > 0", [':id' => $id]);
 
             // Restore reversed opening stock journal entry if applicable
+            require_once __DIR__ . '/Accounting.php';
+            $invAccId = (int)(Accounting::getAccountIdByCode(Accounting::CODE_INVENTORY_ASSET) ?? 0);
             $reversedJe = Database::fetchOne("
-                SELECT id, reversed_journal_id FROM journal_entries 
-                WHERE source_type = 'opening_balance' AND source_id = :id AND posting_status = 'reversed'
-            ", [':id' => $id]);
+                SELECT je.id, je.reversed_journal_id 
+                FROM journal_entries je
+                JOIN journal_lines jl ON jl.journal_entry_id = je.id
+                WHERE je.source_type = 'opening_balance' 
+                  AND je.source_id = :id 
+                  AND je.posting_status = 'reversed'
+                  AND jl.account_id = :inv_acc_id
+                LIMIT 1
+            ", [':id' => $id, ':inv_acc_id' => $invAccId]);
             if ($reversedJe && !empty($reversedJe['reversed_journal_id'])) {
-                require_once __DIR__ . '/Accounting.php';
                 Accounting::reverseJournalEntry((int)$reversedJe['reversed_journal_id'], "Product #{$id} restored from Trash Bin", (int)($_SESSION['user_id'] ?? 1));
             }
 

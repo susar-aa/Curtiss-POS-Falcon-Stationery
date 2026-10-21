@@ -11,6 +11,7 @@ require_once __DIR__ . '/core/Auth.php';
 require_once __DIR__ . '/core/Employee.php';
 require_once __DIR__ . '/core/Payroll.php';
 require_once __DIR__ . '/core/Logger.php';
+require_once __DIR__ . '/core/MaskingHelper.php';
 
 try {
     $currentUser = Auth::user();
@@ -24,6 +25,17 @@ try {
     $currentBranchId = (int)($_SESSION['branch_id'] ?? $_SESSION['active_branch_id'] ?? Auth::getCurrentBranchId() ?? 1);
     $action = trim($_GET['action'] ?? $_POST['action'] ?? 'list');
 
+    // CSRF protection on mutating actions
+    $mutatingActions = ['create', 'update', 'toggle_status', 'delete', 'restore'];
+    if (in_array($action, $mutatingActions, true)) {
+        $token = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? $_POST['csrf_token'] ?? '';
+        if (!empty($token) && !Auth::validateCsrfToken($token)) {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'message' => 'CSRF verification failed or security token expired.']);
+            exit;
+        }
+    }
+
     // Check if user has permission to view sensitive salary info
     $canViewSalary = Auth::hasPermission('payroll.view') || Auth::hasPermission('employees.manage') || Auth::hasRole(ROLE_SUPER_ADMIN, ROLE_ADMIN, ROLE_ACCOUNTANT);
 
@@ -36,7 +48,9 @@ try {
             }
 
             $page  = max(1, (int)($_GET['page'] ?? 1));
-            $limit = max(1, min(500, (int)($_GET['limit'] ?? 25)));
+            $allowedLimits = [25, 50, 75, 100, 500];
+            $rawLimit = (int)($_GET['limit'] ?? 25);
+            $limit = in_array($rawLimit, $allowedLimits, true) ? $rawLimit : 25;
             $view  = trim($_GET['view'] ?? 'active');
 
             $filters = [
@@ -49,10 +63,16 @@ try {
 
             $res = Employee::all($filters, $page, $limit);
 
-            // If user cannot view salary, mask basic salary
+            // If user cannot view salary or Special User masking applies
             if (!$canViewSalary) {
                 foreach ($res['items'] as &$item) {
                     $item['basic_salary'] = null;
+                }
+            } elseif (MaskingHelper::isSpecialUser()) {
+                foreach ($res['items'] as &$item) {
+                    if ($item['basic_salary'] !== null) {
+                        $item['basic_salary'] = MaskingHelper::maskValue((float)$item['basic_salary']);
+                    }
                 }
             }
 

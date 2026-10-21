@@ -834,13 +834,6 @@ $deletedCount = count($deletedProducts ?? []);
             Trash Bin (<?= $deletedCount ?>)
         </a>
 
-        <?php if (Auth::hasRole(ROLE_SUPER_ADMIN, ROLE_ADMIN, ROLE_MANAGER)): ?>
-        <a href="quick_products" class="top-bubble-pill top-action-btn" title="Quick Inline Product & Stock Editor">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-            Quick Editor
-        </a>
-        <?php endif; ?>
-
         <?php if (Auth::hasPermission('products.import')): ?>
         <a href="product_import" class="top-bubble-pill top-action-btn">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
@@ -1032,7 +1025,7 @@ $deletedCount = count($deletedProducts ?? []);
                             </td>
                             <td>
                                 <?php if (!empty($p['sku'])): ?>
-                                    <span class="prod-code"><?= View::escape($p['sku']) ?></span>
+                                    <span class="prod-code" style="background:#e0f2fe;color:#0369a1;border:1px solid #bae6fd;"><?= View::escape($p['sku']) ?></span>
                                 <?php else: ?>
                                     <span style="color:#cbd5e1;font-size:11px;">—</span>
                                 <?php endif; ?>

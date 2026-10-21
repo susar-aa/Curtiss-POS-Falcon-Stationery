@@ -68,11 +68,12 @@ class SupplierReturnEngine
             ];
             $searchWhere = "";
             if (!empty($search)) {
-                $searchWhere = " AND (p.name LIKE :search1 OR p.barcode LIKE :search2 OR pl.lot_number LIKE :search3)";
+                $searchWhere = " AND (p.name LIKE :search1 OR p.barcode LIKE :search2 OR p.sku LIKE :search4 OR pl.lot_number LIKE :search3)";
                 $term = '%' . trim($search) . '%';
                 $params[':search1'] = $term;
                 $params[':search2'] = $term;
                 $params[':search3'] = $term;
+                $params[':search4'] = $term;
             }
 
             $sql = "
@@ -80,6 +81,7 @@ class SupplierReturnEngine
                     gi.product_id,
                     p.name AS product_name,
                     p.barcode,
+                    p.sku,
                     gi.lot_id,
                     pl.lot_number,
                     gi.unit_cost,

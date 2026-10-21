@@ -144,21 +144,6 @@ class DiagnosticsEngine
             'items'       => $payMismatches
         ];
 
-        // 7. Invalid Gift Voucher States
-        $stmtVouchers = $db->query("
-            SELECT id, voucher_code, status 
-            FROM gift_vouchers 
-            WHERE status = 'redeemed' AND redeemed_at IS NULL
-        ");
-        $badVouchers = $stmtVouchers->fetchAll(PDO::FETCH_ASSOC);
-        $results['invalid_voucher_states'] = [
-            'check_name'  => 'Invalid Gift Voucher Redemption States',
-            'status'      => empty($badVouchers) ? 'PASS' : 'WARN',
-            'count'       => count($badVouchers),
-            'description' => 'Checks for gift vouchers marked as redeemed without valid mapped sale_id.',
-            'items'       => $badVouchers
-        ];
-
         return $results;
     }
 }

@@ -316,6 +316,7 @@
     window.returnBankAccounts = <?= json_encode($bankAccounts ?? []) ?>;
 </script>
 
+<div class="returns-container" style="width: 100%; max-width: 100%; height: <?= !empty($_GET['embedded']) ? 'calc(100vh - 20px)' : 'calc(100vh - 110px)' ?>; display: flex; flex-direction: column; box-sizing: border-box; overflow-y: auto; padding-bottom: 8px;">
 <!-- Headline and Mode Tabs (Rule 5 & 19) -->
 <div class="inv-header">
     <div style="display: flex; align-items: center; gap: 8px;">
@@ -616,62 +617,95 @@
 <!-- ========================================================================= -->
 <div id="panelHistory" style="display: none;">
     <div class="inv-card">
-        <form method="GET" action="returns.php" style="display: flex; gap: 8px; margin-bottom: 0.85rem; flex-wrap: wrap;">
-            <input type="hidden" name="tab" value="history">
-            <input type="text" name="search" class="inv-input" placeholder="Filter Return No, Invoice No, Customer..." value="<?= htmlspecialchars($search) ?>" style="max-width: 320px;">
-            <button type="submit" class="inv-btn inv-btn-primary">Filter Log</button>
-            <?php if (!empty($search)): ?>
-                <a href="returns.php?tab=history" class="inv-btn inv-btn-ghost">Clear</a>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.85rem; flex-wrap: wrap; gap: 10px;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="font-size: 11px; font-weight: 800; color: #64748b; text-transform: uppercase;">Filter:</span>
+                <select id="filterReturnType" class="inv-select" onchange="applyReturnTypeFilter(this.value)" style="height: 34px; min-height: 34px; padding: 0 12px; border-radius: 999px; font-size: 12px; font-weight: 700;">
+                    <option value="" <?= empty($typeFilter) ? 'selected' : '' ?>>All Return Types</option>
+                    <option value="return_only" <?= ($typeFilter === 'return_only') ? 'selected' : '' ?>>Return Only</option>
+                    <option value="exchange" <?= ($typeFilter === 'exchange') ? 'selected' : '' ?>>Exchange</option>
+                </select>
+            </div>
+            <?php if (!empty($search) || !empty($typeFilter)): ?>
+                <button type="button" onclick="clearReturnsFilters()" class="inv-btn inv-btn-ghost" style="height: 34px; color: #dc2626; border-color: #fecaca; background: #fef2f2;">✕ Reset Filters</button>
             <?php endif; ?>
-        </form>
+        </div>
 
         <div class="return-table-wrap">
-            <table class="return-table">
+            <table class="return-table" id="returnsTable">
                 <thead>
                     <tr>
-                        <th>Return No</th>
-                        <th>Date</th>
-                        <th>Original Invoice</th>
+                        <th style="width: 120px;">Return No</th>
+                        <th style="width: 140px;">Date & Time</th>
+                        <th style="width: 140px;">Original Invoice</th>
                         <th>Customer</th>
-                        <th class="col-right">Return Total (LKR)</th>
+                        <th class="col-right" style="width: 150px;">Return Total (LKR)</th>
                         <th>Processed By</th>
-                        <th class="col-center">Action</th>
+                        <th class="col-center" style="width: 110px;">Action</th>
                     </tr>
                 </thead>
-                <tbody>
+                <tbody id="returnsTableBody">
                     <?php if (empty($returnsList)): ?>
                         <tr>
                             <td colspan="7" style="text-align: center; color: #94a3b8; padding: 2.5rem 1rem;">No sales returns logged yet.</td>
                         </tr>
                     <?php else: ?>
                         <?php foreach ($returnsList as $r): ?>
-                            <tr>
+                            <tr class="return-row" onclick="viewReturnDetails(<?= (int)$r['id'] ?>)" style="cursor: pointer;" title="Click row to view return details">
                                 <td><strong style="color: #0f172a; font-family: monospace; font-size: 13px;"><?= htmlspecialchars($r['return_no']) ?></strong></td>
                                 <td style="color: #64748b; font-size: 12px;"><?= date('Y-m-d H:i', strtotime($r['created_at'])) ?></td>
                                 <td><span class="inv-code-pill"><?= htmlspecialchars($r['original_invoice_no'] ?? 'NO-INVOICE') ?></span></td>
                                 <td><strong><?= htmlspecialchars($r['customer_name'] ?? 'Walk-in') ?></strong></td>
-                                <td class="col-right"><strong style="color: #16a34a; font-family: monospace;">LKR <?= number_format($r['total_return_amount'], 2) ?></strong></td>
+                                <td class="col-right"><strong style="color: #16a34a; font-family: monospace;"><?= number_format((float)$r['total_return_amount'], 2) ?></strong></td>
                                 <td style="font-size: 12px; color: #475569;"><?= htmlspecialchars($r['created_by_name']) ?></td>
                                 <td class="col-center">
-                                    <button class="inv-btn inv-btn-ghost inv-btn-sm" onclick="viewReturnDetails(<?= $r['id'] ?>)">
+                                    <button type="button" class="inv-btn inv-btn-ghost inv-btn-sm" onclick="event.stopPropagation(); viewReturnDetails(<?= (int)$r['id'] ?>);">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                                        View Details
+                                        Details
                                     </button>
                                 </td>
                             </tr>
                         <?php endforeach; ?>
+                        <tr id="noReturnSearchResultsRow" style="display: none;">
+                            <td colspan="7" style="text-align: center; color: #94a3b8; padding: 2.5rem 1rem;">
+                                No matching sales return records found. Try refining your search query or pressing Enter for full database lookup.
+                            </td>
+                        </tr>
                     <?php endif; ?>
                 </tbody>
             </table>
         </div>
 
-        <?php if ($totalPages > 1): ?>
-            <div style="margin-top: 1rem; display: flex; justify-content: center; gap: 4px;">
-                <?php for ($i = 1; $i <= $totalPages; $i++): ?>
-                    <a href="returns.php?tab=history&page=<?= $i ?>&search=<?= urlencode($search) ?>" class="inv-btn inv-btn-sm <?= $page === $i ? 'inv-btn-primary' : 'inv-btn-ghost' ?>"><?= $i ?></a>
-                <?php endfor; ?>
+        <!-- Table Footer with Standard Pagination & Limits (Rule 6 & 24) -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1rem; flex-wrap: wrap; gap: 10px; font-size: 12px; color: #64748b;">
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <span>Showing <strong><?= count($returnsList) ?></strong> of <strong><?= (int)($totalItems ?? count($returnsList)) ?></strong> records</span>
+                <div style="display: flex; align-items: center; gap: 6px;">
+                    <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: #94a3b8;">Per Page:</span>
+                    <select id="returnsLimitSelect" onchange="changeReturnsLimit(this.value)" class="inv-select" style="height: 28px !important; min-height: 28px !important; padding: 0 8px !important; font-size: 11px !important; border-radius: 6px;">
+                        <option value="25" <?= ($limit === 25) ? 'selected' : '' ?>>25</option>
+                        <option value="50" <?= ($limit === 50) ? 'selected' : '' ?>>50</option>
+                        <option value="75" <?= ($limit === 75) ? 'selected' : '' ?>>75</option>
+                        <option value="100" <?= ($limit === 100) ? 'selected' : '' ?>>100</option>
+                        <option value="500" <?= ($limit === 500) ? 'selected' : '' ?>>500</option>
+                    </select>
+                </div>
             </div>
-        <?php endif; ?>
+
+            <div style="display: flex; align-items: center; gap: 4px;">
+                <?php
+                $prevPage = max(1, $page - 1);
+                $nextPage = min($totalPages, $page + 1);
+                ?>
+                <a href="returns.php?tab=history&page=1&limit=<?= $limit ?>&return_type=<?= urlencode($typeFilter) ?>&search=<?= urlencode($search) ?>" class="inv-btn inv-btn-sm <?= ($page <= 1) ? 'inv-btn-ghost' : 'inv-btn-ghost' ?>" style="<?= ($page <= 1) ? 'pointer-events: none; opacity: 0.5;' : '' ?>" title="First Page">«</a>
+                <a href="returns.php?tab=history&page=<?= $prevPage ?>&limit=<?= $limit ?>&return_type=<?= urlencode($typeFilter) ?>&search=<?= urlencode($search) ?>" class="inv-btn inv-btn-sm inv-btn-ghost" style="<?= ($page <= 1) ? 'pointer-events: none; opacity: 0.5;' : '' ?>" title="Previous Page">‹</a>
+                
+                <span style="padding: 0 8px; font-weight: 700; color: #0f172a;">Page <?= $page ?> of <?= max(1, $totalPages) ?></span>
+
+                <a href="returns.php?tab=history&page=<?= $nextPage ?>&limit=<?= $limit ?>&return_type=<?= urlencode($typeFilter) ?>&search=<?= urlencode($search) ?>" class="inv-btn inv-btn-sm inv-btn-ghost" style="<?= ($page >= $totalPages) ? 'pointer-events: none; opacity: 0.5;' : '' ?>" title="Next Page">›</a>
+                <a href="returns.php?tab=history&page=<?= $totalPages ?>&limit=<?= $limit ?>&return_type=<?= urlencode($typeFilter) ?>&search=<?= urlencode($search) ?>" class="inv-btn inv-btn-sm inv-btn-ghost" style="<?= ($page >= $totalPages) ? 'pointer-events: none; opacity: 0.5;' : '' ?>" title="Last Page">»</a>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -754,7 +788,7 @@
         if (document.getElementById('panelHistory')) document.getElementById('panelHistory').style.display = (tab === 'history') ? 'block' : 'none';
     }
 
-    // Initial check for URL tab parameter
+    // Initial check for URL tab parameter and search hook
     document.addEventListener('DOMContentLoaded', () => {
         const urlParams = new URLSearchParams(window.location.search);
         if (urlParams.get('tab') === 'history') {
@@ -765,7 +799,41 @@
         if (window.CurtissSearchableSelect) {
             const manualCust = document.getElementById('manualCustomerSelect');
             if (manualCust) CurtissSearchableSelect.attach(manualCust);
+
+            const filterType = document.getElementById('filterReturnType');
+            if (filterType) CurtissSearchableSelect.attach(filterType);
         }
+
+        // Register Real-time Search Hook on Floating Bottom Nav Bar (Rule 4)
+        function registerBottomSearch() {
+            if (window.CurtissNav && typeof window.CurtissNav.enablePageSearch === 'function') {
+                window.CurtissNav.enablePageSearch({
+                    placeholder: 'Search return no, invoice, customer, cashier, amount...',
+                    initialValue: <?= json_encode($search ?? '') ?>,
+                    onSearch: function(query) {
+                        const historyTab = document.getElementById('panelHistory');
+                        if (historyTab && historyTab.style.display === 'none' && query.trim()) {
+                            switchTab('history');
+                        }
+                        filterReturnsTableRealtime(query);
+                    },
+                    onEnter: function(query) {
+                        const url = new URL(window.location.href);
+                        url.searchParams.set('tab', 'history');
+                        if (query && query.trim()) {
+                            url.searchParams.set('search', query.trim());
+                        } else {
+                            url.searchParams.delete('search');
+                        }
+                        url.searchParams.set('page', '1');
+                        window.location.href = url.toString();
+                    }
+                });
+            } else {
+                setTimeout(registerBottomSearch, 40);
+            }
+        }
+        registerBottomSearch();
 
         // Close dropdowns when clicking outside
         document.addEventListener('click', (e) => {
@@ -777,6 +845,61 @@
             }
         });
     });
+
+    function filterReturnsTableRealtime(query) {
+        const q = (query || '').toLowerCase().trim();
+        const rows = document.querySelectorAll('#returnsTableBody tr.return-row');
+        let visibleCount = 0;
+
+        rows.forEach(tr => {
+            // Exclude action column buttons/text so typing 'details' or 'view' does not match every row
+            const dataCells = Array.from(tr.querySelectorAll('td:not(.col-center:last-child)'));
+            const rowText = dataCells.map(td => td.textContent).join(' ').toLowerCase();
+
+            const match = !q || rowText.includes(q);
+
+            if (match) {
+                tr.style.display = '';
+                visibleCount++;
+            } else {
+                tr.style.display = 'none';
+            }
+        });
+
+        const noRow = document.getElementById('noReturnSearchResultsRow');
+        if (noRow) {
+            noRow.style.display = (visibleCount === 0 && rows.length > 0 && q) ? '' : 'none';
+        }
+    }
+
+    function changeReturnsLimit(limitVal) {
+        const url = new URL(window.location.href);
+        url.searchParams.set('tab', 'history');
+        url.searchParams.set('limit', limitVal);
+        url.searchParams.set('page', '1');
+        window.location.href = url.toString();
+    }
+
+    function applyReturnTypeFilter(typeVal) {
+        const url = new URL(window.location.href);
+        url.searchParams.set('tab', 'history');
+        if (typeVal) {
+            url.searchParams.set('return_type', typeVal);
+        } else {
+            url.searchParams.delete('return_type');
+        }
+        url.searchParams.set('page', '1');
+        window.location.href = url.toString();
+    }
+
+    function clearReturnsFilters() {
+        const url = new URL(window.location.href);
+        url.searchParams.set('tab', 'history');
+        url.searchParams.delete('search');
+        url.searchParams.delete('return_type');
+        url.searchParams.set('page', '1');
+        window.location.href = url.toString();
+    }
 
     function getCOAPaymentMethodOptions(selectedKey) {
         let html = '';
@@ -797,7 +920,6 @@
 
         methods.push({ key: 'cheque', label: 'Cheque Refund' });
         methods.push({ key: 'credit', label: 'Customer Credit Balance' });
-        methods.push({ key: 'voucher', label: 'Issue Replacement Gift Voucher' });
 
         methods.forEach(m => {
             const sel = (m.key === selectedKey) ? 'selected' : '';
@@ -1884,7 +2006,6 @@
                                 <th>Method</th>
                                 <th class="col-right">Amount</th>
                                 <th>Reference / Notes</th>
-                                <th>Replacement Voucher</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -1893,11 +2014,10 @@
                                     <td><strong style="color: #0f172a;">${esc(rf.refund_method.toUpperCase())}</strong></td>
                                     <td class="col-right"><strong style="color: #16a34a; font-family: monospace;">LKR ${parseFloat(rf.amount).toFixed(2)}</strong></td>
                                     <td>${esc(rf.reference_no || 'N/A')}</td>
-                                    <td>${rf.replacement_voucher_code ? `<span class="inv-code-pill">${esc(rf.replacement_voucher_code)}</span>` : 'N/A'}</td>
                                 </tr>
                             `).join('') : `
                                 <tr>
-                                    <td colspan="4" style="text-align: center; color: #16a34a; font-weight: 700; padding: 1rem;">
+                                    <td colspan="3" style="text-align: center; color: #16a34a; font-weight: 700; padding: 1rem;">
                                         🔄 Store Credit / POS Exchange (No Cash Payout)
                                     </td>
                                 </tr>
@@ -1918,4 +2038,21 @@
     function closeReturnDetailsModal() {
         document.getElementById('returnDetailsModal').style.display = 'none';
     }
+
+    // Embedded POS Modal Escape key bridge
+    window.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            const innerLotModal = document.getElementById('lotSelectionModal');
+            const innerDetailsModal = document.getElementById('returnDetailsModal');
+            if ((!innerLotModal || innerLotModal.style.display !== 'flex') && 
+                (!innerDetailsModal || innerDetailsModal.style.display !== 'flex')) {
+                if (window.parent && window.parent !== window && typeof window.parent.closeReturnsModal === 'function') {
+                    e.preventDefault();
+                    window.parent.closeReturnsModal();
+                }
+            }
+        }
+    });
 </script>
+</div>
+

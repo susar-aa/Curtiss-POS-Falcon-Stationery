@@ -6,6 +6,9 @@
 require_once __DIR__ . '/constants.php';
 require_once __DIR__ . '/../core/Logger.php';
 
+// Application Default Timezone (Asia/Colombo)
+date_default_timezone_set('Asia/Colombo');
+
 // Secure Session Initialization
 if (session_status() === PHP_SESSION_NONE) {
     ini_set('session.use_only_cookies', 1);

@@ -18,7 +18,8 @@ if (Auth::isSpecialUser()) {
 }
 $user = Auth::user();
 $userId = (int)$user['id'];
-$branchId = (int)($_SESSION['branch_id'] ?? $_SESSION['active_branch_id'] ?? 1);
+$isAllBranches = !empty($_SESSION['all_branches_view']) || ($_GET['branch_id'] ?? '') === 'all';
+$branchId = $isAllBranches ? 'all' : (int)($_SESSION['branch_id'] ?? $_SESSION['active_branch_id'] ?? 1);
 
 $action = $_GET['action'] ?? $_POST['action'] ?? '';
 
@@ -50,7 +51,8 @@ try {
                 echo json_encode(['success' => false, 'message' => 'Invalid account ID.']);
                 exit;
             }
-            $reqBranch = !empty($_GET['branch_id']) ? (int)$_GET['branch_id'] : $branchId;
+            $reqBranchRaw = !empty($_GET['branch_id']) ? $_GET['branch_id'] : $branchId;
+            $reqBranch = ($reqBranchRaw === 'all' || (int)$reqBranchRaw === 0) ? null : (int)$reqBranchRaw;
             $res = Accounting::getAccountHistory($accountId, $reqBranch);
             echo json_encode($res);
             break;
@@ -61,6 +63,11 @@ try {
                 exit;
             }
             $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
+            $csrf = $input['csrf_token'] ?? $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
+            if (!empty($csrf) && !Auth::validateCsrfToken($csrf)) {
+                echo json_encode(['success' => false, 'message' => 'Invalid or expired CSRF token.']);
+                exit;
+            }
             $res = Accounting::createAccount($input, $userId);
             echo json_encode($res);
             break;
@@ -71,6 +78,11 @@ try {
                 exit;
             }
             $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
+            $csrf = $input['csrf_token'] ?? $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
+            if (!empty($csrf) && !Auth::validateCsrfToken($csrf)) {
+                echo json_encode(['success' => false, 'message' => 'Invalid or expired CSRF token.']);
+                exit;
+            }
             $id = (int)($input['id'] ?? 0);
             if ($id <= 0) {
                 echo json_encode(['success' => false, 'message' => 'Invalid account ID.']);
@@ -80,13 +92,33 @@ try {
             echo json_encode($res);
             break;
 
+        case 'toggle_account_status':
+            if (!Auth::hasPermission('accounts.manage')) {
+                echo json_encode(['success' => false, 'message' => 'Permission denied to manage accounts.']);
+                exit;
+            }
+            $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
+            $csrf = $input['csrf_token'] ?? $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
+            if (!empty($csrf) && !Auth::validateCsrfToken($csrf)) {
+                echo json_encode(['success' => false, 'message' => 'Invalid or expired CSRF token.']);
+                exit;
+            }
+            $id = (int)($input['id'] ?? 0);
+            if ($id <= 0) {
+                echo json_encode(['success' => false, 'message' => 'Invalid account ID.']);
+                exit;
+            }
+            $res = Accounting::toggleAccountStatus($id, $userId);
+            echo json_encode($res);
+            break;
+
         case 'get_journals':
             if (!Auth::hasPermission('accounting.view')) {
                 echo json_encode(['success' => false, 'message' => 'Permission denied.']);
                 exit;
             }
             $page = max(1, (int)($_GET['page'] ?? 1));
-            $limit = max(1, min(500, (int)($_GET['limit'] ?? 25)));
+            $limit = in_array((int)($_GET['limit'] ?? 25), [25, 50, 75, 100, 500], true) ? (int)$_GET['limit'] : 25;
             $filters = [
                 'branch_id'      => !empty($_GET['branch_id']) ? $_GET['branch_id'] : $branchId,
                 'source_type'    => $_GET['source_type'] ?? '',
@@ -119,6 +151,11 @@ try {
                 exit;
             }
             $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
+            $csrf = $input['csrf_token'] ?? $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
+            if (!empty($csrf) && !Auth::validateCsrfToken($csrf)) {
+                echo json_encode(['success' => false, 'message' => 'Invalid or expired CSRF token.']);
+                exit;
+            }
             $header = [
                 'branch_id'   => !empty($input['branch_id']) ? (int)$input['branch_id'] : $branchId,
                 'entry_date'  => !empty($input['entry_date']) ? $input['entry_date'] : date('Y-m-d'),
@@ -137,6 +174,11 @@ try {
                 exit;
             }
             $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
+            $csrf = $input['csrf_token'] ?? $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
+            if (!empty($csrf) && !Auth::validateCsrfToken($csrf)) {
+                echo json_encode(['success' => false, 'message' => 'Invalid or expired CSRF token.']);
+                exit;
+            }
             $journalId = (int)($input['journal_id'] ?? 0);
             $reason = trim($input['reason'] ?? '');
             if ($journalId <= 0 || empty($reason)) {
@@ -162,10 +204,12 @@ try {
                 exit;
             }
             $page = max(1, (int)($_GET['page'] ?? 1));
-            $limit = max(1, min(500, (int)($_GET['limit'] ?? 25)));
+            $limit = in_array((int)($_GET['limit'] ?? 25), [25, 50, 75, 100, 500], true) ? (int)$_GET['limit'] : 25;
+            $branchParam = $_GET['branch_id'] ?? '';
+            $branchFilter = ($branchParam === 'all') ? 'all' : (!empty($branchParam) ? (int)$branchParam : $branchId);
             $filters = [
                 'account_id'  => $_GET['account_id'] ?? '',
-                'branch_id'   => !empty($_GET['branch_id']) ? $_GET['branch_id'] : $branchId,
+                'branch_id'   => $branchFilter,
                 'source_type' => $_GET['source_type'] ?? '',
                 'start_date'  => $_GET['start_date'] ?? '',
                 'end_date'    => $_GET['end_date'] ?? '',

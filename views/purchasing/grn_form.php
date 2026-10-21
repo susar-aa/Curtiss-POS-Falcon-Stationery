@@ -24,6 +24,11 @@ $nextGrnNumber = $nextGrnNumber ?? ($grnData['grn_number'] ?? '');
 </div>
 
 <style>
+/* Hide bottom floating dock on full-screen procurement entry panels */
+#curtiss-dock {
+    display: none !important;
+}
+
 /* ── Reset & Fixed Viewport ── */
 .po-panel-root {
     width: 100%;
@@ -546,7 +551,7 @@ $nextGrnNumber = $nextGrnNumber ?? ($grnData['grn_number'] ?? '');
             <div style="display: flex; gap: 12px; align-items: flex-start;">
                 <div style="flex: 1;">
                     <label class="po-field-label">GRN REMARKS & RECEIVING NOTES</label>
-                    <textarea name="notes" id="grnNotesTextarea" class="po-notes-textarea" placeholder="Condition of received goods, delivery note number, internal remarks..."><?= View::escape($isEdit ? ($grnData['notes'] ?? '') : '') ?></textarea>
+                    <textarea name="notes" id="grnNotesTextarea" class="po-notes-textarea" placeholder="Condition of received goods, delivery note number, internal remarks..."><?= View::escape($isEdit ? ($grnData['notes'] ?? '') : ($isFromPo ? ($poData['notes'] ?? '') : '')) ?></textarea>
                 </div>
                 <div style="width: 180px;">
                     <label class="po-field-label">VARIANCE REASON</label>
@@ -656,6 +661,7 @@ const productsList = <?= json_encode($products) ?>;
 const poItems = <?= json_encode($poData['items'] ?? []) ?>;
 const editGrnItems = <?= json_encode($grnData['items'] ?? []) ?>;
 const isEditMode = <?= $isEdit ? 'true' : 'false' ?>;
+const isFromPo = <?= $isFromPo ? 'true' : 'false' ?>;
 const suppliersMap = {};
 suppliersList.forEach(s => { suppliersMap[s.id] = s; });
 
@@ -1198,7 +1204,7 @@ function submitGrnForm() {
     for (let it of cartItems) {
         if (it.has_expiry && !it.expiry_date) {
             alert(`Expiry Date is required for expiry-tracked product: "${it.name}"`);
-            const expInput = document.getElementById(`exp_input_${it.product_id}`);
+            const expInput = document.getElementById(`exp_input_${it.uid}`) || document.getElementById(`exp_input_${it.product_id}`);
             if (expInput) expInput.focus();
             return;
         }
@@ -1254,9 +1260,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Pre-populate if in Edit mode
     if (isEditMode && editGrnItems && editGrnItems.length > 0) {
-        editGrnItems.forEach(item => {
+        editGrnItems.forEach((item, idx) => {
             const prod = productsList.find(p => parseInt(p.id) === parseInt(item.product_id));
+            const itemUid = Date.now() + '_' + idx + '_' + Math.random().toString(36).substr(2, 5);
             cartItems.push({
+                uid: itemUid,
                 product_id: parseInt(item.product_id),
                 name: item.product_name || (prod ? prod.name : 'Product #' + item.product_id),
                 sku: item.sku || (prod ? prod.sku : ''),
@@ -1265,7 +1273,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 batch_number: item.batch_number || '',
                 quantity: parseFloat(item.quantity || 1),
                 unit_cost: parseFloat(item.unit_cost || 0),
-                selling_price: parseFloat(item.selling_price || (prod ? prod.selling_price : 0))
+                selling_price: parseFloat(item.selling_price || (prod ? prod.selling_price : 0) || 0)
             });
         });
         renderCartTable();
@@ -1278,13 +1286,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 invNo.select();
             }
         }, 100);
-    } else if (typeof isTransferred !== 'undefined' && isTransferred && poItems && poItems.length > 0) {
-        // Pre-populate if transferred from PO
-        poItems.forEach(item => {
-            const remaining = parseFloat(item.quantity) - parseFloat(item.received_quantity);
+    } else if (isFromPo && poItems && poItems.length > 0) {
+        // Pre-populate if transferred directly from Purchase Order
+        poItems.forEach((item, idx) => {
+            const qty = parseFloat(item.quantity) || 0;
+            const rec = parseFloat(item.received_quantity) || 0;
+            const remaining = (qty - rec) > 0 ? (qty - rec) : qty;
             if (remaining > 0) {
                 const prod = productsList.find(p => parseInt(p.id) === parseInt(item.product_id));
+                const itemUid = Date.now() + '_' + idx + '_' + Math.random().toString(36).substr(2, 5);
                 cartItems.push({
+                    uid: itemUid,
                     product_id: parseInt(item.product_id),
                     name: item.product_name || (prod ? prod.name : 'Product #' + item.product_id),
                     sku: item.sku || (prod ? prod.sku : ''),
@@ -1292,14 +1304,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     expiry_date: item.expiry_date || '',
                     batch_number: item.batch_number || '',
                     quantity: remaining,
-                    unit_cost: parseFloat(item.unit_cost || 0),
-                    selling_price: parseFloat(item.selling_price || (prod ? prod.selling_price : 0))
+                    unit_cost: parseFloat(item.unit_cost || (prod ? prod.cost : 0) || 0),
+                    selling_price: parseFloat(item.selling_price || (prod ? prod.selling_price : 0) || 0)
                 });
             }
         });
         renderCartTable();
 
-        // Focus directly on Supplier Invoice No
+        // Focus directly on Supplier Invoice No for fast entry
         setTimeout(() => {
             const invNo = document.getElementById('supplierInvoiceNoInput');
             if (invNo) {
@@ -1319,7 +1331,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 80);
     }
 
-    // Trigger onSupplierChange if supplier is already selected
+    // Trigger onSupplierChange if supplier is already selected (e.g. from PO or Edit)
     if (suppSelect && suppSelect.value) {
         onSupplierChange(suppSelect.value);
     }

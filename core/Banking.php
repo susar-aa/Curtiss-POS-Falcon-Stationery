@@ -11,6 +11,7 @@ require_once __DIR__ . '/Logger.php';
 require_once __DIR__ . '/Audit.php';
 require_once __DIR__ . '/Accounting.php';
 require_once __DIR__ . '/BusinessDay.php';
+require_once __DIR__ . '/MaskingHelper.php';
 
 class Banking
 {
@@ -49,14 +50,19 @@ class Banking
     /**
      * Get list of real Bank Accounts
      */
-    public static function getBankAccounts(?int $branchId = null, bool $activeOnly = true): array
+    public static function getBankAccounts(?int $branchId = null, bool $activeOnly = true, bool $deletedOnly = false): array
     {
         try {
             $where = [];
             $params = [];
 
-            if ($activeOnly) {
-                $where[] = "ba.status = 'active'";
+            if ($deletedOnly) {
+                $where[] = "ba.deleted_at IS NOT NULL";
+            } else {
+                $where[] = "ba.deleted_at IS NULL";
+                if ($activeOnly) {
+                    $where[] = "ba.status = 'active'";
+                }
             }
 
             if ($branchId !== null) {
@@ -70,7 +76,7 @@ class Banking
                 SELECT 
                     ba.id, ba.bank_name, ba.account_name, ba.account_number, ba.branch_id,
                     ba.bank_branch_name, ba.opening_balance, ba.status, ba.account_id,
-                    ba.created_at, ba.updated_at,
+                    ba.deleted_at, ba.created_at, ba.updated_at,
                     b.name AS branch_name, 
                     coa.account_code, 
                     coa.account_name AS coa_account_name
@@ -81,8 +87,14 @@ class Banking
                 ORDER BY ba.id ASC
             ", $params);
 
+            $isSpecial = MaskingHelper::isSpecialUser();
+
             foreach ($accounts as &$acc) {
                 $acc['current_balance'] = self::getBankBalance((int)$acc['id']);
+                if ($isSpecial) {
+                    $acc['opening_balance'] = MaskingHelper::maskValue((float)$acc['opening_balance']);
+                    $acc['current_balance'] = MaskingHelper::maskValue((float)$acc['current_balance']);
+                }
             }
 
             return $accounts;
@@ -102,7 +114,7 @@ class Banking
                 SELECT 
                     ba.id, ba.bank_name, ba.account_name, ba.account_number, ba.branch_id,
                     ba.bank_branch_name, ba.opening_balance, ba.status, ba.account_id,
-                    ba.created_at, ba.updated_at,
+                    ba.deleted_at, ba.created_at, ba.updated_at,
                     b.name AS branch_name, 
                     coa.account_code, 
                     coa.account_name AS coa_account_name
@@ -114,6 +126,10 @@ class Banking
 
             if ($acc) {
                 $acc['current_balance'] = self::getBankBalance($id);
+                if (MaskingHelper::isSpecialUser()) {
+                    $acc['opening_balance'] = MaskingHelper::maskValue((float)$acc['opening_balance']);
+                    $acc['current_balance'] = MaskingHelper::maskValue((float)$acc['current_balance']);
+                }
             }
             return $acc;
         } catch (Throwable $e) {
@@ -133,14 +149,16 @@ class Banking
 
             $coaAccountId = (int)$acc['account_id'];
 
-            // Check if opening balance was posted in GL for this bank account
+            // Check if opening balance was posted in GL for this bank account (scoped to its dedicated COA account)
             $hasObInGl = Database::fetchOne("
-                SELECT id 
-                FROM journal_entries 
-                WHERE source_type = 'opening_balance' 
-                  AND source_id = :bank_id 
-                  AND posting_status = 'posted'
-            ", [':bank_id' => $bankAccountId]);
+                SELECT je.id 
+                FROM journal_entries je
+                JOIN journal_lines jl ON je.id = jl.journal_entry_id
+                WHERE je.source_type = 'opening_balance' 
+                  AND je.source_id = :bank_id 
+                  AND jl.account_id = :acc_id
+                  AND je.posting_status = 'posted'
+            ", [':bank_id' => $bankAccountId, ':acc_id' => $coaAccountId]);
 
             $glRow = Database::fetchOne("
                 SELECT SUM(jl.debit) - SUM(jl.credit) AS net_gl
@@ -351,13 +369,15 @@ class Banking
     ): void {
         try {
             $existingJe = Database::fetchOne("
-                SELECT id, total_debit, posting_status 
-                FROM journal_entries 
-                WHERE source_type = 'opening_balance' 
-                  AND source_id = :bank_id 
-                  AND posting_status = 'posted'
+                SELECT je.id, je.total_debit, je.posting_status 
+                FROM journal_entries je
+                JOIN journal_lines jl ON jl.journal_entry_id = je.id
+                WHERE je.source_type = 'opening_balance' 
+                  AND je.source_id = :bank_id 
+                  AND je.posting_status = 'posted'
+                  AND jl.account_id = :coa_id
                 LIMIT 1
-            ", [':bank_id' => $bankAccountId]);
+            ", [':bank_id' => $bankAccountId, ':coa_id' => $coaAccountId]);
 
             $equityAccId = Accounting::getAccountIdByCode(Accounting::CODE_EQUITY); // 3010 Opening Balance Equity
             if (!$equityAccId) {
@@ -427,9 +447,9 @@ class Banking
     }
 
     /**
-     * Delete Bank Account safely (blocked if transaction history exists)
+     * Soft-delete Bank Account safely to Trash Bin
      */
-    public static function deleteBankAccount(int $id): array
+    public static function deleteBankAccount(int $id, int $userId = 1): array
     {
         try {
             $bank = self::getBankAccount($id);
@@ -437,28 +457,100 @@ class Banking
                 return ['success' => false, 'message' => 'Bank account not found.'];
             }
 
-            $depCount = Database::fetchOne("SELECT COUNT(*) AS total FROM bank_deposits WHERE bank_account_id = :id", [':id' => $id]);
-            $recCount = Database::fetchOne("SELECT COUNT(*) AS total FROM bank_reconciliations WHERE bank_account_id = :id", [':id' => $id]);
-            $spCount  = Database::fetchOne("SELECT COUNT(*) AS total FROM supplier_payments WHERE bank_account_id = :id", [':id' => $id]);
-            $cpCount  = Database::fetchOne("SELECT COUNT(*) AS total FROM customer_payments WHERE bank_account_id = :id", [':id' => $id]);
-            $jlCount  = Database::fetchOne("SELECT COUNT(*) AS total FROM journal_lines WHERE account_id = :acc_id", [':acc_id' => $bank['account_id']]);
+            Database::execute("
+                UPDATE bank_accounts 
+                SET deleted_at = NOW(), status = 'inactive' 
+                WHERE id = :id
+            ", [':id' => $id]);
 
-            $totalRefs = (int)($depCount['total'] ?? 0) + (int)($recCount['total'] ?? 0) + (int)($spCount['total'] ?? 0) + (int)($cpCount['total'] ?? 0) + (int)($jlCount['total'] ?? 0);
+            Audit::log('BANK_ACCOUNT_SOFT_DELETED', 'banking', (string)$id, null, [
+                'bank_name' => $bank['bank_name'],
+                'account_number' => $bank['account_number'],
+                'user_id' => $userId
+            ]);
 
-            if ($totalRefs > 0) {
-                return [
-                    'success' => false,
-                    'message' => 'Cannot delete bank account with existing transaction history. Deactivate it instead.'
-                ];
-            }
-
-            Database::execute("DELETE FROM bank_accounts WHERE id = :id", [':id' => $id]);
-            Audit::log('BANK_ACCOUNT_DELETED', 'banking', (string)$id, null, ['bank_name' => $bank['bank_name']]);
-
-            return ['success' => true, 'message' => "Bank account '{$bank['account_name']}' deleted successfully."];
+            return ['success' => true, 'message' => "Bank account '{$bank['account_name']}' moved to Trash Bin."];
 
         } catch (Throwable $e) {
-            Logger::error("Failed to delete bank account #{$id}: " . $e->getMessage(), $e);
+            Logger::error("Failed to soft-delete bank account #{$id}: " . $e->getMessage(), $e);
+            return ['success' => false, 'message' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Restore soft-deleted Bank Account from Trash Bin
+     */
+    public static function restoreBankAccount(int $id, int $userId = 1): array
+    {
+        try {
+            $bank = self::getBankAccount($id);
+            if (!$bank) {
+                return ['success' => false, 'message' => 'Bank account not found.'];
+            }
+
+            Database::execute("
+                UPDATE bank_accounts 
+                SET deleted_at = NULL, status = 'active' 
+                WHERE id = :id
+            ", [':id' => $id]);
+
+            Audit::log('BANK_ACCOUNT_RESTORED', 'banking', (string)$id, null, [
+                'bank_name' => $bank['bank_name'],
+                'account_number' => $bank['account_number'],
+                'user_id' => $userId
+            ]);
+
+            return ['success' => true, 'message' => "Bank account '{$bank['account_name']}' restored successfully."];
+
+        } catch (Throwable $e) {
+            Logger::error("Failed to restore bank account #{$id}: " . $e->getMessage(), $e);
+            return ['success' => false, 'message' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Toggle operational status (active / inactive)
+     */
+    public static function toggleAccountStatus(int $id, int $userId = 1): array
+    {
+        try {
+            $bank = self::getBankAccount($id);
+            if (!$bank) {
+                return ['success' => false, 'message' => 'Bank account not found.'];
+            }
+
+            $newStatus = ($bank['status'] === 'active') ? 'inactive' : 'active';
+
+            Database::execute("
+                UPDATE bank_accounts 
+                SET status = :status 
+                WHERE id = :id
+            ", [':status' => $newStatus, ':id' => $id]);
+
+            // Synchronize linked Chart of Accounts status
+            if (!empty($bank['account_id'])) {
+                Database::execute("
+                    UPDATE chart_of_accounts 
+                    SET status = :status 
+                    WHERE id = :id
+                ", [':status' => $newStatus, ':id' => $bank['account_id']]);
+            }
+
+            Audit::log('BANK_ACCOUNT_STATUS_TOGGLED', 'banking', (string)$id, null, [
+                'bank_name' => $bank['bank_name'],
+                'old_status' => $bank['status'],
+                'new_status' => $newStatus,
+                'user_id' => $userId
+            ]);
+
+            return [
+                'success' => true,
+                'status' => $newStatus,
+                'message' => "Bank account '{$bank['account_name']}' is now {$newStatus}."
+            ];
+
+        } catch (Throwable $e) {
+            Logger::error("Failed to toggle status for bank account #{$id}: " . $e->getMessage(), $e);
             return ['success' => false, 'message' => $e->getMessage()];
         }
     }
@@ -602,8 +694,9 @@ class Banking
             $bankCoaId = (int)$bank['account_id'];
             $cashCoaId = Accounting::getAccountIdByCode(Accounting::CODE_CASH);
 
+            $bankMemo = "Cash Deposit to {$bank['account_name']}" . (!empty($referenceNo) ? " (Slip #{$referenceNo})" : "");
             $lines = [
-                ['account_id' => $bankCoaId, 'debit' => $amount, 'credit' => 0.00, 'memo' => "Cash Deposit to {$bank['account_name']}"],
+                ['account_id' => $bankCoaId, 'debit' => $amount, 'credit' => 0.00, 'memo' => $bankMemo],
                 ['account_id' => $cashCoaId, 'debit' => 0.00, 'credit' => $amount, 'memo' => "Cash Deposit Slip #{$referenceNo}"]
             ];
 
@@ -653,13 +746,20 @@ class Banking
     /**
      * Get Bank Activity Register with Running Balance for a specific Bank Account
      */
-    public static function getBankRegister(int $bankAccountId, array $filters = [], int $page = 1, int $limit = 20): array
+    public static function getBankRegister(int $bankAccountId, array $filters = [], int $page = 1, int $limit = 25): array
     {
         try {
             $bank = self::getBankAccount($bankAccountId);
             if (!$bank) {
                 return ['items' => [], 'totalItems' => 0, 'page' => 1, 'limit' => $limit, 'totalPages' => 1];
             }
+
+            $allowedLimits = [25, 50, 75, 100, 500];
+            if (!in_array($limit, $allowedLimits, true)) {
+                $limit = 25;
+            }
+            $page = max(1, $page);
+            $offset = ($page - 1) * $limit;
 
             $coaAccountId = (int)$bank['account_id'];
 
@@ -677,8 +777,23 @@ class Banking
             }
 
             if (!empty($filters['search'])) {
-                $where[] = "(je.entry_number LIKE :q OR je.description LIKE :q OR jl.memo LIKE :q)";
-                $params[':q'] = '%' . trim($filters['search']) . '%';
+                $search = '%' . trim($filters['search']) . '%';
+                $where[] = "(
+                    je.entry_number LIKE :s1 OR
+                    je.description LIKE :s2 OR
+                    jl.memo LIKE :s3 OR
+                    u.username LIKE :s4 OR
+                    CAST(jl.debit AS CHAR) LIKE :s5 OR
+                    CONCAT('LKR ', FORMAT(jl.debit, 2)) LIKE :s6 OR
+                    FORMAT(jl.debit, 2) LIKE :s7 OR
+                    CAST(jl.credit AS CHAR) LIKE :s8 OR
+                    CONCAT('LKR ', FORMAT(jl.credit, 2)) LIKE :s9 OR
+                    FORMAT(jl.credit, 2) LIKE :s10 OR
+                    DATE_FORMAT(je.entry_date, '%Y-%m-%d') LIKE :s11
+                )";
+                for ($i = 1; $i <= 11; $i++) {
+                    $params[":s{$i}"] = $search;
+                }
             }
 
             $whereSql = implode(" AND ", $where);
@@ -687,13 +802,13 @@ class Banking
                 SELECT COUNT(*) AS total
                 FROM journal_lines jl
                 JOIN journal_entries je ON jl.journal_entry_id = je.id
+                JOIN users u ON je.created_by = u.id
                 WHERE $whereSql
             ", $params);
 
             $totalItems = (int)($countRow['total'] ?? 0);
-            $offset = ($page - 1) * $limit;
 
-            $items = Database::fetchAll("
+            $allRows = Database::fetchAll("
                 SELECT 
                     jl.id AS journal_line_id,
                     je.id AS journal_entry_id,
@@ -711,16 +826,46 @@ class Banking
                 JOIN users u ON je.created_by = u.id
                 WHERE $whereSql
                 ORDER BY je.entry_date ASC, jl.id ASC
-                LIMIT $limit OFFSET $offset
             ", $params);
 
-            // Compute running balance
-            $running = (float)$bank['opening_balance'];
-            foreach ($items as &$it) {
+            // Check if opening balance was posted in GL for this bank account
+            $hasObInGl = Database::fetchOne("
+                SELECT je.id 
+                FROM journal_entries je
+                JOIN journal_lines jl ON jl.journal_entry_id = je.id
+                WHERE je.source_type = 'opening_balance' 
+                  AND je.source_id = :bank_id 
+                  AND je.posting_status = 'posted'
+                  AND jl.account_id = :coa_id
+                LIMIT 1
+            ", [':bank_id' => $bankAccountId, ':coa_id' => $bank['coa_account_id']]);
+
+            $running = $hasObInGl ? 0.00 : (float)$bank['opening_balance'];
+
+            foreach ($allRows as &$it) {
                 $in = (float)$it['deposit_in'];
                 $out = (float)$it['payment_out'];
                 $running += ($in - $out);
                 $it['running_balance'] = round($running, 2);
+            }
+            unset($it);
+
+            // Re-order so latest transactions appear on top (DESC)
+            $allRowsDesc = array_values(array_reverse($allRows));
+            $totalItems = count($allRowsDesc);
+            $items = array_slice($allRowsDesc, $offset, $limit);
+
+            // Presentation-layer masking for Special User
+            if (MaskingHelper::isSpecialUser()) {
+                foreach ($items as &$it) {
+                    if ((float)$it['deposit_in'] > 0) {
+                        $it['deposit_in'] = MaskingHelper::maskValue((float)$it['deposit_in']);
+                    }
+                    if ((float)$it['payment_out'] > 0) {
+                        $it['payment_out'] = MaskingHelper::maskValue((float)$it['payment_out']);
+                    }
+                    $it['running_balance'] = MaskingHelper::maskValue((float)$it['running_balance']);
+                }
             }
 
             return [
@@ -729,7 +874,7 @@ class Banking
                 'totalItems'   => $totalItems,
                 'page'         => $page,
                 'limit'        => $limit,
-                'totalPages'   => max(1, ceil($totalItems / $limit))
+                'totalPages'   => max(1, (int)ceil($totalItems / $limit))
             ];
 
         } catch (Throwable $e) {

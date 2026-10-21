@@ -1,8 +1,8 @@
 {
-  "id": "curtiss-pos-standalone-app",
-  "name": "CurtissPOS",
-  "short_name": "CurtissPOS",
-  "description": "CurtissPOS - Advanced Point of Sale & Retail Management System",
+  "id": "falcon-pos-standalone-app",
+  "name": "Falcon POS",
+  "short_name": "FalconPOS",
+  "description": "Falcon POS - Retail Management & Terminal Access",
   "lang": "en",
   "dir": "ltr",
   "start_url": "./index.php",

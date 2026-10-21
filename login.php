@@ -1,6 +1,6 @@
 <?php
 /**
- * Curtiss POS - Login Controller
+ * Curtiss POS - Dual Mode Login Controller (PIN Keypad & Username/Password)
  */
 
 require_once __DIR__ . '/config/config.php';
@@ -29,91 +29,107 @@ if (Auth::isLoggedIn()) {
     exit();
 }
 
+$userAgent = $_SERVER['HTTP_USER_AGENT'] ?? '';
+$isMobileDevice = (bool)preg_match('/(android|iphone|ipad|ipod|blackberry|windows phone|mobile)/i', $userAgent);
+
 $error = null;
-$csrfToken = Auth::generateCsrfToken();
-$isAjax = (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') ||
-          (isset($_POST['ajax']) && $_POST['ajax'] === '1');
+$isAjax = (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest')
+    || (isset($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'application/json') !== false)
+    || (isset($_POST['ajax']) && $_POST['ajax'] == '1');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $loginType = trim($_POST['login_type'] ?? 'password');
-
-    if ($loginType === 'pin') {
-        $pin = trim($_POST['pin'] ?? '');
-        if (empty($pin)) {
-            $error = 'Please enter your 5-digit PIN.';
-            if ($isAjax) {
-                header('Content-Type: application/json; charset=utf-8');
-                echo json_encode(['success' => false, 'message' => $error]);
-                exit();
-            }
-        } else {
-            $result = Auth::attemptPin($pin);
-            if ($result['success']) {
-                if (!empty($returnUrl)) {
-                    $_SESSION['return_url'] = $returnUrl;
-                }
-                $target = (!empty($result['needs_branch_selection'])) ? 'select_branch' : (!empty($returnUrl) ? $returnUrl : 'dashboard');
-                if (empty($result['needs_branch_selection'])) {
-                    unset($_SESSION['return_url']);
-                }
-                if ($isAjax) {
-                    header('Content-Type: application/json; charset=utf-8');
-                    echo json_encode(['success' => true, 'redirect' => $target]);
-                    exit();
-                }
-                header('Location: ' . $target);
-                exit();
-            } else {
-                $error = $result['message'];
-                if ($isAjax) {
-                    header('Content-Type: application/json; charset=utf-8');
-                    echo json_encode(['success' => false, 'message' => $error]);
-                    exit();
-                }
-            }
+    // Block mobile access
+    if ($isMobileDevice) {
+        $error = 'Mobile access is restricted. Please use a desktop computer or workstation.';
+        if ($isAjax) {
+            header('Content-Type: application/json');
+            echo json_encode(['success' => false, 'message' => $error]);
+            exit();
         }
-    } else {
-        $username = trim($_POST['username'] ?? '');
-        $password = trim($_POST['password'] ?? '');
+    }
 
-        if (empty($username) || empty($password)) {
-            $error = 'Please enter both username and password.';
-            if ($isAjax) {
-                header('Content-Type: application/json; charset=utf-8');
-                echo json_encode(['success' => false, 'message' => $error]);
-                exit();
+    // CSRF token validation if session token exists
+    $csrfToken = $_POST['csrf_token'] ?? '';
+    if (!empty($_SESSION['csrf_token']) && !empty($csrfToken) && empty($error)) {
+        if (!Auth::validateCsrfToken($csrfToken)) {
+            $error = 'Security session validation expired. Please refresh the page and try again.';
+        }
+    }
+
+    if (empty($error)) {
+        $loginType = trim($_POST['login_type'] ?? 'pin');
+
+        if ($loginType === 'pin') {
+            $pin = trim($_POST['pin'] ?? '');
+            if (empty($pin)) {
+                $error = 'Please enter your 5-digit PIN.';
+            } elseif (!preg_match('/^\d{5}$/', $pin)) {
+                $error = 'PIN must be exactly 5 numeric digits.';
+            } else {
+                $result = Auth::attemptPin($pin);
+                if ($result['success']) {
+                    if (!empty($returnUrl)) {
+                        $_SESSION['return_url'] = $returnUrl;
+                    }
+                    $redirect = !empty($result['needs_branch_selection']) ? 'select_branch' : (!empty($returnUrl) ? $returnUrl : 'dashboard');
+                    if (!empty($result['needs_branch_selection']) === false) {
+                        unset($_SESSION['return_url']);
+                    }
+
+                    if ($isAjax) {
+                        header('Content-Type: application/json');
+                        echo json_encode(['success' => true, 'redirect' => $redirect]);
+                        exit();
+                    }
+                    header('Location: ' . $redirect);
+                    exit();
+                } else {
+                    $error = $result['message'];
+                }
             }
         } else {
-            $result = Auth::attempt($username, $password);
-            if ($result['success']) {
-                if (!empty($returnUrl)) {
-                    $_SESSION['return_url'] = $returnUrl;
-                }
-                $target = (!empty($result['needs_branch_selection'])) ? 'select_branch' : (!empty($returnUrl) ? $returnUrl : 'dashboard');
-                if (empty($result['needs_branch_selection'])) {
-                    unset($_SESSION['return_url']);
-                }
-                if ($isAjax) {
-                    header('Content-Type: application/json; charset=utf-8');
-                    echo json_encode(['success' => true, 'redirect' => $target]);
-                    exit();
-                }
-                header('Location: ' . $target);
-                exit();
+            $username = trim($_POST['username'] ?? '');
+            $password = trim($_POST['password'] ?? '');
+
+            if (empty($username) || empty($password)) {
+                $error = 'Please enter both username and password.';
             } else {
-                $error = $result['message'];
-                if ($isAjax) {
-                    header('Content-Type: application/json; charset=utf-8');
-                    echo json_encode(['success' => false, 'message' => $error]);
+                $result = Auth::attempt($username, $password);
+                if ($result['success']) {
+                    if (!empty($returnUrl)) {
+                        $_SESSION['return_url'] = $returnUrl;
+                    }
+                    $redirect = !empty($result['needs_branch_selection']) ? 'select_branch' : (!empty($returnUrl) ? $returnUrl : 'dashboard');
+                    if (!empty($result['needs_branch_selection']) === false) {
+                        unset($_SESSION['return_url']);
+                    }
+
+                    if ($isAjax) {
+                        header('Content-Type: application/json');
+                        echo json_encode(['success' => true, 'redirect' => $redirect]);
+                        exit();
+                    }
+                    header('Location: ' . $redirect);
                     exit();
+                } else {
+                    $error = $result['message'];
                 }
             }
         }
     }
+
+    if ($isAjax && !empty($error)) {
+        header('Content-Type: application/json');
+        echo json_encode(['success' => false, 'message' => $error]);
+        exit();
+    }
 }
 
+$csrfToken = Auth::generateCsrfToken();
+
 View::renderBlank('auth/login', [
-    'error' => $error,
-    'returnUrl' => $returnUrl,
-    'csrfToken' => $csrfToken
+    'error'          => $error,
+    'returnUrl'      => $returnUrl,
+    'csrfToken'      => $csrfToken,
+    'isMobileDevice' => $isMobileDevice
 ], 'Login - Curtiss POS');

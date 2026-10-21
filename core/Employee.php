@@ -64,21 +64,25 @@ class Employee
                 $params[':job_role'] = trim($filters['job_role']);
             }
 
-            // Search query (code, name, phone, nic)
+            // Search query across all displayed columns (code, name, phone, whatsapp, nic, role, branch, status, salary)
             if (!empty($filters['search'])) {
                 $term = trim($filters['search']);
                 $where[] = "(
                     e.employee_code LIKE :s1 OR 
                     e.full_name LIKE :s2 OR 
                     e.phone LIKE :s3 OR 
-                    e.nic LIKE :s4 OR 
-                    e.job_role LIKE :s5
+                    e.whatsapp LIKE :s4 OR 
+                    e.nic LIKE :s5 OR 
+                    e.job_role LIKE :s6 OR
+                    b.name LIKE :s7 OR
+                    e.status LIKE :s8 OR
+                    CAST(e.basic_salary AS CHAR) LIKE :s9 OR
+                    FORMAT(e.basic_salary, 2) LIKE :s10 OR
+                    CONCAT('LKR ', FORMAT(e.basic_salary, 2)) LIKE :s11
                 )";
-                $params[':s1'] = "%{$term}%";
-                $params[':s2'] = "%{$term}%";
-                $params[':s3'] = "%{$term}%";
-                $params[':s4'] = "%{$term}%";
-                $params[':s5'] = "%{$term}%";
+                for ($i = 1; $i <= 11; $i++) {
+                    $params[":s{$i}"] = "%{$term}%";
+                }
             }
 
             $whereSql = !empty($where) ? implode(' AND ', $where) : '1=1';
@@ -536,14 +540,42 @@ class Employee
                 WHERE {$whereSql}
             ", $params);
 
+            $invoices = (int)($summary['total_invoices'] ?? 0);
+            $totalSales = (float)($summary['total_sales_volume'] ?? 0.00);
+            $avgBill = $invoices > 0 ? round($totalSales / $invoices, 2) : 0.00;
+
+            // Fetch recent sales for sales rep profile drawer
+            $recentSales = Database::fetchAll("
+                SELECT 
+                    s.id,
+                    s.invoice_no,
+                    s.total_amount,
+                    s.discount_amount,
+                    s.created_at
+                FROM sales s
+                WHERE {$whereSql}
+                ORDER BY s.id DESC
+                LIMIT 50
+            ", $params);
+
             return [
-                'total_invoices'        => (int)($summary['total_invoices'] ?? 0),
-                'total_sales_volume'    => (float)($summary['total_sales_volume'] ?? 0.00),
-                'total_discounts_given' => (float)($summary['total_discounts_given'] ?? 0.00)
+                'total_invoices'        => $invoices,
+                'total_sales'           => $totalSales,
+                'total_sales_volume'    => $totalSales,
+                'total_discounts_given' => (float)($summary['total_discounts_given'] ?? 0.00),
+                'average_invoice_value' => $avgBill,
+                'recent_sales'          => $recentSales
             ];
         } catch (Throwable $e) {
             Logger::error("Employee::getSalesPerformance failed for ID {$employeeId}: " . $e->getMessage(), $e);
-            return ['total_invoices' => 0, 'total_sales_volume' => 0.00, 'total_discounts_given' => 0.00];
+            return [
+                'total_invoices'        => 0,
+                'total_sales'           => 0.00,
+                'total_sales_volume'    => 0.00,
+                'total_discounts_given' => 0.00,
+                'average_invoice_value' => 0.00,
+                'recent_sales'          => []
+            ];
         }
     }
 }

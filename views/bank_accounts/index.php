@@ -5,11 +5,22 @@
  */
 ?>
 <link rel="stylesheet" href="assets/css/curtiss_select.css">
+<script src="assets/js/curtiss_select.js"></script>
 
 <!-- Floating Top-Right Action Header Buttons -->
 <div id="curtiss-floating-header-right" class="no-print" style="position: fixed; top: 16px; right: 20px; z-index: 1050; display: flex; align-items: center; gap: 8px;">
     <!-- Hub Actions (Visible on Bank Accounts Hub) -->
     <div id="hubHeaderActions" style="display: flex; align-items: center; gap: 8px;">
+        <?php if (($view ?? 'active') === 'deleted'): ?>
+        <a href="bank_accounts.php" class="inv-btn inv-btn-ghost" style="color: #1e293b; border-color: #cbd5e1; background: #ffffff;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+            Active Accounts
+        </a>
+        <?php else: ?>
+        <a href="bank_accounts.php?view=deleted" class="inv-btn" style="color: #dc2626; background: #fef2f2; border-color: #fca5a5;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+            Trash Bin
+        </a>
         <?php if (Auth::hasPermission('make_bank_deposit')): ?>
         <button type="button" class="inv-btn inv-btn-ghost" onclick="openDepositModal()" style="color: #15803d; border-color: rgba(34,197,94,0.3); background: rgba(240,253,244,0.95);">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -19,8 +30,9 @@
         <?php if (Auth::hasPermission('manage_bank_accounts')): ?>
         <button type="button" class="inv-btn inv-btn-primary" onclick="openAccountModal()">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 21h18M3 10h18M5 6l7-3 7 3M4 10v11M20 10v11M8 14v3M12 14v3M16 14v3"/></svg>
-            Add Bank Account
+            + Add Bank Account
         </button>
+        <?php endif; ?>
         <?php endif; ?>
     </div>
 
@@ -65,7 +77,7 @@
 
     /* Page Header */
     .inv-header {
-        margin-bottom: 1.25rem;
+        margin-bottom: 0.85rem;
     }
     .inv-title {
         font-size: 1.35rem;
@@ -73,12 +85,7 @@
         color: #0f172a;
         letter-spacing: -0.025em;
         line-height: 1.2;
-    }
-    .inv-subtitle {
-        font-size: 0.8rem;
-        color: #94a3b8;
-        margin-top: 4px;
-        font-weight: 500;
+        margin: 0;
     }
 
     /* Button System */
@@ -87,7 +94,10 @@
         align-items: center;
         justify-content: center;
         gap: 6px;
-        padding: 8px 16px;
+        height: 34px;
+        min-height: 34px;
+        line-height: 32px;
+        padding: 0 16px;
         border-radius: 999px;
         font-size: 12px;
         font-weight: 700;
@@ -97,6 +107,7 @@
         transition: all 0.18s ease;
         white-space: nowrap;
         font-family: inherit;
+        box-sizing: border-box;
     }
     .inv-btn-ghost {
         background: rgba(255, 255, 255, 0.9);
@@ -120,6 +131,45 @@
         transform: translateY(-1px);
     }
 
+    /* Status Badges */
+    .prod-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        height: 28px;
+        min-height: 28px;
+        line-height: 26px;
+        padding: 0 12px;
+        border-radius: 999px;
+        font-size: 11px;
+        font-weight: 700;
+        border: 1px solid transparent;
+        white-space: nowrap;
+        box-sizing: border-box;
+    }
+    .prod-badge-active {
+        background: #dcfce7;
+        color: #15803d;
+        border-color: #86efac;
+    }
+    .prod-badge-active .dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: #16a34a;
+    }
+    .prod-badge-inactive {
+        background: #fee2e2;
+        color: #b91c1c;
+        border-color: #fca5a5;
+    }
+    .prod-badge-inactive .dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: #dc2626;
+    }
+
     /* Glassmorphism Cards & Grids */
     .inv-card {
         background: var(--inv-bg-glass);
@@ -128,8 +178,8 @@
         border: 1px solid var(--inv-border);
         border-radius: var(--inv-radius);
         box-shadow: var(--inv-shadow);
-        margin-bottom: 1.25rem;
-        padding: 1.25rem;
+        margin-bottom: 0.85rem;
+        padding: 1rem 1.25rem;
         width: 100%;
         box-sizing: border-box;
     }
@@ -138,13 +188,14 @@
     .bank-kpi-grid {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-        gap: 1.25rem;
-        margin-bottom: 1.5rem;
+        gap: 1rem;
+        margin-bottom: 1rem;
+        flex-shrink: 0;
     }
     .bank-kpi-card {
         background: rgba(255, 255, 255, 0.88);
         border-radius: 14px;
-        padding: 1.25rem;
+        padding: 1rem 1.25rem;
         border: 1px solid rgba(226, 232, 240, 0.9);
         box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.03);
         position: relative;
@@ -170,18 +221,18 @@
         color: #64748b;
         text-transform: uppercase;
         letter-spacing: 0.06em;
-        margin-bottom: 0.35rem;
+        margin-bottom: 0.25rem;
     }
     .bank-kpi-value {
-        font-size: 1.65rem;
+        font-size: 1.5rem;
         font-weight: 800;
         color: #0f172a;
         letter-spacing: -0.02em;
     }
     .bank-kpi-sub {
-        font-size: 0.8rem;
+        font-size: 0.78rem;
         color: #94a3b8;
-        margin-top: 0.35rem;
+        margin-top: 0.25rem;
         font-weight: 500;
     }
 
@@ -189,8 +240,11 @@
     .bank-grid {
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-        gap: 1.25rem;
-        margin-bottom: 2rem;
+        gap: 1rem;
+        overflow-y: auto;
+        flex: 1;
+        padding-bottom: 1rem;
+        min-height: 0;
     }
     .bank-card {
         background: rgba(255, 255, 255, 0.92);
@@ -221,16 +275,6 @@
         color: #0f172a;
         line-height: 1.25;
     }
-    .bank-badge {
-        padding: 3px 10px;
-        border-radius: 999px;
-        font-size: 0.7rem;
-        font-weight: 800;
-        text-transform: uppercase;
-        letter-spacing: 0.04em;
-    }
-    .bank-badge.active { background: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; }
-    .bank-badge.inactive { background: #f1f5f9; color: #64748b; border: 1px solid #e2e8f0; }
 
     .bank-acc-num {
         font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
@@ -255,7 +299,7 @@
         border-radius: 12px;
         padding: 0.85rem 1rem;
         border: 1px solid #e2e8f0;
-        margin-bottom: 1.1rem;
+        margin-bottom: 1rem;
     }
     .bank-balance-label {
         font-size: 0.7rem;
@@ -275,7 +319,7 @@
         display: flex;
         gap: 0.5rem;
     }
-    .bank-card-actions button {
+    .bank-card-actions .inv-btn {
         flex: 1;
     }
 
@@ -287,16 +331,22 @@
         border-radius: 14px;
         overflow: hidden;
         box-shadow: 0 4px 16px -2px rgba(0, 0, 0, 0.04);
-        margin-top: 0.75rem;
+        margin-top: 0.5rem;
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
     }
     .inv-table-scroll {
+        overflow-y: auto;
         overflow-x: auto;
-        max-height: calc(100vh - 280px);
+        flex: 1;
+        min-height: 0;
     }
     .financial-table {
         width: 100%;
         border-collapse: collapse;
-        font-size: 0.83rem;
+        font-size: 12.5px;
     }
     .financial-table thead {
         position: sticky;
@@ -306,26 +356,37 @@
         box-shadow: 0 1px 2px rgba(0,0,0,0.05);
     }
     .financial-table th {
-        padding: 11px 14px;
-        font-size: 0.68rem;
+        padding: 10px 14px;
+        font-size: 10px;
         font-weight: 800;
         text-transform: uppercase;
         letter-spacing: 0.07em;
-        color: #475569;
+        color: #64748b;
         white-space: nowrap;
         text-align: left;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        background: #f8fafc;
+        border-bottom: 1px solid #e2e8f0;
     }
     .financial-table tbody tr {
+        height: 48px;
+        min-height: 48px;
         border-bottom: 1px solid #f1f5f9;
         transition: background 0.12s ease;
     }
-    .financial-table tbody tr:hover {
-        background: rgba(248, 250, 252, 0.85);
-    }
+    .financial-table tbody tr:nth-child(even) { background: rgba(248, 250, 252, 0.57); }
+    .financial-table tbody tr:nth-child(odd)  { background: #ffffff; }
+    .financial-table tbody tr:hover            { background: #f1f5f9 !important; }
+
     .financial-table td {
-        padding: 11px 14px;
+        height: 48px;
+        padding: 0 14px;
+        font-size: 12.5px;
         color: #1e293b;
         vertical-align: middle;
+        box-sizing: border-box;
     }
     .financial-table tfoot {
         background: #f8fafc;
@@ -333,9 +394,18 @@
         border-top: 2px solid #cbd5e1;
     }
     .financial-table tfoot td {
-        padding: 12px 14px;
-        font-size: 0.85rem;
+        height: 48px;
+        padding: 0 14px;
+        font-size: 13px;
         color: #0f172a;
+        vertical-align: middle;
+    }
+
+    .col-right {
+        text-align: right !important;
+    }
+    .col-center {
+        text-align: center !important;
     }
 
     /* Code Pills */
@@ -398,6 +468,9 @@
         padding: 1.75rem;
         box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.25);
         border: 1px solid rgba(226, 232, 240, 0.9);
+        box-sizing: border-box;
+        max-height: 90vh;
+        overflow-y: auto;
     }
     .modal-header {
         display: flex;
@@ -419,6 +492,19 @@
         align-items: center;
         justify-content: center;
         color: #475569;
+    }
+
+    /* Pagination Footer Bar */
+    .table-pagination-bar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px 16px;
+        background: #ffffff;
+        border-top: 1px solid #e2e8f0;
+        font-size: 12px;
+        color: #64748b;
+        flex-shrink: 0;
     }
 
     /* Print Stylesheet */
@@ -447,133 +533,186 @@
     }
 </style>
 
-<!-- ========================================================================= -->
-<!-- 1. BANK ACCOUNTS HUB VIEW (MAIN LANDING) -->
-<!-- ========================================================================= -->
-<div id="bankAccountsHubView">
-    <div class="inv-header">
-        <div class="inv-title">Bank Accounts & Cash Deposits</div>
-        <div class="inv-subtitle">Manage company bank accounts, deposit cash safely, and track GL running balances</div>
-    </div>
+<!-- Main Fixed Screen Viewport Container -->
+<div style="width: 100%; max-width: 100%; height: calc(100vh - 110px); display: flex; flex-direction: column; box-sizing: border-box; overflow: hidden; padding-bottom: 8px;">
 
-    <!-- KPI Summary Cards -->
-    <div class="bank-kpi-grid">
-        <div class="bank-kpi-card balance">
-            <div class="bank-kpi-title">Total Company Bank Balance</div>
-            <div class="bank-kpi-value">LKR <?= number_format($totalBankFunds, 2) ?></div>
-            <div class="bank-kpi-sub">Across <?= $activeAccountCount ?> active bank accounts</div>
-        </div>
-        <div class="bank-kpi-card accounts">
-            <div class="bank-kpi-title">Active Bank Accounts</div>
-            <div class="bank-kpi-value"><?= $activeAccountCount ?></div>
-            <div class="bank-kpi-sub">Linked to dedicated COA accounts</div>
-        </div>
-        <div class="bank-kpi-card">
-            <div class="bank-kpi-title">POS Drawer Status</div>
-            <div class="bank-kpi-value" style="font-size: 1.25rem;">
-                <?= $activeDay ? '<span style="color:#16a34a;">Open (' . htmlspecialchars($activeDay['business_date']) . ')</span>' : '<span style="color:#ef4444;">No Active Day</span>' ?>
+    <!-- ========================================================================= -->
+    <!-- 1. BANK ACCOUNTS HUB VIEW (MAIN LANDING) -->
+    <!-- ========================================================================= -->
+    <div id="bankAccountsHubView" style="display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden;">
+        <!-- Page Header (Headline Only) -->
+        <div class="inv-header" style="flex-shrink: 0; display: flex; justify-content: space-between; align-items: center;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <div style="width: 8px; height: 8px; border-radius: 50%; background: #0f172a;"></div>
+                <h1 class="inv-title">
+                    <?= (($view ?? 'active') === 'deleted') ? 'Bank Accounts - Trash Bin' : 'Bank Accounts & Cash Deposits' ?>
+                </h1>
             </div>
-            <div class="bank-kpi-sub"><?= count($closedDays) ?> past closed days eligible for deposit</div>
         </div>
-    </div>
 
-    <!-- Bank Accounts Cards Grid -->
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-        <h2 style="font-size: 1.1rem; font-weight: 800; color: #0f172a; margin: 0;">Company Bank Accounts</h2>
-    </div>
+        <?php if (($view ?? 'active') !== 'deleted'): ?>
+        <!-- KPI Summary Cards -->
+        <div class="bank-kpi-grid">
+            <div class="bank-kpi-card balance">
+                <div class="bank-kpi-title">Total Company Bank Balance (LKR)</div>
+                <div class="bank-kpi-value"><?= number_format($totalBankFunds, 2) ?></div>
+                <div class="bank-kpi-sub">Across <?= $activeAccountCount ?> active bank accounts</div>
+            </div>
+            <div class="bank-kpi-card accounts">
+                <div class="bank-kpi-title">Active Bank Accounts</div>
+                <div class="bank-kpi-value"><?= $activeAccountCount ?></div>
+                <div class="bank-kpi-sub">Linked to dedicated COA accounts</div>
+            </div>
+            <div class="bank-kpi-card">
+                <div class="bank-kpi-title">POS Drawer Status</div>
+                <div class="bank-kpi-value" style="font-size: 1.25rem;">
+                    <?= $activeDay ? '<span style="color:#16a34a;">Open (' . htmlspecialchars($activeDay['business_date']) . ')</span>' : '<span style="color:#ef4444;">No Active Day</span>' ?>
+                </div>
+                <div class="bank-kpi-sub"><?= count($closedDays) ?> past closed days eligible for deposit</div>
+            </div>
+        </div>
+        <?php endif; ?>
 
-    <div class="bank-grid">
-        <?php foreach ($bankAccounts as $acc): ?>
-        <div class="bank-card">
-            <div>
-                <div class="bank-card-header">
-                    <div>
-                        <div class="bank-name"><?= htmlspecialchars($acc['account_name']) ?></div>
-                        <div style="font-size: 0.8rem; color: #64748b; font-weight: 700; margin-top: 2px;"><?= htmlspecialchars($acc['bank_name']) ?></div>
+        <!-- Bank Accounts Cards Grid -->
+        <div class="bank-grid" id="bankAccountsCardsContainer">
+            <?php if (empty($bankAccounts)): ?>
+            <div style="grid-column: 1 / -1; text-align: center; padding: 3rem 1rem; color: #94a3b8; background: #ffffff; border-radius: 16px; border: 1px dashed #cbd5e1;">
+                <?= (($view ?? 'active') === 'deleted') ? 'Trash Bin is empty. No soft-deleted bank accounts.' : 'No bank accounts found.' ?>
+            </div>
+            <?php endif; ?>
+
+            <?php foreach ($bankAccounts as $acc): ?>
+            <div class="bank-card" id="bank-card-<?= $acc['id'] ?>" data-account-id="<?= $acc['id'] ?>">
+                <div>
+                    <div class="bank-card-header">
+                        <div>
+                            <div class="bank-name search-target"><?= htmlspecialchars($acc['account_name']) ?></div>
+                            <div class="search-target" style="font-size: 0.8rem; color: #64748b; font-weight: 700; margin-top: 2px;"><?= htmlspecialchars($acc['bank_name']) ?></div>
+                        </div>
+                        <?php if (empty($acc['deleted_at'])): ?>
+                        <span class="prod-badge <?= $acc['status'] === 'active' ? 'prod-badge-active' : 'prod-badge-inactive' ?>" onclick="event.stopPropagation(); toggleStatus(<?= $acc['id'] ?>);" style="cursor: pointer;" title="Click to toggle status">
+                            <span class="dot"></span><?= $acc['status'] === 'active' ? 'Active' : 'Deactive' ?>
+                        </span>
+                        <?php else: ?>
+                        <span class="prod-badge prod-badge-inactive"><span class="dot"></span>Deleted</span>
+                        <?php endif; ?>
                     </div>
-                    <span class="bank-badge <?= $acc['status'] ?>"><?= strtoupper($acc['status']) ?></span>
+
+                    <div class="bank-acc-num search-target">A/C: <?= htmlspecialchars($acc['account_number']) ?></div>
+
+                    <div class="bank-meta">
+                        <div><strong>Branch:</strong> <span class="search-target"><?= htmlspecialchars($acc['bank_branch_name'] ?? $acc['branch_name'] ?? 'Company-Wide / Head Office') ?></span></div>
+                        <div><strong>COA Account:</strong> <span class="inv-code-pill search-target"><?= htmlspecialchars($acc['account_code']) ?></span> <span class="search-target"><?= htmlspecialchars($acc['coa_account_name'] ?? $acc['account_name']) ?></span></div>
+                    </div>
                 </div>
 
-                <div class="bank-acc-num">A/C: <?= htmlspecialchars($acc['account_number']) ?></div>
+                <div>
+                    <div class="bank-balance-box">
+                        <div class="bank-balance-label">Current Book Balance (GL) (LKR)</div>
+                        <div class="bank-balance-amount search-target"><?= number_format($acc['current_balance'], 2) ?></div>
+                    </div>
 
-                <div class="bank-meta">
-                    <div><strong>Branch:</strong> <?= htmlspecialchars($acc['bank_branch_name'] ?? $acc['branch_name'] ?? 'Company-Wide / Head Office') ?></div>
-                    <div><strong>COA Account:</strong> <span class="inv-code-pill"><?= htmlspecialchars($acc['account_code']) ?></span> <?= htmlspecialchars($acc['coa_account_name'] ?? $acc['account_name']) ?></div>
+                    <div class="bank-card-actions">
+                        <?php if (empty($acc['deleted_at'])): ?>
+                        <button type="button" class="inv-btn inv-btn-ghost" onclick="openRegisterFullPage(<?= $acc['id'] ?>, '<?= htmlspecialchars(addslashes($acc['account_name'])) ?>', '<?= htmlspecialchars(addslashes($acc['bank_name'])) ?>', '<?= htmlspecialchars(addslashes($acc['account_number'])) ?>', '<?= htmlspecialchars($acc['account_code']) ?>')">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                            Register
+                        </button>
+                        <?php if (Auth::hasPermission('manage_bank_accounts')): ?>
+                        <button type="button" class="inv-btn inv-btn-ghost" onclick='editAccount(<?= json_encode($acc) ?>)'>
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                            Edit
+                        </button>
+                        <button type="button" class="inv-btn" style="color: #dc2626; background: #fef2f2; border-color: #fca5a5;" onclick="deleteAccount(<?= $acc['id'] ?>, '<?= htmlspecialchars(addslashes($acc['account_name'])) ?>')">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                            Delete
+                        </button>
+                        <?php endif; ?>
+                        <?php else: ?>
+                        <?php if (Auth::hasPermission('manage_bank_accounts')): ?>
+                        <button type="button" class="inv-btn" style="color: #15803d; background: #f0fdf4; border-color: #86efac;" onclick="restoreAccount(<?= $acc['id'] ?>, '<?= htmlspecialchars(addslashes($acc['account_name'])) ?>')">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+                            Restore Account
+                        </button>
+                        <?php endif; ?>
+                        <?php endif; ?>
+                    </div>
                 </div>
             </div>
-
-            <div>
-                <div class="bank-balance-box">
-                    <div class="bank-balance-label">Current Book Balance (GL)</div>
-                    <div class="bank-balance-amount">LKR <?= number_format($acc['current_balance'], 2) ?></div>
-                </div>
-
-                <div class="bank-card-actions">
-                    <button type="button" class="inv-btn inv-btn-ghost" onclick="openRegisterFullPage(<?= $acc['id'] ?>, '<?= htmlspecialchars(addslashes($acc['account_name'])) ?>', '<?= htmlspecialchars(addslashes($acc['bank_name'])) ?>', '<?= htmlspecialchars(addslashes($acc['account_number'])) ?>', '<?= htmlspecialchars($acc['account_code']) ?>')">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-                        View Register
-                    </button>
-                    <?php if (Auth::hasPermission('manage_bank_accounts')): ?>
-                    <button type="button" class="inv-btn inv-btn-ghost" onclick='editAccount(<?= json_encode($acc) ?>)'>
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                        Edit
-                    </button>
-                    <?php endif; ?>
-                </div>
-            </div>
-        </div>
-        <?php endforeach; ?>
-    </div>
-</div>
-
-
-<!-- ========================================================================= -->
-<!-- 2. FULL-PAGE BANK REGISTER LEDGER REPORT VIEW (REPORT PREVIEW UI STYLE) -->
-<!-- ========================================================================= -->
-<div id="bankRegisterReportView" style="display: none;">
-    <!-- Report Header Title Card -->
-    <div class="inv-card" style="margin-bottom: 1rem;">
-        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
-            <div>
-                <h1 id="registerReportTitle" style="font-size: 1.45rem; font-weight: 800; color: #0f172a; margin: 0;">Bank Activity Register Ledger Report</h1>
-                <div id="registerReportMeta" style="font-size: 0.85rem; color: #64748b; margin-top: 4px;">Loading account details...</div>
-            </div>
-            <div id="registerReportDateBadge" style="background: #f1f5f9; padding: 6px 14px; border-radius: 999px; font-weight: 700; font-size: 0.8rem; color: #334155; border: 1px solid #cbd5e1;">
-                All Historical Activity
-            </div>
+            <?php endforeach; ?>
         </div>
     </div>
 
-    <!-- Fixed-to-Screen Table System -->
-    <div class="inv-table-panel">
-        <div class="inv-table-scroll">
-            <table class="financial-table">
-                <thead>
-                    <tr>
-                        <th style="width: 140px;">Date & Time</th>
-                        <th style="width: 130px;">Entry #</th>
-                        <th>Description / Memo</th>
-                        <th style="text-align: right; width: 140px;">Deposit (+)</th>
-                        <th style="text-align: right; width: 140px;">Payment (-)</th>
-                        <th style="text-align: right; width: 160px;">Running Balance</th>
-                    </tr>
-                </thead>
-                <tbody id="registerReportTbody">
-                    <tr>
-                        <td colspan="6" style="text-align: center; color: #94a3b8; padding: 3rem 1rem;">Loading bank register activity ledger...</td>
-                    </tr>
-                </tbody>
-                <tfoot id="registerReportTfoot" style="display: none;">
-                    <tr>
-                        <td colspan="3" style="text-transform: uppercase; letter-spacing: 0.05em;">Total Bank Activity Balance</td>
-                        <td id="registerTotalDeposits" style="text-align: right; color: #16a34a;">LKR 0.00</td>
-                        <td id="registerTotalPayments" style="text-align: right; color: #dc2626;">LKR 0.00</td>
-                        <td id="registerFinalBalance" style="text-align: right; font-size: 1rem; color: #0f172a;">LKR 0.00</td>
-                    </tr>
-                </tfoot>
-            </table>
+
+    <!-- ========================================================================= -->
+    <!-- 2. FULL-PAGE BANK REGISTER LEDGER REPORT VIEW -->
+    <!-- ========================================================================= -->
+    <div id="bankRegisterReportView" style="display: none; flex-direction: column; flex: 1; min-height: 0; overflow: hidden;">
+        <!-- Report Header Title Card -->
+        <div class="inv-card" style="flex-shrink: 0; margin-bottom: 0.5rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
+                <div>
+                    <h1 id="registerReportTitle" style="font-size: 1.35rem; font-weight: 800; color: #0f172a; margin: 0;">Bank Activity Register Ledger Report</h1>
+                    <div id="registerReportMeta" style="font-size: 0.82rem; color: #64748b; margin-top: 4px;">Loading account details...</div>
+                </div>
+                <div id="registerReportDateBadge" style="background: #f1f5f9; padding: 6px 14px; border-radius: 999px; font-weight: 700; font-size: 0.8rem; color: #334155; border: 1px solid #cbd5e1;">
+                    All Historical Activity
+                </div>
+            </div>
+        </div>
+
+        <!-- Fixed-to-Screen Table System -->
+        <div class="inv-table-panel">
+            <div class="inv-table-scroll">
+                <table class="financial-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 140px; text-align: left;">Date & Time</th>
+                            <th style="width: 130px; text-align: left;">Entry #</th>
+                            <th style="text-align: left;">Description / Memo</th>
+                            <th class="col-right" style="width: 150px;">Deposit (+) (LKR)</th>
+                            <th class="col-right" style="width: 150px;">Payment (-) (LKR)</th>
+                            <th class="col-right" style="width: 170px;">Running Balance (LKR)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="registerReportTbody">
+                        <tr>
+                            <td colspan="6" style="text-align: center; color: #94a3b8; padding: 3rem 1rem;">Loading bank register activity ledger...</td>
+                        </tr>
+                    </tbody>
+                    <tfoot id="registerReportTfoot" style="display: none;">
+                        <tr>
+                            <td colspan="3" style="text-transform: uppercase; letter-spacing: 0.05em; font-weight: 800;">Total Bank Activity Balance (LKR)</td>
+                            <td id="registerTotalDeposits" class="col-right" style="color: #16a34a; font-weight: 800;">0.00</td>
+                            <td id="registerTotalPayments" class="col-right" style="color: #dc2626; font-weight: 800;">0.00</td>
+                            <td id="registerFinalBalance" class="col-right" style="font-size: 1rem; color: #0f172a; font-weight: 800;">0.00</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+
+            <!-- Table Pagination Controls -->
+            <div class="table-pagination-bar">
+                <div id="registerPaginationCount">Showing 0 to 0 of 0 entries</div>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <div style="display: flex; align-items: center; gap: 6px;">
+                        <span>Rows:</span>
+                        <select id="registerPageLimit" onchange="changeRegisterPageLimit(this.value)" style="height: 30px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 12px; font-weight: 700; padding: 0 6px;">
+                            <option value="25" selected>25</option>
+                            <option value="50">50</option>
+                            <option value="75">75</option>
+                            <option value="100">100</option>
+                            <option value="500">500</option>
+                        </select>
+                    </div>
+                    <button type="button" class="inv-btn inv-btn-ghost" id="regPrevPageBtn" onclick="prevRegisterPage()" style="height: 30px; padding: 0 10px; font-size: 11px;">Prev</button>
+                    <span id="registerPageIndicator" style="font-weight: 700;">Page 1 of 1</span>
+                    <button type="button" class="inv-btn inv-btn-ghost" id="regNextPageBtn" onclick="nextRegisterPage()" style="height: 30px; padding: 0 10px; font-size: 11px;">Next</button>
+                </div>
+            </div>
         </div>
     </div>
+
 </div>
 
 
@@ -606,7 +745,7 @@
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
                 <div>
                     <label class="inv-label">Company Branch</label>
-                    <select class="inv-select" name="branch_id" id="acc_branch_id">
+                    <select class="inv-select curtiss-searchable" name="branch_id" id="acc_branch_id">
                         <option value="">Company-Wide (Shared)</option>
                         <?php foreach ($branches as $b): ?>
                         <option value="<?= $b['id'] ?>"><?= htmlspecialchars($b['name']) ?></option>
@@ -618,18 +757,9 @@
                     <input type="text" class="inv-input" name="bank_branch_name" id="acc_bank_branch_name" placeholder="e.g. Kandy Main Branch">
                 </div>
             </div>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.25rem;">
-                <div>
-                    <label class="inv-label">Opening Balance (LKR)</label>
-                    <input type="number" step="0.01" class="inv-input" name="opening_balance" id="acc_opening_balance" value="0.00">
-                </div>
-                <div>
-                    <label class="inv-label">Status</label>
-                    <select class="inv-select" name="status" id="acc_status">
-                        <option value="active">Active</option>
-                        <option value="inactive">Inactive</option>
-                    </select>
-                </div>
+            <div style="margin-bottom: 1.25rem;">
+                <label class="inv-label">Opening Balance (LKR)</label>
+                <input type="number" step="0.01" class="inv-input" name="opening_balance" id="acc_opening_balance" value="0.00">
             </div>
             <div style="display: flex; justify-content: flex-end; gap: 0.75rem;">
                 <button type="button" class="inv-btn inv-btn-ghost" onclick="closeModal('accountModal')">Cancel</button>
@@ -649,9 +779,9 @@
         <form id="depositForm" onsubmit="handleCreateDeposit(event)">
             <div style="margin-bottom: 1rem;">
                 <label class="inv-label">Target Bank Account *</label>
-                <select class="inv-select" name="bank_account_id" id="dep_bank_account_id" required>
+                <select class="inv-select curtiss-searchable" name="bank_account_id" id="dep_bank_account_id" required>
                     <option value="">-- Select Bank Account --</option>
-                    <?php foreach ($bankAccounts as $ba): if ($ba['status'] === 'active'): ?>
+                    <?php foreach ($bankAccounts as $ba): if ($ba['status'] === 'active' && empty($ba['deleted_at'])): ?>
                     <option value="<?= $ba['id'] ?>"><?= htmlspecialchars($ba['bank_name'] . ' - ' . $ba['account_name'] . ' (' . $ba['account_number'] . ')') ?></option>
                     <?php endif; endforeach; ?>
                 </select>
@@ -666,7 +796,7 @@
             </div>
             <div id="closed_day_group" style="margin-bottom: 1rem; display: none;">
                 <label class="inv-label">Select Closed Business Day *</label>
-                <select class="inv-select" name="business_day_id" id="dep_business_day_id">
+                <select class="inv-select curtiss-searchable" name="business_day_id" id="dep_business_day_id">
                     <option value="">-- Select Closed Business Day --</option>
                     <?php foreach ($closedDays as $cd): ?>
                     <option value="<?= $cd['id'] ?>">Date: <?= htmlspecialchars($cd['business_date']) ?> (Pending Cash: LKR <?= number_format($cd['cash_to_deposit'], 2) ?>)</option>
@@ -754,9 +884,60 @@
     let activeRegisterAccountId = <?= (int)($registerAccountId ?? 0) ?>;
     let activeRegisterAccountData = null;
     let currentRegisterItems = [];
+    let currentRegisterPage = 1;
+    let currentRegisterLimit = 25;
+    let currentRegisterTotalPages = 1;
+    let currentRegisterTotalItems = 0;
 
-    // Auto load full page register if parameter was in URL
+    // Attach CurtissSearchableSelect and setup keyboard focus
     document.addEventListener('DOMContentLoaded', () => {
+        document.querySelectorAll('.curtiss-searchable').forEach(el => {
+            if (typeof CurtissSearchableSelect !== 'undefined') {
+                CurtissSearchableSelect.attach(el);
+            }
+        });
+
+        // Setup Floating Navigation Realtime Search
+        if (typeof CurtissNav !== 'undefined' && CurtissNav.enablePageSearch) {
+            CurtissNav.enablePageSearch((query) => {
+                const term = (query || '').toLowerCase().trim();
+                
+                // If on Hub View: search bank cards
+                const hubView = document.getElementById('bankAccountsHubView');
+                if (hubView && hubView.style.display !== 'none') {
+                    const cards = document.querySelectorAll('.bank-card');
+                    cards.forEach(card => {
+                        if (!term) {
+                            card.style.display = '';
+                            return;
+                        }
+                        // Query displayed data fields only, excluding action buttons
+                        const searchTargets = card.querySelectorAll('.search-target');
+                        let match = false;
+                        searchTargets.forEach(t => {
+                            if (t.innerText.toLowerCase().includes(term)) {
+                                match = true;
+                            }
+                        });
+                        card.style.display = match ? '' : 'none';
+                    });
+                }
+
+                // If on Register View: pass search to register fetcher
+                const regView = document.getElementById('bankRegisterReportView');
+                if (regView && regView.style.display !== 'none') {
+                    document.getElementById('regFilterSearch').value = query || '';
+                    currentRegisterPage = 1;
+                    fetchRegisterReportData();
+                }
+            });
+        }
+
+        // Setup Enter key auto-advance on modals
+        setupModalEnterAdvancing('accountModal');
+        setupModalEnterAdvancing('depositModal');
+
+        // Auto load full page register if parameter was in URL
         if (activeRegisterAccountId > 0) {
             const accs = <?= json_encode($bankAccounts) ?>;
             const targetAcc = accs.find(a => parseInt(a.id) === activeRegisterAccountId);
@@ -765,6 +946,26 @@
             }
         }
     });
+
+    function setupModalEnterAdvancing(modalId) {
+        const modal = document.getElementById(modalId);
+        if (!modal) return;
+        const inputs = Array.from(modal.querySelectorAll('input:not([type="hidden"]), select, textarea'));
+        inputs.forEach((input, idx) => {
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA') {
+                    e.preventDefault();
+                    if (idx < inputs.length - 1) {
+                        inputs[idx + 1].focus();
+                        if (inputs[idx + 1].select) inputs[idx + 1].select();
+                    } else {
+                        const submitBtn = modal.querySelector('button[type="submit"]');
+                        if (submitBtn) submitBtn.click();
+                    }
+                }
+            });
+        });
+    }
 
     function closeModal(id) {
         document.getElementById(id)?.classList.remove('active');
@@ -776,6 +977,9 @@
         document.getElementById('acc_account_id').value = '';
         document.getElementById('accountModalTitle').innerText = 'Add New Bank Account';
         document.getElementById('accountModal').classList.add('active');
+        setTimeout(() => {
+            document.getElementById('acc_bank_name')?.focus();
+        }, 100);
     }
 
     function editAccount(acc) {
@@ -787,9 +991,11 @@
         document.getElementById('acc_branch_id').value = acc.branch_id || '';
         document.getElementById('acc_bank_branch_name').value = acc.bank_branch_name || '';
         document.getElementById('acc_opening_balance').value = acc.opening_balance;
-        document.getElementById('acc_status').value = acc.status;
         document.getElementById('accountModalTitle').innerText = 'Edit Bank Account';
         document.getElementById('accountModal').classList.add('active');
+        setTimeout(() => {
+            document.getElementById('acc_bank_name')?.focus();
+        }, 100);
     }
 
     async function handleSaveAccount(e) {
@@ -809,7 +1015,6 @@
             });
             const result = await res.json();
             if (result.success) {
-                alert(result.message);
                 location.reload();
             } else {
                 alert('Error: ' + result.message);
@@ -822,10 +1027,75 @@
         }
     }
 
+    async function deleteAccount(id, name) {
+        if (!confirm(`Are you sure you want to move bank account "${name}" to Trash Bin?`)) {
+            return;
+        }
+
+        try {
+            const res = await fetch('banking_api.php?action=delete_account', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id })
+            });
+            const result = await res.json();
+            if (result.success) {
+                location.reload();
+            } else {
+                alert('Error: ' + result.message);
+            }
+        } catch (err) {
+            alert('Server error: ' + err.message);
+        }
+    }
+
+    async function restoreAccount(id, name) {
+        if (!confirm(`Restore bank account "${name}" back to Active status?`)) {
+            return;
+        }
+
+        try {
+            const res = await fetch('banking_api.php?action=restore_account', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id })
+            });
+            const result = await res.json();
+            if (result.success) {
+                location.reload();
+            } else {
+                alert('Error: ' + result.message);
+            }
+        } catch (err) {
+            alert('Server error: ' + err.message);
+        }
+    }
+
+    async function toggleStatus(id) {
+        try {
+            const res = await fetch('banking_api.php?action=toggle_status', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id })
+            });
+            const result = await res.json();
+            if (result.success) {
+                location.reload();
+            } else {
+                alert('Error: ' + result.message);
+            }
+        } catch (err) {
+            alert('Server connection error: ' + err.message);
+        }
+    }
+
     function openDepositModal() {
         document.getElementById('depositForm').reset();
         toggleSourceFields();
         document.getElementById('depositModal').classList.add('active');
+        setTimeout(() => {
+            document.getElementById('dep_amount')?.focus();
+        }, 100);
     }
 
     function toggleSourceFields() {
@@ -874,9 +1144,10 @@
     function openRegisterFullPage(id, accName, bankName, accNum, accCode) {
         activeRegisterAccountId = id;
         activeRegisterAccountData = { id, accName, bankName, accNum, accCode };
+        currentRegisterPage = 1;
 
         document.getElementById('bankAccountsHubView').style.display = 'none';
-        document.getElementById('bankRegisterReportView').style.display = 'block';
+        document.getElementById('bankRegisterReportView').style.display = 'flex';
         document.getElementById('hubHeaderActions').style.display = 'none';
         document.getElementById('registerHeaderActions').style.display = 'flex';
 
@@ -893,13 +1164,33 @@
     }
 
     function closeRegisterFullPage() {
-        document.getElementById('bankAccountsHubView').style.display = 'block';
+        document.getElementById('bankAccountsHubView').style.display = 'flex';
         document.getElementById('bankRegisterReportView').style.display = 'none';
         document.getElementById('hubHeaderActions').style.display = 'flex';
         document.getElementById('registerHeaderActions').style.display = 'none';
 
         if (window.history && window.history.pushState) {
             window.history.pushState(null, '', 'bank_accounts.php');
+        }
+    }
+
+    function changeRegisterPageLimit(val) {
+        currentRegisterLimit = parseInt(val) || 25;
+        currentRegisterPage = 1;
+        fetchRegisterReportData();
+    }
+
+    function prevRegisterPage() {
+        if (currentRegisterPage > 1) {
+            currentRegisterPage--;
+            fetchRegisterReportData();
+        }
+    }
+
+    function nextRegisterPage() {
+        if (currentRegisterPage < currentRegisterTotalPages) {
+            currentRegisterPage++;
+            fetchRegisterReportData();
         }
     }
 
@@ -913,7 +1204,7 @@
         const endDate = document.getElementById('regFilterEndDate').value;
         const search = document.getElementById('regFilterSearch').value;
 
-        let url = `banking_api.php?action=get_register&bank_account_id=${activeRegisterAccountId}&limit=1000`;
+        let url = `banking_api.php?action=get_register&bank_account_id=${activeRegisterAccountId}&page=${currentRegisterPage}&limit=${currentRegisterLimit}`;
         if (startDate) url += `&start_date=${encodeURIComponent(startDate)}`;
         if (endDate) url += `&end_date=${encodeURIComponent(endDate)}`;
         if (search) url += `&search=${encodeURIComponent(search)}`;
@@ -922,8 +1213,20 @@
             const res = await fetch(url);
             const result = await res.json();
 
-            if (result.success && result.data.items) {
-                currentRegisterItems = result.data.items;
+            if (result.success && result.data) {
+                currentRegisterItems = result.data.items || [];
+                currentRegisterTotalItems = result.data.totalItems || 0;
+                currentRegisterTotalPages = result.data.totalPages || 1;
+                currentRegisterPage = result.data.page || 1;
+
+                // Update pagination controls
+                const startIdx = currentRegisterTotalItems > 0 ? (currentRegisterPage - 1) * currentRegisterLimit + 1 : 0;
+                const endIdx = Math.min(currentRegisterPage * currentRegisterLimit, currentRegisterTotalItems);
+                document.getElementById('registerPaginationCount').innerText = `Showing ${startIdx} to ${endIdx} of ${currentRegisterTotalItems} entries`;
+                document.getElementById('registerPageIndicator').innerText = `Page ${currentRegisterPage} of ${currentRegisterTotalPages}`;
+                document.getElementById('regPrevPageBtn').disabled = (currentRegisterPage <= 1);
+                document.getElementById('regNextPageBtn').disabled = (currentRegisterPage >= currentRegisterTotalPages);
+
                 if (!currentRegisterItems.length) {
                     tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding: 3rem 1rem; color:#94a3b8;">No transactions found matching the filter scope.</td></tr>';
                     return;
@@ -943,19 +1246,19 @@
 
                     return `
                         <tr>
-                            <td style="color:#64748b; font-size:0.8rem;">${it.entry_date}</td>
-                            <td><span class="inv-code-pill">${it.entry_number}</span></td>
-                            <td><strong>${it.description}</strong> ${it.memo ? '<br><small style="color:#94a3b8;">' + it.memo + '</small>' : ''}</td>
-                            <td style="text-align:right; color:#16a34a; font-weight:700;">${dep > 0 ? 'LKR ' + dep.toLocaleString('en-US', {minimumFractionDigits:2}) : '-'}</td>
-                            <td style="text-align:right; color:#dc2626; font-weight:700;">${pay > 0 ? 'LKR ' + pay.toLocaleString('en-US', {minimumFractionDigits:2}) : '-'}</td>
-                            <td style="text-align:right; font-weight:800; color:#0f172a;">LKR ${bal.toLocaleString('en-US', {minimumFractionDigits:2})}</td>
+                            <td style="color:#64748b; font-size:12px; text-align:left;">${it.entry_date}</td>
+                            <td style="text-align:left;"><span class="inv-code-pill">${it.entry_number}</span></td>
+                            <td style="text-align:left;"><strong>${it.description}</strong> ${it.memo ? '<br><small style="color:#94a3b8;">' + it.memo + '</small>' : ''}</td>
+                            <td class="col-right" style="color:#16a34a; font-weight:700;">${dep > 0 ? dep.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2}) : '-'}</td>
+                            <td class="col-right" style="color:#dc2626; font-weight:700;">${pay > 0 ? pay.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2}) : '-'}</td>
+                            <td class="col-right" style="font-weight:800; color:#0f172a;">${bal.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
                         </tr>
                     `;
                 }).join('');
 
-                document.getElementById('registerTotalDeposits').innerText = `LKR ${totDeposits.toLocaleString('en-US', {minimumFractionDigits:2})}`;
-                document.getElementById('registerTotalPayments').innerText = `LKR ${totPayments.toLocaleString('en-US', {minimumFractionDigits:2})}`;
-                document.getElementById('registerFinalBalance').innerText = `LKR ${lastRunningBal.toLocaleString('en-US', {minimumFractionDigits:2})}`;
+                document.getElementById('registerTotalDeposits').innerText = totDeposits.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+                document.getElementById('registerTotalPayments').innerText = totPayments.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+                document.getElementById('registerFinalBalance').innerText = lastRunningBal.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
                 tfoot.style.display = 'table-footer-group';
             }
         } catch (err) {
@@ -975,6 +1278,7 @@
         if (startDate || endDate) {
             document.getElementById('registerReportDateBadge').innerText = `${startDate || 'Start'} to ${endDate || 'Today'}`;
         }
+        currentRegisterPage = 1;
         fetchRegisterReportData();
     }
 
@@ -984,6 +1288,7 @@
         document.getElementById('regFilterSearch').value = '';
         document.getElementById('registerReportDateBadge').innerText = 'All Historical Activity';
         closeModal('registerFilterModal');
+        currentRegisterPage = 1;
         fetchRegisterReportData();
     }
 
@@ -1006,7 +1311,7 @@
             a.click();
         } else if (format === 'excel') {
             let csv = '\uFEFF';
-            csv += 'Date,Entry Number,Description,Memo,Deposit (+),Payment (-),Running Balance\n';
+            csv += 'Date,Entry Number,Description,Memo,Deposit (+) (LKR),Payment (-) (LKR),Running Balance (LKR)\n';
             currentRegisterItems.forEach(i => {
                 csv += `"${i.entry_date}","${i.entry_number}","${(i.description||'').replace(/"/g, '""')}","${(i.memo||'').replace(/"/g, '""')}",${i.deposit_in||0},${i.payment_out||0},${i.running_balance||0}\n`;
             });

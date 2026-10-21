@@ -894,6 +894,9 @@
     let pendingPageSearchConfig = null;
 
     function enablePageSearch(options = {}) {
+        if (typeof options === 'function') {
+            options = { onSearch: options };
+        }
         pageSearchCallback = options.onSearch || null;
         pendingPageSearchConfig = options;
 

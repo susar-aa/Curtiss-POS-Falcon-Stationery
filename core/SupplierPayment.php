@@ -122,7 +122,7 @@ class SupplierPayment
             }
 
             require_once __DIR__ . '/SupplierOpeningBalance.php';
-            $activeOb = SupplierOpeningBalance::getActiveOpeningBalance($supplierId);
+            $activeOb = SupplierOpeningBalance::getActiveOpeningBalance($supplierId, $branchId);
             $obOweAmount = 0.00;
             if ($activeOb && $activeOb['balance_type'] === 'owe_supplier') {
                 $obOweAmount = max(0.00, round((float)$activeOb['amount'] - (float)($activeOb['paid_amount'] ?? 0), 2));
@@ -130,22 +130,36 @@ class SupplierPayment
 
             $totalOutstanding = round($totalOutstanding + $obOweAmount, 2);
 
-            // Fetch supplier payment history
+            // Fetch supplier payment history (filtered by branch if specified)
+            $pmtWhere = ["sp.supplier_id = :supplier_id"];
+            $pmtParams = [':supplier_id' => $supplierId];
+            if ($branchId !== null && $branchId > 0) {
+                $pmtWhere[] = "sp.branch_id = :branch_id";
+                $pmtParams[':branch_id'] = $branchId;
+            }
+            $pmtWhereSql = implode(" AND ", $pmtWhere);
             $payments = Database::fetchAll("
                 SELECT sp.*, b.name AS branch_name, u.full_name AS user_name, sc.cheque_number, sc.cheque_date, sc.status AS cheque_status
                 FROM supplier_payments sp
                 JOIN branches b ON sp.branch_id = b.id
                 JOIN users u ON sp.created_by = u.id
                 LEFT JOIN supplier_cheques sc ON sc.supplier_payment_id = sp.id
-                WHERE sp.supplier_id = :supplier_id
+                WHERE {$pmtWhereSql}
                 ORDER BY sp.id DESC
                 LIMIT 50
-            ", [':supplier_id' => $supplierId]);
+            ", $pmtParams);
 
-            // Fetch active supplier credits
+            // Fetch active supplier credits (filtered by branch if specified)
+            $crWhere = ["supplier_id = :supplier_id AND status = 'active'"];
+            $crParams = [':supplier_id' => $supplierId];
+            if ($branchId !== null && $branchId > 0) {
+                $crWhere[] = "branch_id = :branch_id";
+                $crParams[':branch_id'] = $branchId;
+            }
+            $crWhereSql = implode(" AND ", $crWhere);
             $credits = Database::fetchAll("
-                SELECT * FROM supplier_credits WHERE supplier_id = :supplier_id AND status = 'active' ORDER BY id DESC
-            ", [':supplier_id' => $supplierId]);
+                SELECT * FROM supplier_credits WHERE {$crWhereSql} ORDER BY id DESC
+            ", $crParams);
 
             $totalCreditBalance = 0.00;
             foreach ($credits as $c) {
@@ -206,7 +220,13 @@ class SupplierPayment
                 $grnSummaryMap[(int)$row['supplier_id']] = $row;
             }
 
-            // 2. Active Opening Balances
+            // 2. Active Opening Balances (filtered by branch if specified)
+            $obWhere = "ob.supplier_id IN ($inList) AND ob.status = 'posted'";
+            $obParams = [];
+            if ($branchId) {
+                $obWhere .= " AND ob.branch_id = :ob_branch_id";
+                $obParams[':ob_branch_id'] = $branchId;
+            }
             $obs = Database::fetchAll("
                 SELECT 
                     ob.*, 
@@ -215,9 +235,9 @@ class SupplierPayment
                 FROM supplier_opening_balances ob
                 JOIN users u ON ob.created_by = u.id
                 LEFT JOIN journal_entries je ON ob.journal_entry_id = je.id
-                WHERE ob.supplier_id IN ($inList) AND ob.status = 'posted'
+                WHERE {$obWhere}
                 ORDER BY ob.id DESC
-            ");
+            ", $obParams);
             $obMap = [];
             foreach ($obs as $ob) {
                 $sId = (int)$ob['supplier_id'];
@@ -226,29 +246,41 @@ class SupplierPayment
                 }
             }
 
-            // 3. Active Supplier Credits
+            // 3. Active Supplier Credits (filtered by branch if specified)
+            $crWhere = "supplier_id IN ($inList) AND status = 'active'";
+            $crParams = [];
+            if ($branchId) {
+                $crWhere .= " AND branch_id = :cr_branch_id";
+                $crParams[':cr_branch_id'] = $branchId;
+            }
             $credits = Database::fetchAll("
                 SELECT 
                     supplier_id,
                     COALESCE(SUM(remaining_credit_amount), 0) AS total_credit_balance
                 FROM supplier_credits
-                WHERE supplier_id IN ($inList) AND status = 'active'
+                WHERE {$crWhere}
                 GROUP BY supplier_id
-            ");
+            ", $crParams);
             $creditMap = [];
             foreach ($credits as $cr) {
                 $creditMap[(int)$cr['supplier_id']] = (float)$cr['total_credit_balance'];
             }
 
-            // 4. Supplier Payments Count
+            // 4. Supplier Payments Count (filtered by branch if specified)
+            $pmtWhere = "supplier_id IN ($inList)";
+            $pmtParams = [];
+            if ($branchId) {
+                $pmtWhere .= " AND branch_id = :pmt_branch_id";
+                $pmtParams[':pmt_branch_id'] = $branchId;
+            }
             $payments = Database::fetchAll("
                 SELECT 
                     supplier_id,
                     COUNT(*) AS payment_count
                 FROM supplier_payments
-                WHERE supplier_id IN ($inList)
+                WHERE {$pmtWhere}
                 GROUP BY supplier_id
-            ");
+            ", $pmtParams);
             $paymentMap = [];
             foreach ($payments as $pmt) {
                 $paymentMap[(int)$pmt['supplier_id']] = (int)$pmt['payment_count'];
@@ -287,7 +319,7 @@ class SupplierPayment
     }
 
     /**
-     * Process Supplier Payment and GRN allocations inside a single database transaction
+     * Process Supplier Payment and GRN allocations inside a single database transaction (Supports Multi-Account Splits)
      */
     public static function processPayment(array $data, int $userId, int $branchId): array
     {
@@ -298,75 +330,11 @@ class SupplierPayment
 
             $supplierId = (int)($data['supplier_id'] ?? 0);
             $paymentDate = !empty($data['payment_date']) ? trim($data['payment_date']) : date('Y-m-d');
-            
-            $rawMethod = trim($data['payment_method'] ?? 'Cash in Hand');
-            $bankAccountId = !empty($data['bank_account_id']) ? (int)$data['bank_account_id'] : null;
-
-            if (strpos($rawMethod, 'Bank:') === 0) {
-                $parts = explode(':', $rawMethod);
-                $paymentMethod = 'Bank';
-                $bankAccountId = (int)($parts[1] ?? 0);
-            } elseif (strcasecmp($rawMethod, 'Cash Drawer') === 0 || strcasecmp($rawMethod, 'cash_drawer') === 0) {
-                $paymentMethod = 'Cash Drawer';
-            } elseif (strcasecmp($rawMethod, 'Cash in Hand') === 0 || strcasecmp($rawMethod, 'cash_in_hand') === 0 || strcasecmp($rawMethod, 'Cash') === 0) {
-                $paymentMethod = 'Cash in Hand';
-            } elseif (strcasecmp($rawMethod, 'Petty Cash') === 0 || strcasecmp($rawMethod, 'petty_cash') === 0) {
-                $paymentMethod = 'Petty Cash';
-            } elseif (strcasecmp($rawMethod, 'Cheque') === 0) {
-                $paymentMethod = 'Cheque';
-            } elseif (strcasecmp($rawMethod, 'Bank') === 0) {
-                $paymentMethod = 'Bank';
-            } else {
-                $paymentMethod = 'Cash in Hand';
-            }
-
-            $totalAmount = round((float)($data['amount'] ?? 0), 2);
-            $referenceNo = !empty($data['reference_no']) ? trim($data['reference_no']) : null;
-            $bankName = !empty($data['bank_name']) ? trim($data['bank_name']) : null;
             $notes = !empty($data['notes']) ? trim($data['notes']) : 'Supplier payment';
-            $allocations = $data['allocations'] ?? [];
-            $chequeData = $data['cheque'] ?? null;
-
-            if (!in_array($paymentMethod, ['Cash Drawer', 'Cash in Hand', 'Cash', 'Petty Cash', 'Bank', 'Cheque'], true)) {
-                $db->rollBack();
-                return ['success' => false, 'message' => "Unsupported supplier payment method '{$paymentMethod}'."];
-            }
 
             if ($supplierId <= 0) {
                 $db->rollBack();
                 return ['success' => false, 'message' => 'Valid supplier is required.'];
-            }
-
-            if ($paymentMethod === 'Bank') {
-                if ($bankAccountId <= 0) {
-                    $defaultBank = Database::fetchOne("SELECT id FROM bank_accounts WHERE status = 'active' ORDER BY id ASC LIMIT 1");
-                    if ($defaultBank) {
-                        $bankAccountId = (int)$defaultBank['id'];
-                    } else {
-                        $db->rollBack();
-                        return ['success' => false, 'message' => 'Bank account selection is required for bank supplier payment.'];
-                    }
-                }
-                $bankRow = Database::fetchOne("SELECT * FROM bank_accounts WHERE id = :id AND status = 'active'", [':id' => $bankAccountId]);
-                if (!$bankRow) {
-                    $db->rollBack();
-                    return ['success' => false, 'message' => 'Selected bank account is invalid or inactive.'];
-                }
-                $bankName = $bankRow['bank_name'] . ' - ' . $bankRow['account_name'];
-            }
-
-            if ($paymentMethod === 'Cash Drawer' || $paymentMethod === 'Cash in Hand' || $paymentMethod === 'Cash') {
-                require_once __DIR__ . '/BusinessDay.php';
-                $activeDay = BusinessDay::getOrCreateActiveDay($branchId, $userId);
-                if (!$activeDay) {
-                    $db->rollBack();
-                    return ['success' => false, 'message' => 'Cannot process supplier cash payment. No active business day is currently open for this branch.'];
-                }
-            }
-
-            if ($totalAmount <= 0.00) {
-                $db->rollBack();
-                return ['success' => false, 'message' => 'Payment amount must be greater than zero.'];
             }
 
             // Lock supplier record (allow payment even if supplier status is inactive)
@@ -380,7 +348,9 @@ class SupplierPayment
             $approvedGrns = Database::fetchAll("
                 SELECT id, actual_grn_total, paid_amount 
                 FROM grns 
-                WHERE supplier_id = :supplier_id AND status = 'Approved' FOR UPDATE
+                WHERE supplier_id = :supplier_id AND status = 'Approved' 
+                ORDER BY received_date ASC, id ASC
+                FOR UPDATE
             ", [':supplier_id' => $supplierId]);
 
             $grnOutstanding = 0.00;
@@ -413,28 +383,207 @@ class SupplierPayment
                 return ['success' => false, 'message' => "Supplier '{$supplier['name']}' has no outstanding balance."];
             }
 
+            // Parse splits
+            $rawSplits = $data['splits'] ?? null;
+            if (is_string($rawSplits)) {
+                $rawSplits = json_decode($rawSplits, true);
+            }
+
+            $splits = [];
+            if (!empty($rawSplits) && is_array($rawSplits)) {
+                $splits = $rawSplits;
+            } else {
+                $splits = [[
+                    'payment_method'  => $data['payment_method'] ?? 'Cash in Hand',
+                    'bank_account_id' => $data['bank_account_id'] ?? null,
+                    'amount'          => $data['amount'] ?? 0,
+                    'reference_no'    => $data['reference_no'] ?? null,
+                    'bank_name'       => $data['bank_name'] ?? null,
+                    'cheque_no'       => $data['cheque']['cheque_number'] ?? null,
+                    'cheque_date'     => $data['cheque']['cheque_date'] ?? null,
+                    'cheque_bank'     => $data['cheque']['bank_name'] ?? null,
+                ]];
+            }
+
+            // Calculate total payment amount
+            $totalAmount = 0.00;
+            foreach ($splits as $sp) {
+                $spAmt = round((float)($sp['amount'] ?? 0), 2);
+                if ($spAmt <= 0.00) {
+                    $db->rollBack();
+                    return ['success' => false, 'message' => 'Each payment split amount must be greater than zero.'];
+                }
+                $totalAmount = round($totalAmount + $spAmt, 2);
+            }
+
+            if ($totalAmount <= 0.00) {
+                $db->rollBack();
+                return ['success' => false, 'message' => 'Payment amount must be greater than zero.'];
+            }
+
             if ($totalAmount > ($totalOutstanding + 0.01)) {
                 $db->rollBack();
                 return [
                     'success' => false,
-                    'message' => "Overpayment prevented: Payment amount (LKR " . number_format($totalAmount, 2) . ") exceeds supplier total outstanding (LKR " . number_format($totalOutstanding, 2) . ")."
+                    'message' => "Overpayment prevented: Total payment (LKR " . number_format($totalAmount, 2) . ") exceeds supplier total outstanding (LKR " . number_format($totalOutstanding, 2) . ")."
                 ];
             }
 
-            // Cheque details validation if method is Cheque
-            if ($paymentMethod === 'Cheque') {
-                if (empty($chequeData['cheque_number']) || empty($chequeData['cheque_date']) || empty($chequeData['bank_name'])) {
-                    $db->rollBack();
-                    return ['success' => false, 'message' => 'Cheque number, cheque date, and bank name are mandatory for cheque payments.'];
+            // Pre-validate all splits before executing mutations
+            $validatedSplits = [];
+            foreach ($splits as $sp) {
+                $rawMethod = trim($sp['payment_method'] ?? $sp['method'] ?? 'Cash in Hand');
+                $bankAccountId = !empty($sp['bank_account_id']) ? (int)$sp['bank_account_id'] : null;
+
+                if (strpos($rawMethod, 'Bank:') === 0) {
+                    $parts = explode(':', $rawMethod);
+                    $paymentMethod = 'Bank';
+                    $bankAccountId = (int)($parts[1] ?? 0);
+                } elseif (strpos($rawMethod, 'Cheque:') === 0) {
+                    $parts = explode(':', $rawMethod);
+                    $paymentMethod = 'Cheque';
+                    $bankAccountId = (int)($parts[1] ?? 0);
+                } elseif (strcasecmp($rawMethod, 'Cash Drawer') === 0 || strcasecmp($rawMethod, 'cash_drawer') === 0) {
+                    $paymentMethod = 'Cash Drawer';
+                } elseif (strcasecmp($rawMethod, 'Cash in Hand') === 0 || strcasecmp($rawMethod, 'cash_in_hand') === 0 || strcasecmp($rawMethod, 'Cash') === 0) {
+                    $paymentMethod = 'Cash in Hand';
+                } elseif (strcasecmp($rawMethod, 'Petty Cash') === 0 || strcasecmp($rawMethod, 'petty_cash') === 0) {
+                    $paymentMethod = 'Petty Cash';
+                } elseif (strcasecmp($rawMethod, 'Cheque') === 0) {
+                    $paymentMethod = 'Cheque';
+                } elseif (strcasecmp($rawMethod, 'Bank') === 0 || strcasecmp($rawMethod, 'Bank Transfer') === 0) {
+                    $paymentMethod = 'Bank';
+                } else {
+                    // Check if it matches an active COA account (e.g. 'Cash in Hand (Buwaneka)', '1011', 'COA:115')
+                    $coaAcc = null;
+                    if (stripos($rawMethod, 'COA:') === 0 || stripos($rawMethod, 'coa_') === 0) {
+                        $val = trim(substr($rawMethod, 4));
+                        $coaAcc = Database::fetchOne("SELECT id, account_code, account_name FROM chart_of_accounts WHERE (id = :id OR account_code = :code) AND status = 'active'", [':id' => (int)$val, ':code' => $val]);
+                    } else {
+                        $coaAcc = Database::fetchOne("
+                            SELECT id, account_code, account_name 
+                            FROM chart_of_accounts 
+                            WHERE (LOWER(account_name) = LOWER(:m1) OR account_code = :m2) AND status = 'active'
+                            LIMIT 1
+                        ", [':m1' => $rawMethod, ':m2' => $rawMethod]);
+                    }
+
+                    if ($coaAcc) {
+                        $paymentMethod = $coaAcc['account_name'];
+                    } else {
+                        $paymentMethod = 'Cash in Hand';
+                    }
                 }
-                $bankName = trim($chequeData['bank_name']);
-                $referenceNo = trim($chequeData['cheque_number']);
-                $bankAccountId = !empty($chequeData['bank_account_id']) ? (int)$chequeData['bank_account_id'] : $bankAccountId;
+
+                $validMethods = ['Cash Drawer', 'Cash in Hand', 'Petty Cash', 'Bank', 'Cheque'];
+                $isCustomCoa = false;
+                if (!in_array($paymentMethod, $validMethods, true)) {
+                    $coaCheck = Database::fetchOne("
+                        SELECT id FROM chart_of_accounts 
+                        WHERE LOWER(account_name) = LOWER(:name) AND status = 'active'
+                    ", [':name' => $paymentMethod]);
+                    if ($coaCheck) {
+                        $isCustomCoa = true;
+                    }
+                }
+
+                if (!in_array($paymentMethod, $validMethods, true) && !$isCustomCoa) {
+                    $db->rollBack();
+                    return ['success' => false, 'message' => "Unsupported payment method '{$paymentMethod}' in payment split."];
+                }
+
+                $bankName = trim($sp['bank_name'] ?? '');
+                if ($paymentMethod === 'Bank') {
+                    if ($bankAccountId <= 0) {
+                        $defaultBank = Database::fetchOne("SELECT id FROM bank_accounts WHERE status = 'active' ORDER BY id ASC LIMIT 1");
+                        if ($defaultBank) {
+                            $bankAccountId = (int)$defaultBank['id'];
+                        } else {
+                            $db->rollBack();
+                            return ['success' => false, 'message' => 'Bank account selection is required for bank transfer split.'];
+                        }
+                    }
+                    $bankRow = Database::fetchOne("SELECT * FROM bank_accounts WHERE id = :id AND status = 'active'", [':id' => $bankAccountId]);
+                    if (!$bankRow) {
+                        $db->rollBack();
+                        return ['success' => false, 'message' => 'Selected bank account is invalid or inactive.'];
+                    }
+                    if (empty($bankName)) {
+                        $bankName = $bankRow['bank_name'] . ' - ' . $bankRow['account_name'];
+                    }
+                }
+
+                $chequeNo = null;
+                $chequeDate = null;
+                if ($paymentMethod === 'Cheque') {
+                    $chequeNo = trim($sp['cheque_no'] ?? $sp['reference_no'] ?? '');
+                    $chequeDate = trim($sp['cheque_date'] ?? $paymentDate);
+
+                    if (empty($chequeNo)) {
+                        $db->rollBack();
+                        return ['success' => false, 'message' => 'Cheque number is required for issued cheque.'];
+                    }
+
+                    if ($bankAccountId <= 0) {
+                        $defaultBank = Database::fetchOne("SELECT id FROM bank_accounts WHERE status = 'active' ORDER BY id ASC LIMIT 1");
+                        if ($defaultBank) {
+                            $bankAccountId = (int)$defaultBank['id'];
+                        } else {
+                            $db->rollBack();
+                            return ['success' => false, 'message' => 'Bank account selection is required for issued cheque.'];
+                        }
+                    }
+
+                    $bankRow = Database::fetchOne("SELECT * FROM bank_accounts WHERE id = :id AND status = 'active'", [':id' => $bankAccountId]);
+                    if (!$bankRow) {
+                        $db->rollBack();
+                        return ['success' => false, 'message' => 'Selected bank account is invalid or inactive.'];
+                    }
+                    $bankName = $bankRow['bank_name'] . ' - ' . $bankRow['account_name'];
+
+                    // Duplicate cheque validation on bank account
+                    $dupCheque = Database::fetchOne("
+                        SELECT id, cheque_number, status FROM supplier_cheques 
+                        WHERE bank_account_id = :bid AND cheque_number = :cno AND deleted_at IS NULL AND status IN ('pending', 'cleared')
+                    ", [':bid' => $bankAccountId, ':cno' => $chequeNo]);
+
+                    if ($dupCheque) {
+                        $db->rollBack();
+                        return [
+                            'success' => false, 
+                            'message' => "Duplicate Cheque Error: Cheque #{$chequeNo} has already been issued from {$bankRow['bank_name']} ({$bankRow['account_number']}) [Status: {$dupCheque['status']}]."
+                        ];
+                    }
+
+                    if (empty($chequeDate)) {
+                        $chequeDate = date('Y-m-d');
+                    }
+                }
+
+                if ($paymentMethod === 'Cash Drawer' || $paymentMethod === 'Cash in Hand' || $isCustomCoa) {
+                    require_once __DIR__ . '/BusinessDay.php';
+                    $activeDay = BusinessDay::getOrCreateActiveDay($branchId, $userId);
+                    if (!$activeDay) {
+                        $db->rollBack();
+                        return ['success' => false, 'message' => 'Cannot process cash payment. No active business day is currently open for this branch.'];
+                    }
+                }
+
+                $validatedSplits[] = [
+                    'payment_method'  => $paymentMethod,
+                    'bank_account_id' => $bankAccountId,
+                    'amount'          => round((float)($sp['amount'] ?? 0), 2),
+                    'reference_no'    => !empty($sp['reference_no']) ? trim($sp['reference_no']) : null,
+                    'bank_name'       => $bankName ?: null,
+                    'cheque_no'       => $chequeNo,
+                    'cheque_date'     => $chequeDate
+                ];
             }
 
-            $paymentNo = self::generatePaymentNumber();
+            $basePaymentNo = self::generatePaymentNumber();
+            $createdPaymentIds = [];
 
-            // Insert supplier_payments Header
+            // Statements for payment header, cheques, and allocations
             $stmtHeader = $db->prepare("
                 INSERT INTO supplier_payments (
                     payment_no, supplier_id, branch_id, bank_account_id, payment_date, payment_method,
@@ -445,188 +594,178 @@ class SupplierPayment
                 )
             ");
 
-            $stmtHeader->execute([
-                ':payment_no'      => $paymentNo,
-                ':supplier_id'     => $supplierId,
-                ':branch_id'       => $branchId,
-                ':bank_account_id' => $bankAccountId,
-                ':payment_date'    => $paymentDate,
-                ':payment_method'  => $paymentMethod,
-                ':total_amount'    => $totalAmount,
-                ':reference_no'    => $referenceNo,
-                ':bank_name'       => $bankName,
-                ':notes'           => $notes,
-                ':created_by'      => $userId
-            ]);
+            $stmtCheque = $db->prepare("
+                INSERT INTO supplier_cheques (
+                    supplier_payment_id, supplier_id, branch_id, bank_account_id, cheque_number, cheque_date,
+                    bank_name, amount, status, created_by
+                ) VALUES (
+                    :supplier_payment_id, :supplier_id, :branch_id, :bank_account_id, :cheque_number, :cheque_date,
+                    :bank_name, :amount, 'pending', :created_by
+                )
+            ");
 
-            $supplierPaymentId = (int)$db->lastInsertId();
-
-            if ($paymentMethod === 'Cash' && isset($activeDay) && $activeDay) {
-                BusinessDay::recordDrawerMovement([
-                    'business_day_id' => (int)$activeDay['id'],
-                    'branch_id'       => $branchId,
-                    'movement_type'   => 'supplier_payment',
-                    'source_type'     => 'supplier_payments',
-                    'source_id'       => $supplierPaymentId,
-                    'amount'          => $totalAmount,
-                    'direction'       => 'out',
-                    'reason'          => "Supplier Cash Payment ({$paymentNo})",
-                    'user_id'         => $userId
-                ]);
-            }
-
-            // Record Cheque Foundation if method is Cheque
-            if ($paymentMethod === 'Cheque') {
-                $stmtCheque = $db->prepare("
-                    INSERT INTO supplier_cheques (
-                        supplier_payment_id, supplier_id, branch_id, bank_account_id, cheque_number, cheque_date,
-                        bank_name, amount, status, created_by
-                    ) VALUES (
-                        :supplier_payment_id, :supplier_id, :branch_id, :bank_account_id, :cheque_number, :cheque_date,
-                        :bank_name, :amount, 'pending', :created_by
-                    )
-                ");
-
-                $stmtCheque->execute([
-                    ':supplier_payment_id' => $supplierPaymentId,
-                    ':supplier_id'         => $supplierId,
-                    ':branch_id'           => $branchId,
-                    ':bank_account_id'     => $bankAccountId,
-                    ':cheque_number'       => trim($chequeData['cheque_number']),
-                    ':cheque_date'         => trim($chequeData['cheque_date']),
-                    ':bank_name'           => $bankName,
-                    ':amount'              => $totalAmount,
-                    ':created_by'          => $userId
-                ]);
-
-                $chequeId = (int)$db->lastInsertId();
-                Audit::log('SUPPLIER_CHEQUE_RECORDED', 'purchasing', (string)$chequeId, null, [
-                    'cheque_number' => trim($chequeData['cheque_number']),
-                    'cheque_date'   => trim($chequeData['cheque_date']),
-                    'bank_name'     => $bankName,
-                    'amount'        => $totalAmount
-                ]);
-            }
-
-            // Allocate Payment to Approved GRNs
             $stmtAlloc = $db->prepare("
                 INSERT INTO supplier_payment_grns (supplier_payment_id, grn_id, allocated_amount)
                 VALUES (:supplier_payment_id, :grn_id, :allocated_amount)
             ");
 
-            $remPay = $totalAmount;
+            // Build obligations queue (FIFO)
+            // 1. Opening Balance (oldest liability) if outstanding
+            $obligations = [];
+            if ($activeOb && $obDue > 0.001) {
+                $obligations[] = [
+                    'type'     => 'ob',
+                    'id'       => (int)$activeOb['id'],
+                    'due'      => $obDue,
+                    'paid'     => (float)($activeOb['paid_amount'] ?? 0)
+                ];
+            }
 
-            if (!empty($allocations)) {
-                $sumAlloc = 0.00;
-                foreach ($allocations as $allocItem) {
-                    $grnId = (int)($allocItem['grn_id'] ?? 0);
-                    $aAmount = round((float)($allocItem['amount'] ?? 0), 2);
+            // 2. Approved unpaid GRNs FIFO
+            foreach ($approvedGrns as $ag) {
+                $actualTot = (float)$ag['actual_grn_total'];
+                $paidAmt = (float)$ag['paid_amount'];
+                $due = round($actualTot - $paidAmt, 2);
+                if ($due > 0.001) {
+                    $obligations[] = [
+                        'type'       => 'grn',
+                        'id'         => (int)$ag['id'],
+                        'actual_tot' => $actualTot,
+                        'due'        => $due,
+                        'paid'       => $paidAmt
+                    ];
+                }
+            }
 
-                    if ($grnId > 0 && $aAmount > 0) {
-                        $grnRow = Database::fetchOne("
-                            SELECT actual_grn_total, paid_amount, status FROM grns WHERE id = :id AND supplier_id = :sid FOR UPDATE
-                        ", [':id' => $grnId, ':sid' => $supplierId]);
+            $obIndex = 0;
 
-                        if (!$grnRow || $grnRow['status'] !== 'Approved') {
-                            $db->rollBack();
-                            return ['success' => false, 'message' => "GRN #{$grnId} is not approved or does not belong to supplier."];
-                        }
+            foreach ($validatedSplits as $idx => $vSp) {
+                $spAmt = $vSp['amount'];
+                $spMethod = $vSp['payment_method'];
+                $spBankId = $vSp['bank_account_id'];
+                $linePmtNo = (count($validatedSplits) === 1) ? $basePaymentNo : ($basePaymentNo . '-' . ($idx + 1));
+                $spRef = $vSp['reference_no'] ?: $linePmtNo;
+                if ($spMethod === 'Cheque' && !empty($vSp['cheque_no'])) {
+                    $spRef = $vSp['cheque_no'];
+                }
 
-                        $due = round((float)$grnRow['actual_grn_total'] - (float)$grnRow['paid_amount'], 2);
-                        if ($aAmount > ($due + 0.01)) {
-                            $db->rollBack();
-                            return ['success' => false, 'message' => "Allocation (LKR " . number_format($aAmount, 2) . ") exceeds GRN #{$grnId} remaining due (LKR " . number_format($due, 2) . ")." ];
-                        }
+                $splitNote = "Supplier payment via {$spMethod}";
+                if (!empty($notes)) {
+                    $splitNote .= " - {$notes}";
+                }
 
-                        $newPaid = round((float)$grnRow['paid_amount'] + $aAmount, 2);
-                        $pStatus = ($newPaid >= (float)$grnRow['actual_grn_total'] - 0.001) ? 'paid' : 'partially_paid';
+                $stmtHeader->execute([
+                    ':payment_no'      => $linePmtNo,
+                    ':supplier_id'     => $supplierId,
+                    ':branch_id'       => $branchId,
+                    ':bank_account_id' => $spBankId,
+                    ':payment_date'    => $paymentDate,
+                    ':payment_method'  => $spMethod,
+                    ':total_amount'    => $spAmt,
+                    ':reference_no'    => $spRef,
+                    ':bank_name'       => $vSp['bank_name'],
+                    ':notes'           => $splitNote,
+                    ':created_by'      => $userId
+                ]);
 
-                        $db->prepare("
-                            UPDATE grns SET paid_amount = :paid, payment_status = :pstatus WHERE id = :id
-                        ")->execute([':paid' => $newPaid, ':pstatus' => $pStatus, ':id' => $grnId]);
+                $supplierPaymentId = (int)$db->lastInsertId();
+                $createdPaymentIds[] = $supplierPaymentId;
 
-                        $stmtAlloc->execute([
-                            ':supplier_payment_id' => $supplierPaymentId,
-                            ':grn_id'              => $grnId,
-                            ':allocated_amount'    => $aAmount
+                if ($spMethod === 'Cash Drawer') {
+                    require_once __DIR__ . '/BusinessDay.php';
+                    $activeDay = BusinessDay::getOrCreateActiveDay($branchId, $userId);
+                    if ($activeDay) {
+                        BusinessDay::recordDrawerMovement([
+                            'business_day_id' => (int)$activeDay['id'],
+                            'branch_id'       => $branchId,
+                            'movement_type'   => 'supplier_payment',
+                            'source_type'     => 'supplier_payments',
+                            'source_id'       => $supplierPaymentId,
+                            'amount'          => $spAmt,
+                            'direction'       => 'out',
+                            'reason'          => "Supplier Cash Drawer Payment ({$linePmtNo})",
+                            'user_id'         => $userId
                         ]);
-
-                        $sumAlloc += $aAmount;
                     }
                 }
 
-                $remPay = round($totalAmount - $sumAlloc, 2);
-                if ($remPay > 0.001 && $activeOb && $obDue > 0.001) {
-                    $obAlloc = min($remPay, $obDue);
-                    $newObPaid = round((float)($activeOb['paid_amount'] ?? 0) + $obAlloc, 2);
-                    $db->prepare("
-                        UPDATE supplier_opening_balances SET paid_amount = :paid WHERE id = :id
-                    ")->execute([':paid' => $newObPaid, ':id' => $activeOb['id']]);
-                    $remPay = round($remPay - $obAlloc, 2);
+                if ($spMethod === 'Cheque') {
+                    $stmtCheque->execute([
+                        ':supplier_payment_id' => $supplierPaymentId,
+                        ':supplier_id'         => $supplierId,
+                        ':branch_id'           => $branchId,
+                        ':bank_account_id'     => $spBankId,
+                        ':cheque_number'       => $vSp['cheque_no'],
+                        ':cheque_date'         => $vSp['cheque_date'],
+                        ':bank_name'           => $vSp['bank_name'] ?: 'Primary Bank',
+                        ':amount'              => $spAmt,
+                        ':created_by'          => $userId
+                    ]);
+                    $chequeId = (int)$db->lastInsertId();
+                    Audit::log('SUPPLIER_CHEQUE_RECORDED', 'purchasing', (string)$chequeId, null, [
+                        'cheque_number' => $vSp['cheque_no'],
+                        'cheque_date'   => $vSp['cheque_date'],
+                        'bank_name'     => $vSp['bank_name'],
+                        'amount'        => $spAmt
+                    ]);
                 }
 
-                if (abs($remPay) > 0.01) {
-                    $db->rollBack();
-                    return ['success' => false, 'message' => "Allocation sum does not match total payment amount (LKR " . number_format($totalAmount, 2) . ")." ];
-                }
-            } else {
-                // Auto Allocation:
-                // 1. First allocate to active Opening Balance (oldest liability) if outstanding
-                if ($activeOb && $obDue > 0.001) {
-                    $obAlloc = min($remPay, $obDue);
-                    $newObPaid = round((float)($activeOb['paid_amount'] ?? 0) + $obAlloc, 2);
-                    $db->prepare("
-                        UPDATE supplier_opening_balances SET paid_amount = :paid WHERE id = :id
-                    ")->execute([':paid' => $newObPaid, ':id' => $activeOb['id']]);
-                    $remPay = round($remPay - $obAlloc, 2);
-                }
+                // Allocate this split's amount across obligations FIFO
+                $remSplitAmt = $spAmt;
+                while ($remSplitAmt > 0.001 && $obIndex < count($obligations)) {
+                    $currentOb = &$obligations[$obIndex];
+                    $alloc = min($remSplitAmt, $currentOb['due']);
 
-                // 2. Next allocate remaining payment to oldest approved unpaid GRNs
-                if ($remPay > 0.001) {
-                    foreach ($approvedGrns as $ag) {
-                        if ($remPay <= 0.001) break;
-                        $actualTot = (float)$ag['actual_grn_total'];
-                        $paidAmt = (float)$ag['paid_amount'];
-                        $due = round($actualTot - $paidAmt, 2);
+                    if ($currentOb['type'] === 'ob') {
+                        $currentOb['paid'] = round($currentOb['paid'] + $alloc, 2);
+                        $currentOb['due'] = round($currentOb['due'] - $alloc, 2);
+                        $db->prepare("
+                            UPDATE supplier_opening_balances SET paid_amount = :paid WHERE id = :id
+                        ")->execute([':paid' => $currentOb['paid'], ':id' => $currentOb['id']]);
+                    } elseif ($currentOb['type'] === 'grn') {
+                        $currentOb['paid'] = round($currentOb['paid'] + $alloc, 2);
+                        $currentOb['due'] = round($currentOb['due'] - $alloc, 2);
+                        $pStatus = ($currentOb['paid'] >= $currentOb['actual_tot'] - 0.001) ? 'paid' : 'partially_paid';
 
-                        if ($due > 0.001) {
-                            $aAmount = min($remPay, $due);
-                            $newPaid = round($paidAmt + $aAmount, 2);
-                            $pStatus = ($newPaid >= $actualTot - 0.001) ? 'paid' : 'partially_paid';
+                        $db->prepare("
+                            UPDATE grns SET paid_amount = :paid, payment_status = :pstatus WHERE id = :id
+                        ")->execute([':paid' => $currentOb['paid'], ':pstatus' => $pStatus, ':id' => $currentOb['id']]);
 
-                            $db->prepare("
-                                UPDATE grns SET paid_amount = :paid, payment_status = :pstatus WHERE id = :id
-                            ")->execute([':paid' => $newPaid, ':pstatus' => $pStatus, ':id' => $ag['id']]);
+                        $stmtAlloc->execute([
+                            ':supplier_payment_id' => $supplierPaymentId,
+                            ':grn_id'              => $currentOb['id'],
+                            ':allocated_amount'    => $alloc
+                        ]);
+                    }
 
-                            $stmtAlloc->execute([
-                                ':supplier_payment_id' => $supplierPaymentId,
-                                ':grn_id'              => $ag['id'],
-                                ':allocated_amount'    => $aAmount
-                            ]);
-
-                            $remPay = round($remPay - $aAmount, 2);
-                        }
+                    $remSplitAmt = round($remSplitAmt - $alloc, 2);
+                    if ($currentOb['due'] <= 0.001) {
+                        $obIndex++;
                     }
                 }
             }
 
             $db->commit();
 
+            // Post double-entry journals for each split
             require_once __DIR__ . '/Accounting.php';
-            Accounting::postSupplierPayment($supplierPaymentId);
+            foreach ($createdPaymentIds as $spId) {
+                Accounting::postSupplierPayment($spId);
+            }
 
-            Audit::log('SUPPLIER_PAYMENT_PROCESSED', 'purchasing', (string)$supplierPaymentId, null, [
-                'payment_no'     => $paymentNo,
+            Audit::log('SUPPLIER_PAYMENT_PROCESSED', 'purchasing', (string)$createdPaymentIds[0], null, [
+                'payment_no'     => $basePaymentNo,
                 'supplier_name'  => $supplier['name'],
                 'total_amount'   => $totalAmount,
-                'payment_method' => $paymentMethod
+                'splits_count'   => count($validatedSplits)
             ]);
 
             return [
                 'success'             => true,
-                'message'             => "Supplier Payment {$paymentNo} of LKR " . number_format($totalAmount, 2) . " processed successfully.",
-                'supplier_payment_id' => $supplierPaymentId,
-                'payment_no'          => $paymentNo,
+                'message'             => "Supplier Payment {$basePaymentNo} of LKR " . number_format($totalAmount, 2) . " processed successfully.",
+                'supplier_payment_id' => $createdPaymentIds[0],
+                'payment_ids'         => $createdPaymentIds,
+                'payment_no'          => $basePaymentNo,
                 'total_amount'        => $totalAmount
             ];
 

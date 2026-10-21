@@ -4,6 +4,7 @@
  * Full Glassmorphic ERP Interface for Journal Entries, Double-Entry Validation, Manual Postings & Reversals.
  */
 ?>
+<meta name="csrf-token" content="<?= htmlspecialchars(Auth::generateCsrfToken(), ENT_QUOTES, 'UTF-8') ?>">
 <link rel="stylesheet" href="assets/css/curtiss_select.css">
 <script src="assets/js/curtiss_select.js"></script>
 
@@ -40,12 +41,6 @@
         color: #0f172a;
         letter-spacing: -0.025em;
         line-height: 1.2;
-    }
-    .inv-subtitle {
-        font-size: 0.8rem;
-        color: #94a3b8;
-        margin-top: 4px;
-        font-weight: 500;
     }
 
     /* Button System */
@@ -108,18 +103,21 @@
     .prod-badge {
         display: inline-flex;
         align-items: center;
-        gap: 5px;
-        padding: 3px 9px;
+        gap: 6px;
+        height: 28px;
+        min-height: 28px;
+        line-height: 26px;
+        padding: 0 12px;
         border-radius: 999px;
         font-size: 11px;
         font-weight: 700;
-        line-height: 1.2;
         white-space: nowrap;
+        box-sizing: border-box;
     }
-    .prod-badge-posted   { background: #dcfce7; color: #15803d; border: 1px solid rgba(22,163,74,0.2); }
-    .prod-badge-reversed { background: #fee2e2; color: #b91c1c; border: 1px solid rgba(220,38,38,0.2); }
+    .prod-badge-posted   { background: #dcfce7; color: #15803d; border: 1px solid rgba(22,163,74,0.25); }
+    .prod-badge-reversed { background: #fee2e2; color: #b91c1c; border: 1px solid rgba(220,38,38,0.25); }
     .prod-badge .dot {
-        width: 5px; height: 5px; border-radius: 50%; display: inline-block;
+        width: 6px; height: 6px; border-radius: 50%; display: inline-block;
     }
     .prod-badge-posted   .dot { background: #16a34a; }
     .prod-badge-reversed .dot { background: #dc2626; }
@@ -162,14 +160,19 @@
         color: #64748b;
         white-space: nowrap;
         background: #f8fafc;
+        position: sticky;
+        top: 0;
+        z-index: 10;
         box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
     }
     .prod-table tbody tr {
+        height: 48px;
+        min-height: 48px;
         border-bottom: 1px solid #f1f5f9;
         transition: background 0.12s ease;
     }
     .prod-table tbody tr:nth-child(even) {
-        background: rgba(248, 250, 252, 0.75);
+        background: rgba(248, 250, 252, 0.57);
     }
     .prod-table tbody tr:nth-child(odd) {
         background: #ffffff;
@@ -178,10 +181,21 @@
         background: #f1f5f9 !important;
     }
     .prod-table td {
-        padding: 8px 12px;
+        height: 48px;
+        padding: 0 14px;
         font-size: 12.5px;
         color: #1e293b;
         vertical-align: middle;
+        box-sizing: border-box;
+    }
+    .col-right {
+        text-align: right !important;
+    }
+    .col-center {
+        text-align: center !important;
+    }
+    .col-left {
+        text-align: left !important;
     }
 
     /* Table Footer Pagination */
@@ -201,7 +215,10 @@
         align-items: center;
         justify-content: center;
         gap: 4px;
-        padding: 4px 10px;
+        height: 28px;
+        min-height: 28px;
+        line-height: 26px;
+        padding: 0 12px;
         border-radius: 999px;
         font-size: 11px;
         font-weight: 700;
@@ -211,6 +228,7 @@
         font-family: inherit;
         text-decoration: none;
         white-space: nowrap;
+        box-sizing: border-box;
     }
     .prod-act-edit {
         background: #f1f5f9;
@@ -222,13 +240,14 @@
         color: #0f172a;
     }
     .prod-act-danger {
-        background: #fee2e2;
+        background: #fef2f2;
         border-color: #fca5a5;
-        color: #b91c1c;
+        color: #dc2626;
     }
     .prod-act-danger:hover {
-        background: #fca5a5;
-        color: #7f1d1d;
+        background: #fee2e2;
+        border-color: #f87171;
+        color: #b91c1c;
     }
 
     /* Glassmorphism Modals */
@@ -363,14 +382,14 @@
             <table class="prod-table" id="journalTable">
                 <thead>
                     <tr>
-                        <th style="width: 135px;">Entry #</th>
-                        <th style="width: 95px;">Date</th>
-                        <th style="width: 105px;">Source</th>
-                        <th style="max-width: 320px;">Description / Narrative</th>
-                        <th style="width: 115px; text-align: right;">Debit (LKR)</th>
-                        <th style="width: 115px; text-align: right;">Credit (LKR)</th>
-                        <th style="width: 90px; text-align: center;">Status</th>
-                        <th style="width: 120px; text-align: center;">Actions</th>
+                        <th style="width: 135px; text-align: left;">Entry #</th>
+                        <th style="width: 95px; text-align: left;">Date</th>
+                        <th style="width: 115px; text-align: left;">Source</th>
+                        <th style="max-width: 320px; text-align: left;">Description / Narrative</th>
+                        <th style="width: 125px; text-align: right;" class="col-right">Debit (LKR)</th>
+                        <th style="width: 125px; text-align: right;" class="col-right">Credit (LKR)</th>
+                        <th style="width: 100px; text-align: center;" class="col-center">Status</th>
+                        <th style="width: 120px; text-align: center;" class="col-center">Actions</th>
                     </tr>
                 </thead>
                 <tbody id="journalTableBody">
@@ -485,7 +504,7 @@
         </div>
         <div style="display: flex; justify-content: flex-end; gap: 10px; padding-top: 14px; border-top: 1px solid #f1f5f9;">
             <button type="button" class="inv-btn inv-btn-ghost" onclick="closeModal('reversalModal')">Cancel</button>
-            <button type="button" class="inv-btn" style="background: #dc2626; color: #fff; font-weight: 700;" onclick="confirmReversal()">Confirm Reversal</button>
+            <button type="button" class="inv-btn" id="btnConfirmReversal" style="background: #dc2626; color: #fff; font-weight: 700;" onclick="confirmReversal()">Confirm Reversal</button>
         </div>
     </div>
 </div>
@@ -495,6 +514,18 @@
 <script>
     const coaList = <?= json_encode($coaAccounts) ?>;
     let currentJournalPage = 1, journalLimit = 25;
+    let currentJournalSearch = '';
+    let searchDebounceTimer = null;
+
+    function escapeHtml(str) {
+        if (str === null || str === undefined) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
 
     function closeModal(id) {
         const m = document.getElementById(id);
@@ -507,8 +538,7 @@
     }
 
     function getJournalSearchValue() {
-        const globalVal = (document.getElementById('searchInput')?.value || '').trim();
-        return globalVal;
+        return (currentJournalSearch || document.getElementById('searchInput')?.value || '').trim();
     }
 
     function updateFilterActiveDot() {
@@ -546,7 +576,7 @@
         const status = document.getElementById('filterJournalStatus')?.value || '';
 
         try {
-            const res = await fetch(`accounting_api.php?action=get_journals&page=${page}&limit=${journalLimit}&branch_id=${encodeURIComponent(branch)}&search=${encodeURIComponent(search)}&source_type=${source}&posting_status=${status}`);
+            const res = await fetch(`accounting_api.php?action=get_journals&page=${page}&limit=${journalLimit}&branch_id=${encodeURIComponent(branch)}&search=${encodeURIComponent(search)}&source_type=${encodeURIComponent(source)}&posting_status=${encodeURIComponent(status)}`);
             const data = await res.json();
 
             const tbody = document.getElementById('journalTableBody');
@@ -558,19 +588,19 @@
 
             tbody.innerHTML = data.data.items.map(j => `
                 <tr onclick="viewJournalDetails(${j.id})" style="cursor: pointer;">
-                    <td><strong style="font-family: monospace; font-size:12px; color:#2563eb;">${j.entry_number}</strong></td>
-                    <td style="color:#64748b; font-size:12px; font-weight:500;">${j.entry_date}</td>
-                    <td><span style="text-transform:uppercase; font-size:10.5px; font-weight:700; background:#f1f5f9; padding:2px 7px; border-radius:999px; color:#475569;">${j.source_type}</span></td>
-                    <td style="font-weight:600; color:#0f172a; max-width:320px; word-break:break-word;">${j.description}</td>
-                    <td style="text-align:right; font-weight:800; color:#16a34a;">${parseFloat(j.total_debit).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
-                    <td style="text-align:right; font-weight:800; color:#dc2626;">${parseFloat(j.total_credit).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
-                    <td style="text-align:center;">
+                    <td><strong style="font-family: monospace; font-size:12px; color:#2563eb;">${escapeHtml(j.entry_number)}</strong></td>
+                    <td style="color:#64748b; font-size:12px; font-weight:500;">${escapeHtml(j.entry_date)}</td>
+                    <td><span style="text-transform:uppercase; font-size:10.5px; font-weight:700; background:#f1f5f9; padding:2px 7px; border-radius:999px; color:#475569;">${escapeHtml(j.source_type)}</span></td>
+                    <td style="font-weight:600; color:#0f172a; max-width:320px; word-break:break-word;">${escapeHtml(j.description)}</td>
+                    <td class="col-right" style="text-align:right; font-weight:800; color:#16a34a;">${parseFloat(j.total_debit).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
+                    <td class="col-right" style="text-align:right; font-weight:800; color:#dc2626;">${parseFloat(j.total_credit).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
+                    <td class="col-center" style="text-align:center;">
                         <span class="prod-badge ${j.posting_status === 'posted' ? 'prod-badge-posted' : 'prod-badge-reversed'}">
-                            <span class="dot"></span>${j.posting_status.toUpperCase()}
+                            <span class="dot"></span>${escapeHtml(j.posting_status.toUpperCase())}
                         </span>
                     </td>
-                    <td style="text-align:center;" onclick="event.stopPropagation();">
-                        ${j.posting_status === 'posted' ? `<button class="prod-act-btn prod-act-danger" onclick="event.stopPropagation(); openReversalModal(${j.id})">Reverse</button>` : '-'}
+                    <td class="col-center" style="text-align:center;" onclick="event.stopPropagation();">
+                        ${j.posting_status === 'posted' ? `<button type="button" class="prod-act-btn prod-act-danger" onclick="event.stopPropagation(); openReversalModal(${j.id})">Reverse</button>` : '-'}
                     </td>
                 </tr>
             `).join('');
@@ -628,7 +658,7 @@
     }
 
     function changeJournalPageSize() {
-        journalLimit = parseInt(document.getElementById('journalPagSize').value) || 15;
+        journalLimit = parseInt(document.getElementById('journalPagSize').value) || 25;
         loadJournalEntries(1);
     }
 
@@ -643,37 +673,37 @@
         }
 
         const j = data.data;
-        document.getElementById('jdTitle').innerText = `Journal Entry ${j.entry_number}`;
+        document.getElementById('jdTitle').innerText = `Journal Entry ${escapeHtml(j.entry_number)}`;
         document.getElementById('jdBody').innerHTML = `
             <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:12px 16px; margin-bottom:14px; font-size:12.5px;">
-                <p style="margin:0 0 6px 0;"><strong>Date:</strong> ${j.entry_date} | <strong>Branch:</strong> ${j.branch_name} | <strong>Posted By:</strong> ${j.creator_name}</p>
-                <p style="margin:0 0 6px 0;"><strong>Source:</strong> ${j.source_type} (ID: ${j.source_id || 'N/A'})</p>
-                <p style="margin:0;"><strong>Description:</strong> ${j.description}</p>
+                <p style="margin:0 0 6px 0;"><strong>Date:</strong> ${escapeHtml(j.entry_date)} | <strong>Branch:</strong> ${escapeHtml(j.branch_name)} | <strong>Posted By:</strong> ${escapeHtml(j.creator_name)}</p>
+                <p style="margin:0 0 6px 0;"><strong>Source:</strong> ${escapeHtml(j.source_type)} (ID: ${escapeHtml(j.source_id || 'N/A')})</p>
+                <p style="margin:0;"><strong>Description:</strong> ${escapeHtml(j.description)}</p>
             </div>
             <table class="prod-table" style="margin-bottom:14px;">
                 <thead>
                     <tr>
-                        <th>Account Code & Name</th>
-                        <th style="text-align:right;">Debit (LKR)</th>
-                        <th style="text-align:right;">Credit (LKR)</th>
-                        <th>Memo</th>
+                        <th style="text-align:left;">Account Code & Name</th>
+                        <th style="text-align:right;" class="col-right">Debit (LKR)</th>
+                        <th style="text-align:right;" class="col-right">Credit (LKR)</th>
+                        <th style="text-align:left;">Memo</th>
                     </tr>
                 </thead>
                 <tbody>
                     ${j.lines.map(l => `
                         <tr>
-                            <td><strong style="color:#2563eb;">${l.account_code}</strong> - ${l.account_name}</td>
-                            <td style="text-align:right; font-weight:800; color:#16a34a;">${parseFloat(l.debit) > 0 ? parseFloat(l.debit).toLocaleString('en-US', {minimumFractionDigits:2}) : '-'}</td>
-                            <td style="text-align:right; font-weight:800; color:#dc2626;">${parseFloat(l.credit) > 0 ? parseFloat(l.credit).toLocaleString('en-US', {minimumFractionDigits:2}) : '-'}</td>
-                            <td style="color:#64748b; font-size:12px;">${l.memo || ''}</td>
+                            <td><strong style="color:#2563eb;">${escapeHtml(l.account_code)}</strong> - ${escapeHtml(l.account_name)}</td>
+                            <td class="col-right" style="text-align:right; font-weight:800; color:#16a34a;">${parseFloat(l.debit) > 0 ? parseFloat(l.debit).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2}) : '-'}</td>
+                            <td class="col-right" style="text-align:right; font-weight:800; color:#dc2626;">${parseFloat(l.credit) > 0 ? parseFloat(l.credit).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2}) : '-'}</td>
+                            <td style="color:#64748b; font-size:12px;">${escapeHtml(l.memo || '')}</td>
                         </tr>
                     `).join('')}
                 </tbody>
                 <tfoot>
                     <tr style="font-weight:800; background:#f8fafc; border-top:2px solid #e2e8f0;">
                         <td>TOTAL</td>
-                        <td style="text-align:right; color:#16a34a;">${parseFloat(j.total_debit).toLocaleString('en-US', {minimumFractionDigits:2})}</td>
-                        <td style="text-align:right; color:#dc2626;">${parseFloat(j.total_credit).toLocaleString('en-US', {minimumFractionDigits:2})}</td>
+                        <td class="col-right" style="text-align:right; color:#16a34a;">${parseFloat(j.total_debit).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
+                        <td class="col-right" style="text-align:right; color:#dc2626;">${parseFloat(j.total_credit).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
                         <td></td>
                     </tr>
                 </tfoot>
@@ -690,29 +720,43 @@
     async function confirmReversal() {
         const id = document.getElementById('revJournalId').value;
         const reason = document.getElementById('revReason').value;
+        const confirmBtn = document.getElementById('btnConfirmReversal');
 
         if (!reason.trim()) {
             alert('Please enter a reversal reason.');
             return;
         }
 
+        if (confirmBtn && confirmBtn.disabled) return;
+        if (confirmBtn) {
+            confirmBtn.disabled = true;
+            confirmBtn.textContent = 'Reversing...';
+        }
+
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+
         try {
             const res = await fetch('accounting_api.php?action=reverse_journal', {
                 method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ journal_id: id, reason: reason })
+                headers: {'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken},
+                body: JSON.stringify({ journal_id: id, reason: reason, csrf_token: csrfToken })
             });
 
             const data = await res.json();
             if (data.success) {
-                alert(data.message);
+                alert(data.message || 'Journal entry reversed successfully.');
                 closeModal('reversalModal');
                 loadJournalEntries(1);
             } else {
-                alert('Error: ' + data.message);
+                alert('Error: ' + (data.message || 'Failed to reverse entry.'));
             }
         } catch (err) {
             alert('Connection error: ' + err.message);
+        } finally {
+            if (confirmBtn) {
+                confirmBtn.disabled = false;
+                confirmBtn.textContent = 'Confirm Reversal';
+            }
         }
     }
 
@@ -733,7 +777,7 @@
         rowDiv.innerHTML = `
             <select class="form-input jl-account" onchange="recalculateJournalBalance()" required style="font-weight:600;">
                 <option value="">Select Account...</option>
-                ${coaList.map(a => `<option value="${a.id}">${a.account_code} - ${a.account_name}</option>`).join('')}
+                ${coaList.map(a => `<option value="${a.id}">${escapeHtml(a.account_code)} - ${escapeHtml(a.account_name)}</option>`).join('')}
             </select>
             <input type="number" step="0.01" min="0" class="form-input jl-debit" placeholder="Debit" oninput="onDebitInput(this)" value="0.00" style="font-weight:700;">
             <input type="number" step="0.01" min="0" class="form-input jl-credit" placeholder="Credit" oninput="onCreditInput(this)" value="0.00" style="font-weight:700;">
@@ -798,8 +842,15 @@
 
     async function submitManualJournal(e) {
         e.preventDefault();
+        const submitBtn = document.getElementById('btnSubmitJournal');
+        if (submitBtn.disabled) return;
+        submitBtn.disabled = true;
+        const originalText = submitBtn.textContent;
+        submitBtn.textContent = 'Posting Entry...';
+
         const date = document.getElementById('mjEntryDate').value;
         const desc = document.getElementById('mjDescription').value;
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
 
         const lines = [];
         document.querySelectorAll('.journal-line-row').forEach(row => {
@@ -816,24 +867,25 @@
         try {
             const res = await fetch('accounting_api.php?action=post_manual_journal', {
                 method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ entry_date: date, description: desc, lines: lines })
+                headers: {'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken},
+                body: JSON.stringify({ entry_date: date, description: desc, lines: lines, csrf_token: csrfToken })
             });
 
             const data = await res.json();
             if (data.success) {
-                alert(data.message);
+                alert(data.message || 'Journal entry posted successfully.');
                 closeModal('manualJournalModal');
                 loadJournalEntries(1);
             } else {
-                alert('Error: ' + data.message);
+                alert('Error: ' + (data.message || 'Failed to post manual journal.'));
             }
         } catch (err) {
             alert('Connection error: ' + err.message);
+        } finally {
+            submitBtn.textContent = originalText;
+            recalculateJournalBalance();
         }
     }
-
-
 
     document.addEventListener('DOMContentLoaded', () => {
         const branchEl = document.getElementById('filterJournalBranch');
@@ -848,6 +900,29 @@
         if (statusEl && window.CurtissSearchableSelect) {
             CurtissSearchableSelect.attach(statusEl, { searchPlaceholder: 'Type to search status...' });
         }
+
+        // Full keyboard navigation in modal forms
+        document.getElementById('manualJournalForm')?.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                const target = e.target;
+                if (target.tagName === 'TEXTAREA' || target.tagName === 'BUTTON') return;
+                e.preventDefault();
+                const inputs = Array.from(this.querySelectorAll('input:not([type="hidden"]):not([disabled]), select:not([disabled])'));
+                const idx = inputs.indexOf(target);
+                if (idx > -1 && idx < inputs.length - 1) {
+                    inputs[idx + 1].focus();
+                    if (inputs[idx + 1].select) inputs[idx + 1].select();
+                } else if (idx === inputs.length - 1) {
+                    const submitBtn = document.getElementById('btnSubmitJournal');
+                    if (submitBtn && !submitBtn.disabled) {
+                        submitBtn.click();
+                    } else {
+                        addJournalLineRow();
+                    }
+                }
+            }
+        });
+
         loadJournalEntries(1);
     });
 
@@ -857,7 +932,11 @@
             window.CurtissNav.enablePageSearch({
                 placeholder: 'Search journal entries (JE#, amount, description, status...)...',
                 onSearch: function(query) {
-                    loadJournalEntries(1);
+                    currentJournalSearch = (query || '').trim();
+                    clearTimeout(searchDebounceTimer);
+                    searchDebounceTimer = setTimeout(() => {
+                        loadJournalEntries(1);
+                    }, 300);
                 }
             });
         } else {

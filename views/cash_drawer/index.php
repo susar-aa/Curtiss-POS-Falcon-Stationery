@@ -219,9 +219,18 @@
     border-radius: 16px;
     overflow: hidden;
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
-    margin-bottom: 1.5rem;
+    margin-bottom: 0.5rem;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
 }
-.prod-table-scroll { overflow-x: auto; }
+.prod-table-scroll {
+    overflow-x: auto;
+    overflow-y: auto;
+    flex: 1;
+    min-height: 0;
+}
 .prod-table {
     width: 100%;
     border-collapse: collapse;
@@ -231,6 +240,7 @@
     border-bottom: 1px solid #e2e8f0;
 }
 .prod-table thead th {
+    height: 48px;
     padding: 10px 14px;
     font-size: 10px;
     font-weight: 800;
@@ -238,19 +248,37 @@
     letter-spacing: 0.07em;
     color: #64748b;
     white-space: nowrap;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: #f8fafc;
+    text-align: left;
+    box-sizing: border-box;
 }
 .prod-table tbody tr {
+    height: 48px;
+    min-height: 48px;
     border-bottom: 1px solid #f1f5f9;
     transition: background 0.12s ease;
 }
-.prod-table tbody tr:hover {
-    background: #f8fafc;
-}
+.prod-table tbody tr:nth-child(even) { background: rgba(248, 250, 252, 0.57); }
+.prod-table tbody tr:nth-child(odd)  { background: #ffffff; }
+.prod-table tbody tr:hover            { background: #f1f5f9 !important; }
+
 .prod-table td {
-    padding: 12px 14px;
+    height: 48px;
+    padding: 0 14px;
     font-size: 12.5px;
     color: #1e293b;
     vertical-align: middle;
+    box-sizing: border-box;
+    text-align: left;
+}
+.prod-table th.col-right, .prod-table td.col-right {
+    text-align: right !important;
+}
+.prod-table th.col-center, .prod-table td.col-center {
+    text-align: center !important;
 }
 
 /* Table Footer Pagination */
@@ -389,15 +417,14 @@
 }
 </style>
 
-<div style="width: 100%; max-width: 100%; padding-bottom: 24px;">
-    <!-- Page Header -->
-    <div class="inv-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+<div style="width: 100%; max-width: 100%; height: calc(100vh - 110px); display: flex; flex-direction: column; overflow: hidden; box-sizing: border-box; padding-bottom: 8px;">
+    <!-- Page Header (Headline Only - Rule 5) -->
+    <div class="inv-header" style="flex-shrink: 0; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 0.75rem;">
         <div>
             <div style="display: flex; align-items: center; gap: 8px;">
                 <div style="width: 8px; height: 8px; border-radius: 50%; background: #0f172a;"></div>
                 <h1 class="inv-title">Cash Drawer & Day Closing</h1>
             </div>
-            <p class="inv-subtitle">Auto-initialized business day (LKR 20,000.00 default cash float), append-only drawer movements & reconciliation</p>
         </div>
         <div>
             <?php if ($activeDay): ?>
@@ -448,283 +475,450 @@
             </div>
         </div>
     <?php else: ?>
-        <!-- Active Drawer Reconciliation (Full Width Clean Layout) -->
-        <?php $sum = $activeSummary['summary'] ?? []; ?>
-        <div class="inv-card" style="margin-bottom: 1.75rem;">
-            <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 1.25rem; padding-bottom: 10px; border-bottom: 1px solid rgba(226, 232, 240, 0.8);">
-                <div style="display: flex; align-items: center; gap: 10px;">
-                    <div style="width: 36px; height: 36px; border-radius: 10px; background: #dbeafe; color: #2563eb; display: flex; align-items: center; justify-content: center;">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 3v18M3 12h18"/></svg>
+        <?php
+            $cSummary       = $comprehensiveSummary ?? [];
+            $salesSummary   = $cSummary['sales_summary'] ?? [];
+            $custColls      = $cSummary['customer_collections'] ?? [];
+            $suppPayments   = $cSummary['supplier_payments'] ?? [];
+            $empAdvances    = $cSummary['employee_advances'] ?? [];
+            $pettyExpenses  = $cSummary['petty_cash_expenses'] ?? [];
+            $payrollPays    = $cSummary['payroll_payments'] ?? [];
+            $refundsData    = $cSummary['refunds'] ?? [];
+            $manualMovs     = $cSummary['manual_movements'] ?? [];
+            $sum            = $cSummary['drawer_summary'] ?? ($activeSummary['summary'] ?? []);
+
+            $totalOrders    = (int)($salesSummary['total_sales_count'] ?? 0);
+            $totalItemsSold = (float)($salesSummary['total_items_sold'] ?? 0);
+            $grossSales     = (float)($salesSummary['gross_sales'] ?? 0);
+            $totalDisc      = (float)($salesSummary['total_discount'] ?? 0);
+            $netSales       = (float)($salesSummary['net_sales'] ?? 0);
+            $totalCogs      = (float)($salesSummary['total_cogs'] ?? 0);
+            $grossProfit    = (float)($salesSummary['gross_profit'] ?? 0);
+            $grossMarginPct = (float)($salesSummary['gross_margin_pct'] ?? 0);
+
+            $cashSales      = (float)($salesSummary['cash_sales'] ?? 0);
+            $cardSales      = (float)($salesSummary['card_sales'] ?? 0);
+            $creditSales    = (float)($salesSummary['credit_sales'] ?? 0);
+            $bankSales      = (float)($salesSummary['bank_sales'] ?? 0);
+
+            $totCollections = (float)($custColls['total'] ?? 0);
+            $collItems      = $custColls['items'] ?? [];
+
+            $totSupp        = (float)($suppPayments['total'] ?? 0);
+            $cashSupp       = (float)($suppPayments['cash_amount'] ?? 0);
+            $bankSupp       = (float)($suppPayments['bank_amount'] ?? 0);
+            $suppItems      = $suppPayments['items'] ?? [];
+
+            $totEmpAdv      = (float)($empAdvances['total'] ?? 0);
+            $cashEmpAdv     = (float)($empAdvances['cash_amount'] ?? 0);
+            $bankEmpAdv     = (float)($empAdvances['bank_amount'] ?? 0);
+            $empItems       = $empAdvances['items'] ?? [];
+
+            $totPetty       = (float)($pettyExpenses['total'] ?? 0);
+            $pettyItems     = $pettyExpenses['items'] ?? [];
+
+            $totPayroll     = (float)($payrollPays['total'] ?? 0);
+            $cashPayroll    = (float)($payrollPays['cash_amount'] ?? 0);
+            $bankPayroll    = (float)($payrollPays['bank_amount'] ?? 0);
+            $payrollItems   = $payrollPays['items'] ?? [];
+
+            $totRefunds     = (float)($refundsData['total'] ?? 0);
+            $cashRefunds    = (float)($refundsData['cash_amount'] ?? 0);
+            $refundItems    = $refundsData['items'] ?? [];
+
+            $totManualIn    = (float)($manualMovs['total_in'] ?? 0);
+            $totManualOut   = (float)($manualMovs['total_out'] ?? 0);
+        ?>
+
+        <!-- Tab Navigation System (2 Tabs: Live Preview vs Today's Movements) -->
+        <div class="cd-tabs-nav" style="flex-shrink: 0; margin-bottom: 0.65rem;">
+            <button type="button" class="cd-tab-btn active" id="tabBtnPreview" onclick="switchCdTab('preview')">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+                Current Cash Drawer & Day End Live Preview
+                <span class="prod-badge prod-badge-active" style="padding: 1px 8px; font-size: 10px; margin-left: 6px;"><span class="dot"></span>Live Shift</span>
+            </button>
+            <button type="button" class="cd-tab-btn" id="tabBtnMovements" onclick="switchCdTab('movements')">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                Today's Cash Drawer Movement History
+                <span class="cd-tab-badge" id="movCountBadge"><?= count($movements) ?></span>
+            </button>
+        </div>
+
+        <!-- TAB 1: Live Day End Report Preview -->
+        <div id="tabContentPreview" class="cd-tab-pane" style="flex: 1; min-height: 0; display: flex; flex-direction: column; overflow-y: auto; padding-right: 4px; gap: 12px;">
+            <!-- Top Live Session Banner -->
+            <div class="inv-card" style="flex-shrink: 0; padding: 12px 18px; margin-bottom: 0; border-radius: 14px;">
+                <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <div style="width: 32px; height: 32px; border-radius: 9px; background: #0f172a; color: #fff; display: flex; align-items: center; justify-content: center;">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                        </div>
+                        <div>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <h3 style="font-size: 1rem; font-weight: 800; color: #0f172a; margin: 0;">Live Day End Financial &amp; Reconciliation Summary</h3>
+                                <span class="prod-badge prod-badge-active" style="font-size: 10.5px;"><span class="dot"></span>ACTIVE LIVE SHIFT</span>
+                            </div>
+                            <div style="font-size: 11.5px; color: #64748b; margin-top: 2px;">
+                                Day Record: <strong style="color: #0f172a;">#<?= (int)$activeDay['id'] ?></strong> &bull; Date: <strong style="color: #0f172a;"><?= htmlspecialchars($activeDay['business_date']) ?></strong> &bull; Opener: <strong style="color: #0f172a;"><?= htmlspecialchars($activeDay['opener_name']) ?></strong> (<?= htmlspecialchars($activeDay['opened_at']) ?>) &bull; Float: <strong style="color: #0f172a;">LKR <?= number_format((float)$activeDay['opening_cash'], 2) ?></strong>
+                            </div>
+                        </div>
                     </div>
-                    <div>
-                        <h3 style="font-size: 1.1rem; font-weight: 800; color: #0f172a; margin: 0;">Active Drawer Reconciliation</h3>
-                        <p style="font-size: 11.5px; color: #64748b; margin: 2px 0 0 0;">Live cash drawer movements breakdown for current active business day</p>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <button type="button" onclick="printDayClosingReceipt(<?= (int)$activeDay['id'] ?>)" class="inv-btn inv-btn-ghost" style="color: #0f172a; border-color: #cbd5e1; background: #ffffff; box-shadow: 0 1px 4px rgba(0,0,0,0.05);" title="Open print-ready 88mm thermal day end receipt">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+                            🖨️ Print 88mm Live Receipt
+                        </button>
                     </div>
                 </div>
-                <!-- Active Day Meta Info Chips -->
-                <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap; background: #f8fafc; border: 1px solid #e2e8f0; padding: 6px 14px; border-radius: 999px; font-size: 12px;">
-                    <div><span style="color: #64748b;">Opened By:</span> <strong style="color: #0f172a;"><?= htmlspecialchars($activeDay['opener_name']) ?></strong></div>
-                    <div style="color: #cbd5e1;">|</div>
-                    <div><span style="color: #64748b;">Opened At:</span> <strong style="color: #0f172a;"><?= htmlspecialchars($activeDay['opened_at']) ?></strong></div>
-                    <div style="color: #cbd5e1;">|</div>
-                    <div><span style="color: #64748b;">Opening Float:</span> <strong style="color: #0f172a;">LKR <?= number_format((float)$activeDay['opening_cash'], 2) ?></strong></div>
+            </div>
+
+            <!-- 4 Top Financial KPI Cards -->
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; flex-shrink: 0;">
+                <!-- Net Sales -->
+                <div style="background: linear-gradient(135deg, rgba(255, 255, 255, 0.96) 0%, rgba(248, 250, 252, 0.96) 100%); border: 1.5px solid #e2e8f0; border-radius: 12px; padding: 12px 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.02);">
+                    <div style="font-size: 10.5px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.06em;">Net Sales Turnover</div>
+                    <div style="font-size: 19px; font-weight: 800; color: #0f172a; margin-top: 4px; font-family: monospace;">LKR <?= number_format($netSales, 2) ?></div>
+                    <div style="font-size: 11px; color: #64748b; margin-top: 3px;"><strong><?= $totalOrders ?></strong> Completed Sales &bull; <strong><?= number_format($totalItemsSold, 2) ?></strong> Units</div>
+                </div>
+                <!-- Gross Profit & COGS -->
+                <div style="background: linear-gradient(135deg, rgba(240, 253, 244, 0.8) 0%, rgba(255, 255, 255, 0.96) 100%); border: 1.5px solid #bbf7d0; border-radius: 12px; padding: 12px 16px; box-shadow: 0 2px 8px rgba(22,163,74,0.04);">
+                    <div style="font-size: 10.5px; font-weight: 800; color: #166534; text-transform: uppercase; letter-spacing: 0.06em;">Gross Profit (COGS)</div>
+                    <div style="font-size: 19px; font-weight: 800; color: #15803d; margin-top: 4px; font-family: monospace;">LKR <?= number_format($grossProfit, 2) ?></div>
+                    <div style="font-size: 11px; color: #166534; margin-top: 3px;"><strong><?= number_format($grossMarginPct, 2) ?>%</strong> Margin &bull; COGS: LKR <?= number_format($totalCogs, 2) ?></div>
+                </div>
+                <!-- Expected Cash in Drawer -->
+                <div style="background: linear-gradient(135deg, rgba(239, 246, 255, 0.85) 0%, rgba(255, 255, 255, 0.96) 100%); border: 1.5px solid #bfdbfe; border-radius: 12px; padding: 12px 16px; box-shadow: 0 2px 8px rgba(37,99,235,0.04);">
+                    <div style="font-size: 10.5px; font-weight: 800; color: #1e40af; text-transform: uppercase; letter-spacing: 0.06em;">Expected Cash in Drawer</div>
+                    <div style="font-size: 19px; font-weight: 800; color: #1d4ed8; margin-top: 4px; font-family: monospace;">LKR <?= number_format($sum['expected_cash'] ?? 0, 2) ?></div>
+                    <div style="font-size: 11px; color: #1e40af; margin-top: 3px;">Safe Transfer: <strong>LKR <?= number_format(max(0, ($sum['expected_cash'] ?? 0) - (float)($activeDay['opening_cash'] ?? 20000)), 2) ?></strong></div>
+                </div>
+                <!-- Expected Card Sales -->
+                <div style="background: linear-gradient(135deg, rgba(254, 249, 195, 0.8) 0%, rgba(255, 255, 255, 0.96) 100%); border: 1.5px solid #fde047; border-radius: 12px; padding: 12px 16px; box-shadow: 0 2px 8px rgba(202,138,4,0.04);">
+                    <div style="font-size: 10.5px; font-weight: 800; color: #854d0e; text-transform: uppercase; letter-spacing: 0.06em;">System Expected Card</div>
+                    <div style="font-size: 19px; font-weight: 800; color: #a16207; margin-top: 4px; font-family: monospace;">LKR <?= number_format($sum['expected_card_sales'] ?? $cardSales, 2) ?></div>
+                    <div style="font-size: 11px; color: #854d0e; margin-top: 3px;">Card Terminal Settlement Target</div>
                 </div>
             </div>
 
-            <div class="reconcile-row">
-                <span style="color: #334155; font-weight: 500;">Initial Opening Cash</span>
-                <span style="font-weight: 700; color: #0f172a;">LKR <?= number_format($sum['opening_cash'] ?? 0, 2) ?></span>
-            </div>
-            <div class="reconcile-row">
-                <span style="color: #16a34a; font-weight: 600;">+ POS Cash Sales</span>
-                <span style="font-weight: 700; color: #16a34a;">LKR <?= number_format($sum['pos_cash_sales'] ?? 0, 2) ?></span>
-            </div>
-            <div class="reconcile-row">
-                <span style="color: #16a34a; font-weight: 600;">+ Customer Cash Collections</span>
-                <span style="font-weight: 700; color: #16a34a;">LKR <?= number_format($sum['customer_cash_collections'] ?? 0, 2) ?></span>
-            </div>
-            <?php if (($sum['supplier_cash_refunds'] ?? 0) > 0): ?>
-            <div class="reconcile-row">
-                <span style="color: #16a34a; font-weight: 600;">+ Supplier Cash Refunds</span>
-                <span style="font-weight: 700; color: #16a34a;">LKR <?= number_format($sum['supplier_cash_refunds'] ?? 0, 2) ?></span>
-            </div>
-            <?php endif; ?>
-            <div class="reconcile-row">
-                <span style="color: #16a34a; font-weight: 600;">+ Manual Cash In</span>
-                <span style="font-weight: 700; color: #16a34a;">LKR <?= number_format($sum['manual_cash_in'] ?? 0, 2) ?></span>
-            </div>
-            <?php if (($sum['overage_adjustments'] ?? 0) > 0): ?>
-            <div class="reconcile-row">
-                <span style="color: #16a34a; font-weight: 600;">+ Overage Adjustments</span>
-                <span style="font-weight: 700; color: #16a34a;">LKR <?= number_format($sum['overage_adjustments'] ?? 0, 2) ?></span>
-            </div>
-            <?php endif; ?>
-            <div class="reconcile-row subtotal-row">
-                <span>Total Cash In</span>
-                <span>LKR <?= number_format($sum['total_cash_in'] ?? 0, 2) ?></span>
-            </div>
+            <!-- 2-Column Detailed Report Content Grid -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
+                <!-- LEFT COLUMN: Sales Revenue, Profitability, Collections & Refunds -->
+                <div style="display: flex; flex-direction: column; gap: 12px;">
+                    <!-- 1. Daily Sales & Profitability -->
+                    <div class="inv-card" style="padding: 14px 18px; margin-bottom: 0; border-radius: 14px;">
+                        <div style="font-size: 11.5px; font-weight: 800; color: #0f172a; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid #f1f5f9; padding-bottom: 6px; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between;">
+                            <span>1. Daily Sales &amp; Profitability</span>
+                            <span style="font-size: 11px; color: #64748b; font-weight: 600;"><?= $totalOrders ?> Invoices</span>
+                        </div>
+                        <div class="reconcile-row" style="padding: 4px 6px; font-size: 12px;">
+                            <span>Gross Sales:</span>
+                            <strong style="color: #0f172a;">LKR <?= number_format($grossSales, 2) ?></strong>
+                        </div>
+                        <?php if ($totalDisc > 0): ?>
+                        <div class="reconcile-row" style="padding: 4px 6px; font-size: 12px; color: #dc2626;">
+                            <span>- Discounts Allowed:</span>
+                            <strong>LKR <?= number_format($totalDisc, 2) ?></strong>
+                        </div>
+                        <?php endif; ?>
+                        <div class="reconcile-row" style="padding: 5px 6px; font-size: 12.5px; font-weight: 800; background: #f8fafc; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; margin: 3px 0;">
+                            <span>NET SALES TURNOVER:</span>
+                            <strong style="color: #0f172a;">LKR <?= number_format($netSales, 2) ?></strong>
+                        </div>
+                        <div class="reconcile-row" style="padding: 4px 6px; font-size: 12px;">
+                            <span>Cost of Goods Sold (COGS):</span>
+                            <strong style="color: #475569;">LKR <?= number_format($totalCogs, 2) ?></strong>
+                        </div>
+                        <div class="reconcile-row" style="padding: 4px 6px; font-size: 12px;">
+                            <span style="color: #15803d; font-weight: 700;">Gross Profit:</span>
+                            <strong style="color: #15803d; font-weight: 800;"><?= $grossProfit < 0 ? '-' : '' ?>LKR <?= number_format(abs($grossProfit), 2) ?></strong>
+                        </div>
+                        <div class="reconcile-row" style="padding: 4px 6px; font-size: 12px;">
+                            <span>Gross Profit Margin:</span>
+                            <strong style="color: #15803d;"><?= number_format($grossMarginPct, 2) ?>%</strong>
+                        </div>
+                    </div>
 
-            <div class="reconcile-row">
-                <span style="color: #dc2626; font-weight: 600;">- Cash Refunds</span>
-                <span style="font-weight: 700; color: #dc2626;">LKR <?= number_format($sum['cash_refunds'] ?? 0, 2) ?></span>
-            </div>
-            <div class="reconcile-row">
-                <span style="color: #dc2626; font-weight: 600;">- Supplier Cash Payments</span>
-                <span style="font-weight: 700; color: #dc2626;">LKR <?= number_format($sum['supplier_cash_payments'] ?? 0, 2) ?></span>
-            </div>
-            <div class="reconcile-row">
-                <span style="color: #dc2626; font-weight: 600;">- Employee Advance Payments</span>
-                <span style="font-weight: 700; color: #dc2626;">LKR <?= number_format($sum['employee_advances'] ?? 0, 2) ?></span>
-            </div>
-            <?php if (($sum['salary_payments'] ?? 0) > 0): ?>
-            <div class="reconcile-row">
-                <span style="color: #dc2626; font-weight: 600;">- Payroll Salary Disbursements</span>
-                <span style="font-weight: 700; color: #dc2626;">LKR <?= number_format($sum['salary_payments'] ?? 0, 2) ?></span>
-            </div>
-            <?php endif; ?>
-            <?php if (($sum['petty_cash_reimbursements'] ?? 0) > 0): ?>
-            <div class="reconcile-row">
-                <span style="color: #dc2626; font-weight: 600;">- Petty Cash Reimbursements</span>
-                <span style="font-weight: 700; color: #dc2626;">LKR <?= number_format($sum['petty_cash_reimbursements'] ?? 0, 2) ?></span>
-            </div>
-            <?php endif; ?>
-            <div class="reconcile-row">
-                <span style="color: #dc2626; font-weight: 600;">- Manual Cash Out</span>
-                <span style="font-weight: 700; color: #dc2626;">LKR <?= number_format($sum['manual_cash_out'] ?? 0, 2) ?></span>
-            </div>
-            <?php if (($sum['shortage_adjustments'] ?? 0) > 0): ?>
-            <div class="reconcile-row">
-                <span style="color: #dc2626; font-weight: 600;">- Shortage Adjustments</span>
-                <span style="font-weight: 700; color: #dc2626;">LKR <?= number_format($sum['shortage_adjustments'] ?? 0, 2) ?></span>
-            </div>
-            <?php endif; ?>
-            <div class="reconcile-row subtotal-row">
-                <span>Total Cash Out</span>
-                <span>LKR <?= number_format($sum['total_cash_out'] ?? 0, 2) ?></span>
-            </div>
+                    <!-- 2. Sales Revenue by Payment Channel -->
+                    <div class="inv-card" style="padding: 14px 18px; margin-bottom: 0; border-radius: 14px;">
+                        <div style="font-size: 11.5px; font-weight: 800; color: #0f172a; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid #f1f5f9; padding-bottom: 6px; margin-bottom: 8px;">
+                            2. Sales Revenue by Method
+                        </div>
+                        <div class="reconcile-row" style="padding: 4px 6px; font-size: 12px;">
+                            <span>Cash Sales (POS Register):</span>
+                            <strong style="color: #15803d;">LKR <?= number_format($cashSales, 2) ?></strong>
+                        </div>
+                        <div class="reconcile-row" style="padding: 4px 6px; font-size: 12px;">
+                            <span>Card Sales (Terminal):</span>
+                            <strong style="color: #854d0e;">LKR <?= number_format($cardSales, 2) ?></strong>
+                        </div>
+                        <div class="reconcile-row" style="padding: 4px 6px; font-size: 12px;">
+                            <span>Customer Credit (On Account):</span>
+                            <strong style="color: #2563eb;">LKR <?= number_format($creditSales, 2) ?></strong>
+                        </div>
+                        <div class="reconcile-row" style="padding: 4px 6px; font-size: 12px;">
+                            <span>Bank / Direct Transfer Sales:</span>
+                            <strong style="color: #6b21a8;">LKR <?= number_format($bankSales, 2) ?></strong>
+                        </div>
+                    </div>
 
-            <div class="reconcile-row total-row">
-                <span>Expected Cash in Drawer</span>
-                <span style="color: #2563eb;">LKR <?= number_format($sum['expected_cash'] ?? 0, 2) ?></span>
+                    <!-- 3. Customer Credit Collections (Inflows) -->
+                    <div class="inv-card" style="padding: 14px 18px; margin-bottom: 0; border-radius: 14px;">
+                        <div style="font-size: 11.5px; font-weight: 800; color: #0f172a; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid #f1f5f9; padding-bottom: 6px; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between;">
+                            <span>3. Customer Credit Collections</span>
+                            <strong style="color: #15803d;">+ LKR <?= number_format($totCollections, 2) ?></strong>
+                        </div>
+                        <?php if (empty($collItems)): ?>
+                            <div style="font-size: 11.5px; color: #94a3b8; font-style: italic; padding: 4px 6px;">No customer credit collections recorded today.</div>
+                        <?php else: ?>
+                            <div style="max-height: 160px; overflow-y: auto;">
+                                <?php foreach ($collItems as $ci): ?>
+                                <div class="reconcile-row" style="padding: 4px 6px; font-size: 11.5px;">
+                                    <span>&bull; <?= htmlspecialchars($ci['customer_name'] ?? 'Customer') ?> <small style="color: #64748b;">(<?= htmlspecialchars($ci['reference_no'] ?? 'PMT') ?>)</small></span>
+                                    <strong style="color: #15803d;">LKR <?= number_format((float)$ci['amount_paid'], 2) ?></strong>
+                                </div>
+                                <?php endforeach; ?>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+
+                    <!-- 4. Customer Refunds & Sales Returns (Outflows) -->
+                    <div class="inv-card" style="padding: 14px 18px; margin-bottom: 0; border-radius: 14px;">
+                        <div style="font-size: 11.5px; font-weight: 800; color: #0f172a; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid #f1f5f9; padding-bottom: 6px; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between;">
+                            <span>4. Sales Returns &amp; Customer Refunds</span>
+                            <strong style="color: #dc2626;">- LKR <?= number_format($totRefunds, 2) ?></strong>
+                        </div>
+                        <?php if (empty($refundItems)): ?>
+                            <div style="font-size: 11.5px; color: #94a3b8; font-style: italic; padding: 4px 6px;">No customer refunds processed today.</div>
+                        <?php else: ?>
+                            <div style="max-height: 140px; overflow-y: auto;">
+                                <?php foreach ($refundItems as $ri): ?>
+                                <div class="reconcile-row" style="padding: 4px 6px; font-size: 11.5px;">
+                                    <span>&bull; <?= htmlspecialchars($ri['customer_name'] ?? 'Customer') ?> <small style="color: #64748b;">(<?= htmlspecialchars($ri['refund_method'] ?? 'Cash') ?>)</small></span>
+                                    <strong style="color: #dc2626;">LKR <?= number_format((float)$ri['amount'], 2) ?></strong>
+                                </div>
+                                <?php endforeach; ?>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+
+                <!-- RIGHT COLUMN: Cash Drawer Reconciliation & Operational Disbursements -->
+                <div style="display: flex; flex-direction: column; gap: 12px;">
+                    <!-- 5. Active Cash Drawer Reconciliation -->
+                    <div class="inv-card" style="padding: 14px 18px; margin-bottom: 0; border-radius: 14px;">
+                        <div style="font-size: 11.5px; font-weight: 800; color: #0f172a; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid #f1f5f9; padding-bottom: 6px; margin-bottom: 8px;">
+                            5. Active Cash Drawer Reconciliation
+                        </div>
+                        <!-- 2 Sub-Columns: Inflow vs Outflow -->
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 10px;">
+                            <!-- Inflows -->
+                            <div style="background: rgba(240, 253, 244, 0.5); border: 1px solid rgba(187, 247, 208, 0.8); border-radius: 10px; padding: 8px 10px;">
+                                <div style="font-size: 10px; font-weight: 800; color: #15803d; text-transform: uppercase; margin-bottom: 4px; display: flex; justify-content: space-between;">
+                                    <span>Inflows (+)</span>
+                                    <span>Amount (LKR)</span>
+                                </div>
+                                <div class="reconcile-row" style="padding: 2px 0; font-size: 11.5px;">
+                                    <span style="color: #334155;">Initial Opening Float</span>
+                                    <strong><?= number_format($sum['opening_cash'] ?? 0, 2) ?></strong>
+                                </div>
+                                <div class="reconcile-row" style="padding: 2px 0; font-size: 11.5px;">
+                                    <span style="color: #16a34a;">+ POS Cash Sales</span>
+                                    <strong style="color: #16a34a;"><?= number_format($sum['pos_cash_sales'] ?? 0, 2) ?></strong>
+                                </div>
+                                <div class="reconcile-row" style="padding: 2px 0; font-size: 11.5px;">
+                                    <span style="color: #16a34a;">+ Credit Collections</span>
+                                    <strong style="color: #16a34a;"><?= number_format($sum['customer_cash_collections'] ?? 0, 2) ?></strong>
+                                </div>
+                                <div class="reconcile-row" style="padding: 2px 0; font-size: 11.5px;">
+                                    <span style="color: #16a34a;">+ Manual Cash In</span>
+                                    <strong style="color: #16a34a;"><?= number_format($sum['manual_cash_in'] ?? 0, 2) ?></strong>
+                                </div>
+                                <div class="reconcile-row subtotal-row" style="padding: 4px 6px; font-size: 12px; margin-top: 4px; margin-bottom: 0;">
+                                    <span>Total Cash In</span>
+                                    <span style="color: #15803d; font-weight: 800;"><?= number_format($sum['total_cash_in'] ?? 0, 2) ?></span>
+                                </div>
+                            </div>
+
+                            <!-- Outflows -->
+                            <div style="background: rgba(254, 242, 242, 0.5); border: 1px solid rgba(254, 202, 202, 0.8); border-radius: 10px; padding: 8px 10px;">
+                                <div style="font-size: 10px; font-weight: 800; color: #b91c1c; text-transform: uppercase; margin-bottom: 4px; display: flex; justify-content: space-between;">
+                                    <span>Outflows (-)</span>
+                                    <span>Amount (LKR)</span>
+                                </div>
+                                <div class="reconcile-row" style="padding: 2px 0; font-size: 11.5px;">
+                                    <span style="color: #dc2626;">- Cash Refunds</span>
+                                    <strong style="color: #dc2626;"><?= number_format($sum['cash_refunds'] ?? 0, 2) ?></strong>
+                                </div>
+                                <div class="reconcile-row" style="padding: 2px 0; font-size: 11.5px;">
+                                    <span style="color: #dc2626;">- Supplier Payments</span>
+                                    <strong style="color: #dc2626;"><?= number_format($sum['supplier_cash_payments'] ?? 0, 2) ?></strong>
+                                </div>
+                                <div class="reconcile-row" style="padding: 2px 0; font-size: 11.5px;">
+                                    <span style="color: #dc2626;">- Advances &amp; Salaries</span>
+                                    <strong style="color: #dc2626;"><?= number_format(($sum['employee_advances'] ?? 0) + ($sum['salary_payments'] ?? 0), 2) ?></strong>
+                                </div>
+                                <div class="reconcile-row" style="padding: 2px 0; font-size: 11.5px;">
+                                    <span style="color: #dc2626;">- Petty Expenses</span>
+                                    <strong style="color: #dc2626;"><?= number_format($sum['petty_cash_reimbursements'] ?? 0, 2) ?></strong>
+                                </div>
+                                <div class="reconcile-row" style="padding: 2px 0; font-size: 11.5px;">
+                                    <span style="color: #dc2626;">- Manual Cash Out</span>
+                                    <strong style="color: #dc2626;"><?= number_format($sum['manual_cash_out'] ?? 0, 2) ?></strong>
+                                </div>
+                                <div class="reconcile-row subtotal-row" style="padding: 4px 6px; font-size: 12px; margin-top: 4px; margin-bottom: 0;">
+                                    <span>Total Cash Out</span>
+                                    <span style="color: #b91c1c; font-weight: 800;"><?= number_format($sum['total_cash_out'] ?? 0, 2) ?></span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Expected Cash & Safe Transfer -->
+                        <div style="background: linear-gradient(135deg, rgba(239, 246, 255, 0.95) 0%, rgba(255, 255, 255, 0.95) 100%); border: 1.5px solid #bfdbfe; border-radius: 10px; padding: 8px 14px; display: flex; justify-content: space-between; align-items: center;">
+                            <span style="font-size: 12px; font-weight: 700; color: #1e40af;">Live Expected Cash in Drawer:</span>
+                            <strong style="font-size: 15px; font-weight: 800; color: #1d4ed8; font-family: monospace;">LKR <?= number_format($sum['expected_cash'] ?? 0, 2) ?></strong>
+                        </div>
+                    </div>
+
+                    <!-- 6. Supplier Payments & Advance Payments -->
+                    <div class="inv-card" style="padding: 14px 18px; margin-bottom: 0; border-radius: 14px;">
+                        <div style="font-size: 11.5px; font-weight: 800; color: #0f172a; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid #f1f5f9; padding-bottom: 6px; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between;">
+                            <span>6. Supplier Payments &amp; Advances</span>
+                            <strong style="color: #dc2626;">- LKR <?= number_format($totSupp, 2) ?></strong>
+                        </div>
+                        <?php if (empty($suppItems)): ?>
+                            <div style="font-size: 11.5px; color: #94a3b8; font-style: italic; padding: 4px 6px;">No supplier payments made today.</div>
+                        <?php else: ?>
+                            <div style="max-height: 150px; overflow-y: auto;">
+                                <?php foreach ($suppItems as $si): ?>
+                                <div class="reconcile-row" style="padding: 4px 6px; font-size: 11.5px;">
+                                    <span>&bull; <?= htmlspecialchars($si['supplier_name'] ?? 'Supplier') ?> <small style="color: #64748b;">(<?= htmlspecialchars($si['payment_method']) ?> &bull; <?= htmlspecialchars($si['payment_no'] ?? '') ?>)</small></span>
+                                    <strong style="color: #dc2626;">LKR <?= number_format((float)$si['total_amount'], 2) ?></strong>
+                                </div>
+                                <?php endforeach; ?>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+
+                    <!-- 7. Petty Cash Operating Expenses -->
+                    <div class="inv-card" style="padding: 14px 18px; margin-bottom: 0; border-radius: 14px;">
+                        <div style="font-size: 11.5px; font-weight: 800; color: #0f172a; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid #f1f5f9; padding-bottom: 6px; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between;">
+                            <span>7. Petty Cash / Operating Expenses</span>
+                            <strong style="color: #dc2626;">- LKR <?= number_format($totPetty, 2) ?></strong>
+                        </div>
+                        <?php if (empty($pettyItems)): ?>
+                            <div style="font-size: 11.5px; color: #94a3b8; font-style: italic; padding: 4px 6px;">No petty cash expenses posted today.</div>
+                        <?php else: ?>
+                            <div style="max-height: 150px; overflow-y: auto;">
+                                <?php foreach ($pettyItems as $pi): ?>
+                                <div class="reconcile-row" style="padding: 4px 6px; font-size: 11.5px;">
+                                    <span>&bull; <?= htmlspecialchars($pi['category_name']) ?><?= !empty($pi['payee']) ? ' (' . htmlspecialchars($pi['payee']) . ')' : '' ?> <small style="color: #64748b;">[<?= htmlspecialchars($pi['voucher_no']) ?>]</small></span>
+                                    <strong style="color: #dc2626;">LKR <?= number_format((float)$pi['amount'], 2) ?></strong>
+                                </div>
+                                <?php endforeach; ?>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+
+                    <!-- 8. Employee Advances & Payroll Salaries -->
+                    <div class="inv-card" style="padding: 14px 18px; margin-bottom: 0; border-radius: 14px;">
+                        <div style="font-size: 11.5px; font-weight: 800; color: #0f172a; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid #f1f5f9; padding-bottom: 6px; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between;">
+                            <span>8. Employee Advances &amp; Payroll</span>
+                            <strong style="color: #dc2626;">- LKR <?= number_format($totEmpAdv + $totPayroll, 2) ?></strong>
+                        </div>
+                        <?php if (empty($empItems) && empty($payrollItems)): ?>
+                            <div style="font-size: 11.5px; color: #94a3b8; font-style: italic; padding: 4px 6px;">No employee advances or salary disbursements recorded today.</div>
+                        <?php else: ?>
+                            <div style="max-height: 140px; overflow-y: auto;">
+                                <?php foreach ($empItems as $ei): ?>
+                                <div class="reconcile-row" style="padding: 4px 6px; font-size: 11.5px;">
+                                    <span>&bull; [Advance] <?= htmlspecialchars($ei['employee_name'] ?? 'Employee') ?> <small style="color: #64748b;">(<?= htmlspecialchars($ei['payment_method']) ?>)</small></span>
+                                    <strong style="color: #dc2626;">LKR <?= number_format((float)$ei['amount'], 2) ?></strong>
+                                </div>
+                                <?php endforeach; ?>
+                                <?php foreach ($payrollItems as $ppi): ?>
+                                <div class="reconcile-row" style="padding: 4px 6px; font-size: 11.5px;">
+                                    <span>&bull; [Salary] <?= htmlspecialchars($ppi['employee_name'] ?? 'Employee') ?> <small style="color: #64748b;">(<?= htmlspecialchars($ppi['payment_method']) ?>)</small></span>
+                                    <strong style="color: #dc2626;">LKR <?= number_format((float)$ppi['amount'], 2) ?></strong>
+                                </div>
+                                <?php endforeach; ?>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
             </div>
-            <div class="reconcile-row total-row" style="margin-top: 6px; background: linear-gradient(135deg, rgba(240, 253, 244, 0.95) 0%, rgba(255, 255, 255, 0.95) 100%); border-color: #bbf7d0;">
-                <span style="color: #15803d;">System Expected Card Sales</span>
-                <span style="color: #15803d;">LKR <?= number_format($sum['expected_card_sales'] ?? 0, 2) ?></span>
+        </div>
+
+        <!-- TAB 2: Today's Movements -->
+        <div id="tabContentMovements" class="cd-tab-pane" style="flex: 1; min-height: 0; display: none; flex-direction: column;">
+            <div class="prod-table-panel">
+                <div style="padding: 10px 18px; border-bottom: 1px solid #e2e8f0; background: rgba(248, 250, 252, 0.8); display: flex; align-items: center; justify-content: space-between; flex-shrink: 0;">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#0f172a" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                        <h3 style="font-size: 0.95rem; font-weight: 800; color: #0f172a; margin: 0;">Today's Cash Drawer Movement History</h3>
+                    </div>
+                </div>
+                <div class="prod-table-scroll">
+                    <table class="prod-table" id="movementsTable">
+                        <thead>
+                            <tr>
+                                <th style="width: 70px;">ID</th>
+                                <th style="width: 160px;">Timestamp</th>
+                                <th>Movement Type</th>
+                                <th style="width: 120px;" class="col-center">Direction</th>
+                                <th style="width: 140px;" class="col-right">Amount (LKR)</th>
+                                <th>Reason / Reference</th>
+                                <th style="width: 140px;">User</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php if (empty($movements)): ?>
+                                <tr class="prod-empty"><td colspan="7" style="text-align: center; color: #94a3b8; padding: 32px 16px;">No drawer movements recorded yet today.</td></tr>
+                            <?php else: ?>
+                                <?php foreach ($movements as $m): ?>
+                                <tr>
+                                    <td><strong style="color: #64748b; font-size: 11.5px;">#<?= (int)$m['id'] ?></strong></td>
+                                    <td style="color: #64748b; font-size: 12px; font-weight: 500;"><?= htmlspecialchars($m['created_at']) ?></td>
+                                    <td><strong style="text-transform: capitalize; color: #0f172a;"><?= str_replace('_', ' ', htmlspecialchars($m['movement_type'])) ?></strong></td>
+                                    <td class="col-center">
+                                        <?php if ($m['direction'] === 'in'): ?>
+                                            <span class="prod-badge prod-badge-active"><span class="dot"></span>IN ▲</span>
+                                        <?php else: ?>
+                                            <span class="prod-badge prod-badge-inactive"><span class="dot"></span>OUT ▼</span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td class="col-right" style="font-weight: 800; color: #0f172a;"><?= number_format((float)$m['amount'], 2) ?></td>
+                                    <td style="color: #475569; font-size: 12px;"><?= htmlspecialchars($m['reason'] ?? '-') ?></td>
+                                    <td style="font-weight: 600; color: #334155;"><?= htmlspecialchars($m['user_name']) ?></td>
+                                </tr>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
+                </div>
+                <!-- Movements Table Pagination Footer -->
+                <div class="prod-table-footer" style="flex-shrink: 0;">
+                    <div style="font-size: 12px; font-weight: 600; color: #64748b;" id="movPagInfo">
+                        Showing <span id="movPagStart">1</span> to <span id="movPagEnd">25</span> of <span id="movPagTotal">0</span> entries
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 14px;">
+                        <div style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: #64748b; font-weight: 600;">
+                            <span>Rows:</span>
+                            <select id="movPagSize" onchange="changeMovPageSize()" style="height: 30px; border: 1px solid #cbd5e1; border-radius: 6px; padding: 0 8px; font-size: 12px; color: #0f172a; background: #fff; outline: none; font-weight: 600; cursor: pointer;">
+                                <option value="25" selected>25</option>
+                                <option value="50">50</option>
+                                <option value="75">75</option>
+                                <option value="100">100</option>
+                                <option value="500">500</option>
+                            </select>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 4px;" id="movPagNavBtns"></div>
+                    </div>
+                </div>
             </div>
         </div>
     <?php endif; ?>
-
-    <!-- History Tab Navigation -->
-    <div class="cd-tabs-nav">
-        <button type="button" class="cd-tab-btn active" id="tabBtnMovements" onclick="switchCdTab('movements')">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-            Today's Movements
-            <?php if (!empty($movements)): ?>
-                <span class="cd-tab-badge"><?= count($movements) ?></span>
-            <?php endif; ?>
-        </button>
-        <button type="button" class="cd-tab-btn" id="tabBtnClosed" onclick="switchCdTab('closed')">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-            Closed Business Days Log
-            <?php if (!empty($closedDays['totalItems'])): ?>
-                <span class="cd-tab-badge"><?= (int)$closedDays['totalItems'] ?></span>
-            <?php endif; ?>
-        </button>
-    </div>
-
-    <!-- Tab 1: Today's Movements -->
-    <div id="tabContentMovements" class="cd-tab-pane">
-        <div class="prod-table-panel">
-            <div style="padding: 14px 18px; border-bottom: 1px solid #e2e8f0; background: rgba(248, 250, 252, 0.8); display: flex; align-items: center; justify-content: space-between;">
-                <div style="display: flex; align-items: center; gap: 8px;">
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#0f172a" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                    <h3 style="font-size: 0.95rem; font-weight: 800; color: #0f172a; margin: 0;">Today's Cash Drawer Movement History</h3>
-                </div>
-            </div>
-            <div class="prod-table-scroll">
-                <table class="prod-table" id="movementsTable">
-                    <thead>
-                        <tr>
-                            <th style="width: 70px;">ID</th>
-                            <th style="width: 160px;">Timestamp</th>
-                            <th>Movement Type</th>
-                            <th style="width: 120px;">Direction</th>
-                            <th style="width: 140px;">Amount (LKR)</th>
-                            <th>Reason / Reference</th>
-                            <th style="width: 140px;">User</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php if (empty($movements)): ?>
-                            <tr class="prod-empty"><td colspan="7" style="text-align: center; color: #94a3b8; padding: 32px 16px;">No drawer movements recorded yet today.</td></tr>
-                        <?php else: ?>
-                            <?php foreach ($movements as $m): ?>
-                            <tr>
-                                <td><strong style="color: #64748b; font-size: 11.5px;">#<?= (int)$m['id'] ?></strong></td>
-                                <td style="color: #64748b; font-size: 12px; font-weight: 500;"><?= htmlspecialchars($m['created_at']) ?></td>
-                                <td><strong style="text-transform: capitalize; color: #0f172a;"><?= str_replace('_', ' ', htmlspecialchars($m['movement_type'])) ?></strong></td>
-                                <td>
-                                    <?php if ($m['direction'] === 'in'): ?>
-                                        <span class="prod-badge prod-badge-active"><span class="dot"></span>IN ▲</span>
-                                    <?php else: ?>
-                                        <span class="prod-badge prod-badge-inactive"><span class="dot"></span>OUT ▼</span>
-                                    <?php endif; ?>
-                                </td>
-                                <td style="font-weight: 800; color: #0f172a;">LKR <?= number_format((float)$m['amount'], 2) ?></td>
-                                <td style="color: #475569; font-size: 12px;"><?= htmlspecialchars($m['reason'] ?? '-') ?></td>
-                                <td style="font-weight: 600; color: #334155;"><?= htmlspecialchars($m['user_name']) ?></td>
-                            </tr>
-                            <?php endforeach; ?>
-                        <?php endif; ?>
-                    </tbody>
-                </table>
-            </div>
-            <!-- Movements Table Pagination Footer -->
-            <div class="prod-table-footer">
-                <div style="font-size: 12px; font-weight: 600; color: #64748b;" id="movPagInfo">
-                    Showing <span id="movPagStart">1</span> to <span id="movPagEnd">10</span> of <span id="movPagTotal">0</span> entries
-                </div>
-                <div style="display: flex; align-items: center; gap: 14px;">
-                    <div style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: #64748b; font-weight: 600;">
-                        <span>Rows:</span>
-                        <select id="movPagSize" onchange="changeMovPageSize()" style="height: 30px; border: 1px solid #cbd5e1; border-radius: 6px; padding: 0 8px; font-size: 12px; color: #0f172a; background: #fff; outline: none; font-weight: 600; cursor: pointer;">
-                            <option value="10" selected>10</option>
-                            <option value="25">25</option>
-                            <option value="50">50</option>
-                        </select>
-                    </div>
-                    <div style="display: flex; align-items: center; gap: 4px;" id="movPagNavBtns"></div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Tab 2: Closed Business Days Log -->
-    <div id="tabContentClosed" class="cd-tab-pane" style="display: none;">
-        <div class="prod-table-panel">
-            <div style="padding: 14px 18px; border-bottom: 1px solid #e2e8f0; background: rgba(248, 250, 252, 0.8); display: flex; align-items: center; justify-content: space-between;">
-                <div style="display: flex; align-items: center; gap: 8px;">
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#0f172a" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-                    <h3 style="font-size: 0.95rem; font-weight: 800; color: #0f172a; margin: 0;">Closed Business Days Log</h3>
-                </div>
-            </div>
-            <div class="prod-table-scroll">
-                <table class="prod-table" id="closedDaysTable">
-                    <thead>
-                        <tr>
-                            <th style="width: 70px;">ID</th>
-                            <th>Business Date</th>
-                            <th>Opening Cash</th>
-                            <th>Expected Cash</th>
-                            <th>Actual Counted</th>
-                            <th>Variance (Shortage/Overage)</th>
-                            <th>Retained Float</th>
-                            <th>Main Cash Account</th>
-                            <th>Opener / Closer</th>
-                            <th>Closed At</th>
-                            <th style="width: 110px; text-align: center;">Receipt</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php if (empty($closedDays['items'])): ?>
-                            <tr class="prod-empty"><td colspan="11" style="text-align: center; color: #94a3b8; padding: 32px 16px;">No closed business days recorded.</td></tr>
-                        <?php else: ?>
-                            <?php foreach ($closedDays['items'] as $cd): ?>
-                            <?php 
-                                $shortage = (float)$cd['shortage_amount'];
-                                $overage = (float)$cd['overage_amount'];
-                            ?>
-                            <tr>
-                                <td><strong style="color: #64748b; font-size: 11.5px;">#<?= (int)$cd['id'] ?></strong></td>
-                                <td style="font-weight: 800; color: #0f172a;"><?= htmlspecialchars($cd['business_date']) ?></td>
-                                <td style="color: #475569;">LKR <?= number_format((float)$cd['opening_cash'], 2) ?></td>
-                                <td style="color: #475569;">LKR <?= number_format((float)$cd['expected_cash'], 2) ?></td>
-                                <td style="font-weight: 800; color: #0f172a;">LKR <?= number_format((float)$cd['actual_cash'], 2) ?></td>
-                                <td>
-                                    <?php if ($shortage > 0): ?>
-                                        <span class="prod-badge prod-badge-inactive"><span class="dot"></span>Shortage: LKR <?= number_format($shortage, 2) ?></span>
-                                    <?php elseif ($overage > 0): ?>
-                                        <span class="prod-badge prod-badge-active"><span class="dot"></span>Overage: LKR <?= number_format($overage, 2) ?></span>
-                                    <?php else: ?>
-                                        <span style="color: #64748b; font-weight: 600; font-size: 12px;">Exact (0.00)</span>
-                                    <?php endif; ?>
-                                </td>
-                                <td style="color: #475569;">LKR <?= number_format((float)$cd['retained_cash'], 2) ?></td>
-                                <td style="font-weight: 800; color: #2563eb;">LKR <?= number_format((float)$cd['cash_to_deposit'], 2) ?></td>
-                                <td style="color: #334155; font-size: 12px;"><?= htmlspecialchars($cd['opener_name']) ?> / <?= htmlspecialchars($cd['closer_name'] ?? 'N/A') ?></td>
-                                <td style="color: #64748b; font-size: 12px; font-weight: 500;"><?= htmlspecialchars($cd['closed_at']) ?></td>
-                                <td style="text-align: center;">
-                                    <button type="button" onclick="printDayClosingReceipt(<?= (int)$cd['id'] ?>)" class="prod-act-btn prod-act-primary" style="background: #0f172a; color: #fff; border-color: #0f172a;" title="Print 88mm Day Closing Receipt">
-                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
-                                        Print
-                                    </button>
-                                </td>
-                            </tr>
-                            <?php endforeach; ?>
-                        <?php endif; ?>
-                    </tbody>
-                </table>
-            </div>
-            <!-- Closed Days Log Pagination Footer -->
-            <div class="prod-table-footer">
-                <div style="font-size: 12px; font-weight: 600; color: #64748b;" id="closedPagInfo">
-                    Showing <span id="closedPagStart">1</span> to <span id="closedPagEnd">10</span> of <span id="closedPagTotal">0</span> entries
-                </div>
-                <div style="display: flex; align-items: center; gap: 14px;">
-                    <div style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: #64748b; font-weight: 600;">
-                        <span>Rows per page:</span>
-                        <select id="closedPagSize" onchange="changeClosedPageSize()" style="height: 30px; border: 1px solid #cbd5e1; border-radius: 6px; padding: 0 8px; font-size: 12px; color: #0f172a; background: #fff; outline: none; font-weight: 600; cursor: pointer;">
-                            <option value="10" selected>10</option>
-                            <option value="25">25</option>
-                            <option value="50">50</option>
-                        </select>
-                    </div>
-                    <div style="display: flex; align-items: center; gap: 4px;" id="closedPagNavBtns"></div>
-                </div>
-            </div>
-        </div>
-    </div>
 </div>
+
 
 <!-- Manual Cash In / Cash Out Modal -->
 <div class="curtiss-modal-backdrop" id="manualCashModal">
@@ -881,14 +1075,71 @@
                         <div style="margin-bottom: 1rem;">
                             <label class="form-label">Retained Float for Next Opening (LKR) <span style="color: #ef4444;">*</span></label>
                             <input type="number" step="0.01" min="0" id="closeRetainedCash" class="form-input" value="20000.00" required oninput="calculateClosingDiff()" style="font-size: 1.1rem; font-weight: 800; padding: 8px 12px;">
-                            <small style="color: #64748b; font-size: 11.5px; display: block; margin-top: 4px;">Default retained cash float is LKR 20,000.00</small>
+                            <small style="color: #64748b; font-size: 11.5px; display: block; margin-top: 4px;">Default retained cash float is LKR 20,000.00 (kept in drawer for next opening)</small>
                         </div>
 
-                        <!-- Main Cash Account Box -->
-                        <div style="background: linear-gradient(135deg, rgba(239, 246, 255, 0.95) 0%, rgba(255, 255, 255, 0.95) 100%); border: 1px solid #bfdbfe; border-radius: 10px; padding: 0.75rem 1rem; margin-bottom: 1rem;">
-                            <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.95rem;">
-                                <span style="color: #1e40af; font-weight: 600;">Cash Transfer to Main Cash Account:</span>
-                                <strong style="color: #1e40af; font-size: 1.15rem; font-weight: 800;">LKR <span id="calcDepositCash">0.00</span></strong>
+                        <!-- Surplus Cash & Transfer Destination Allocation -->
+                        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1rem; margin-bottom: 1rem;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; padding-bottom: 0.5rem; border-bottom: 1px solid #e2e8f0;">
+                                <span style="font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: #475569;">Total Surplus Cash to Transfer</span>
+                                <strong style="color: #0f172a; font-size: 1.15rem; font-weight: 800;">LKR <span id="calcDepositCash">0.00</span></strong>
+                            </div>
+
+                            <!-- Allocation Option 1: Cash / Safe Account -->
+                            <div style="margin-bottom: 0.75rem;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                                    <label class="form-label" style="margin-bottom: 0; font-size: 11.5px; font-weight: 700; color: #1e40af;">
+                                        💼 Transfer to Safe / Cash Account
+                                    </label>
+                                </div>
+                                <div style="display: grid; grid-template-columns: <?= (!empty($cashAccounts) && count($cashAccounts) > 1) ? '1.2fr 1fr' : '1fr' ?>; gap: 8px;">
+                                    <?php if (!empty($cashAccounts) && count($cashAccounts) > 1): ?>
+                                    <select id="splitSafeAccountId" class="form-input" style="font-size: 11.5px; font-weight: 600; padding: 6px 8px;">
+                                        <?php foreach ($cashAccounts as $ca): ?>
+                                            <option value="<?= (int)$ca['id'] ?>" <?= $ca['account_code'] === '1010' ? 'selected' : '' ?>>
+                                                <?= htmlspecialchars($ca['account_name'] . ' (' . $ca['account_code'] . ')') ?>
+                                            </option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                    <?php else: ?>
+                                    <input type="hidden" id="splitSafeAccountId" value="<?= (int)($cashAccounts[0]['id'] ?? 1) ?>">
+                                    <?php endif; ?>
+                                    <input type="number" step="0.01" min="0" id="splitTransferSafe" class="form-input" placeholder="0.00" oninput="handleSplitManualChange()" style="font-size: 1rem; font-weight: 700; padding: 6px 10px;">
+                                </div>
+                            </div>
+
+                            <!-- Allocation Option 2: Direct Bank Deposit (Optional) -->
+                            <div style="margin-bottom: 0.75rem;">
+                                <label class="form-label" style="font-size: 11.5px; font-weight: 700; color: #0284c7; margin-bottom: 4px;">
+                                    🏦 Direct Bank Deposit (Optional)
+                                </label>
+                                <div style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 8px;">
+                                    <select id="splitBankAccountId" class="form-input" onchange="handleSplitManualChange()" style="font-size: 11.5px; font-weight: 600; padding: 6px 8px;">
+                                        <option value="">-- No Direct Bank Deposit --</option>
+                                        <?php if (!empty($bankAccounts)): ?>
+                                            <?php foreach ($bankAccounts as $ba): ?>
+                                                <option value="<?= (int)$ba['id'] ?>">
+                                                    <?= htmlspecialchars($ba['bank_name'] . ' - ' . $ba['account_name'] . ' (' . $ba['account_number'] . ')') ?>
+                                                </option>
+                                            <?php endforeach; ?>
+                                        <?php endif; ?>
+                                    </select>
+                                    <input type="number" step="0.01" min="0" id="splitTransferBank" class="form-input" placeholder="Deposit LKR (0.00)" oninput="handleSplitManualChange()" style="font-size: 1rem; font-weight: 700; padding: 6px 10px;">
+                                </div>
+                            </div>
+
+                            <!-- Allocation Option 3: Petty Cash Account (Optional) -->
+                            <div style="margin-bottom: 0.5rem;">
+                                <label class="form-label" style="font-size: 11.5px; font-weight: 700; color: #64748b; margin-bottom: 4px;">
+                                    🪙 Transfer to Petty Cash Account (1015) (Optional)
+                                </label>
+                                <input type="number" step="0.01" min="0" id="splitTransferPetty" class="form-input" placeholder="0.00" oninput="handleSplitManualChange()" style="font-size: 0.95rem; font-weight: 700; padding: 6px 10px;">
+                            </div>
+
+                            <!-- Split Allocation Status Validation -->
+                            <div id="splitStatusNotice" style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; font-weight: 700; padding-top: 6px; border-top: 1px dashed #cbd5e1; margin-top: 6px; color: #15803d;">
+                                <span>Allocated: LKR <span id="lblSplitAllocated">0.00</span></span>
+                                <span id="lblSplitBalanceText">✓ 100% Balanced</span>
                             </div>
                         </div>
 
@@ -952,6 +1203,13 @@
 
     async function handleStartDay(e) {
         e.preventDefault();
+        const submitBtn = e.target.querySelector('button[type="submit"]');
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.dataset.originalText = submitBtn.innerHTML;
+            submitBtn.innerHTML = 'Starting Day...';
+        }
+
         const openingCash = parseFloat(document.getElementById('startOpeningCash').value) || 0;
         const notes = document.getElementById('startNotes').value;
 
@@ -967,9 +1225,17 @@
                 window.location.reload();
             } else {
                 alert('Error: ' + data.message);
+                if (submitBtn) {
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = submitBtn.dataset.originalText;
+                }
             }
         } catch (err) {
             alert('Connection error: ' + err.message);
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = submitBtn.dataset.originalText;
+            }
         }
     }
 
@@ -984,6 +1250,13 @@
 
     async function handleManualCash(e) {
         e.preventDefault();
+        const submitBtn = e.target.querySelector('button[type="submit"]');
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.dataset.originalText = submitBtn.innerHTML;
+            submitBtn.innerHTML = 'Saving...';
+        }
+
         const type = document.getElementById('manualType').value;
         const amount = parseFloat(document.getElementById('manualAmount').value) || 0;
         const reason = document.getElementById('manualReason').value;
@@ -1002,9 +1275,17 @@
                 window.location.reload();
             } else {
                 alert('Error: ' + data.message);
+                if (submitBtn) {
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = submitBtn.dataset.originalText;
+                }
             }
         } catch (err) {
             alert('Connection error: ' + err.message);
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = submitBtn.dataset.originalText;
+            }
         }
     }
 
@@ -1015,6 +1296,18 @@
         document.getElementById('closeActualCash').value = '';
         document.getElementById('varianceBox').style.display = 'none';
         document.getElementById('calcDepositCash').innerText = '0.00';
+
+        const safeInput = document.getElementById('splitTransferSafe');
+        if (safeInput) {
+            safeInput.dataset.manual = 'false';
+            safeInput.value = '';
+        }
+        const bankInput = document.getElementById('splitTransferBank');
+        if (bankInput) bankInput.value = '';
+        const bankSelect = document.getElementById('splitBankAccountId');
+        if (bankSelect) bankSelect.value = '';
+        const pettyInput = document.getElementById('splitTransferPetty');
+        if (pettyInput) pettyInput.value = '';
 
         const expected = parseFloat(document.getElementById('rawExpectedCash').value) || 0;
         const retainedInput = document.getElementById('closeRetainedCash');
@@ -1063,7 +1356,7 @@
 
         if (hasConflictOfflineSales) {
             const chk = document.getElementById('chkAcknowledgeConflicts');
-            if (chk && !chk.checked) {
+            if (!chk || !chk.checked) {
                 btn.disabled = true;
                 btn.style.opacity = '0.45';
                 btn.style.cursor = 'not-allowed';
@@ -1115,6 +1408,51 @@
 
         const deposit = Math.max(0, actual - retained);
         document.getElementById('calcDepositCash').innerText = deposit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+        const safeInput = document.getElementById('splitTransferSafe');
+        const bankAmt = parseFloat(document.getElementById('splitTransferBank')?.value) || 0;
+        const pettyAmt = parseFloat(document.getElementById('splitTransferPetty')?.value) || 0;
+        if (safeInput && (!safeInput.dataset.manual || safeInput.dataset.manual === 'false')) {
+            const safeRem = Math.max(0, deposit - bankAmt - pettyAmt);
+            safeInput.value = safeRem > 0 ? safeRem.toFixed(2) : (deposit > 0 ? deposit.toFixed(2) : '');
+        }
+        updateSplitStatus();
+    }
+
+    function handleSplitManualChange() {
+        const safeInput = document.getElementById('splitTransferSafe');
+        if (safeInput) safeInput.dataset.manual = 'true';
+        updateSplitStatus();
+    }
+
+    function updateSplitStatus() {
+        const actual = parseFloat(document.getElementById('closeActualCash')?.value) || 0;
+        const retained = parseFloat(document.getElementById('closeRetainedCash')?.value) || 0;
+        const deposit = Math.max(0, actual - retained);
+
+        const safeAmt = parseFloat(document.getElementById('splitTransferSafe')?.value) || 0;
+        const bankAmt = parseFloat(document.getElementById('splitTransferBank')?.value) || 0;
+        const pettyAmt = parseFloat(document.getElementById('splitTransferPetty')?.value) || 0;
+        const totalAlloc = Math.round((safeAmt + bankAmt + pettyAmt) * 100) / 100;
+
+        const lblAlloc = document.getElementById('lblSplitAllocated');
+        const lblBal = document.getElementById('lblSplitBalanceText');
+        const notice = document.getElementById('splitStatusNotice');
+
+        if (lblAlloc) lblAlloc.textContent = totalAlloc.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+        const diff = Math.round((deposit - totalAlloc) * 100) / 100;
+
+        if (Math.abs(diff) <= 0.01) {
+            if (notice) notice.style.color = '#15803d';
+            if (lblBal) lblBal.innerHTML = '✓ 100% Balanced';
+        } else if (diff > 0) {
+            if (notice) notice.style.color = '#d97706';
+            if (lblBal) lblBal.innerHTML = '⚠️ Remaining: LKR ' + diff.toFixed(2);
+        } else {
+            if (notice) notice.style.color = '#dc2626';
+            if (lblBal) lblBal.innerHTML = '⚠️ Overallocated by: LKR ' + Math.abs(diff).toFixed(2);
+        }
     }
 
     function calcDenoms() {
@@ -1141,23 +1479,22 @@
     }
 
     function switchCdTab(tab) {
+        const btnPreview = document.getElementById('tabBtnPreview');
         const btnMov = document.getElementById('tabBtnMovements');
-        const btnClosed = document.getElementById('tabBtnClosed');
+        const panePreview = document.getElementById('tabContentPreview');
         const paneMov = document.getElementById('tabContentMovements');
-        const paneClosed = document.getElementById('tabContentClosed');
 
-        if (tab === 'movements') {
-            if (btnMov) btnMov.classList.add('active');
-            if (btnClosed) btnClosed.classList.remove('active');
-            if (paneMov) paneMov.style.display = 'block';
-            if (paneClosed) paneClosed.style.display = 'none';
-            updateMovPagination();
-        } else {
-            if (btnClosed) btnClosed.classList.add('active');
+        if (tab === 'preview') {
+            if (btnPreview) btnPreview.classList.add('active');
             if (btnMov) btnMov.classList.remove('active');
-            if (paneClosed) paneClosed.style.display = 'block';
+            if (panePreview) panePreview.style.display = 'flex';
             if (paneMov) paneMov.style.display = 'none';
-            updateClosedPagination();
+        } else {
+            if (btnMov) btnMov.classList.add('active');
+            if (btnPreview) btnPreview.classList.remove('active');
+            if (paneMov) paneMov.style.display = 'flex';
+            if (panePreview) panePreview.style.display = 'none';
+            updateMovPagination();
         }
     }
 
@@ -1169,6 +1506,8 @@
 
     async function handleCloseDay(e) {
         e.preventDefault();
+        const submitBtn = document.getElementById('btnConfirmCloseDay');
+
         if (hasPendingOfflineSales) {
             alert("Day closing is BLOCKED because there are pending offline sales on this device. Please synchronize all offline sales before closing.");
             return;
@@ -1199,8 +1538,45 @@
             'coins': parseFloat(document.getElementById('denom_coins')?.value) || 0
         };
 
+        // Split transfers validation
+        const splits = [];
+        const safeAmt = parseFloat(document.getElementById('splitTransferSafe')?.value) || 0;
+        const bankAmt = parseFloat(document.getElementById('splitTransferBank')?.value) || 0;
+        const bankAccId = parseInt(document.getElementById('splitBankAccountId')?.value) || 0;
+        const pettyAmt = parseFloat(document.getElementById('splitTransferPetty')?.value) || 0;
+
+        if (bankAmt > 0 && bankAccId <= 0) {
+            alert('Please select a destination Bank Account for the direct bank deposit.');
+            return;
+        }
+
+        const depositExpected = Math.max(0, actual - retained);
+        if (depositExpected > 0) {
+            const totalAlloc = Math.round((safeAmt + bankAmt + pettyAmt) * 100) / 100;
+            if (Math.abs(totalAlloc - depositExpected) > 0.01) {
+                alert(`Surplus cash transfer allocation total (LKR ${totalAlloc.toFixed(2)}) must equal surplus cash to transfer (LKR ${depositExpected.toFixed(2)}).`);
+                return;
+            }
+            const safeAccId = parseInt(document.getElementById('splitSafeAccountId')?.value) || 0;
+            if (safeAmt > 0) {
+                splits.push({ type: 'safe', amount: safeAmt, account_id: safeAccId, notes: 'Day End Transfer to Safe/Cash Account' });
+            }
+            if (bankAmt > 0 && bankAccId > 0) {
+                splits.push({ type: 'bank', amount: bankAmt, bank_account_id: bankAccId, notes: 'Day End Direct Bank Deposit' });
+            }
+            if (pettyAmt > 0) {
+                splits.push({ type: 'petty_cash', amount: pettyAmt, notes: 'Day End Transfer to Petty Cash' });
+            }
+        }
+
         if (!confirm('Are you sure you want to close this Business Day? Once closed, no further transactions can be posted into today.')) {
             return;
+        }
+
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.dataset.originalText = submitBtn.innerHTML;
+            submitBtn.innerHTML = 'Closing Day...';
         }
 
         try {
@@ -1213,7 +1589,8 @@
                     card_settlement_amount: cardSettlement,
                     retained_cash: retained,
                     notes: notes,
-                    cash_denominations: denominations
+                    cash_denominations: denominations,
+                    split_transfers: splits
                 })
             });
             const data = await res.json();
@@ -1224,15 +1601,22 @@
                 window.location.reload();
             } else {
                 alert('Error: ' + data.message);
+                if (submitBtn) {
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = submitBtn.dataset.originalText;
+                }
             }
         } catch (err) {
             alert('Connection error: ' + err.message);
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = submitBtn.dataset.originalText;
+            }
         }
     }
 
-    /* ── Dynamic Client-Side Table Pagination ── */
-    let movPage = 1, movPageSize = 10;
-    let closedPage = 1, closedPageSize = 10;
+    /* ── Dynamic Client-Side Table Pagination for Movements (Default limit: 25) ── */
+    let movPage = 1, movPageSize = 25;
 
     function updateMovPagination() {
         const table = document.getElementById('movementsTable');
@@ -1252,48 +1636,20 @@
             if (visibleRows[i]) visibleRows[i].style.display = '';
         }
 
-        document.getElementById('movPagStart').textContent = total > 0 ? startIdx + 1 : 0;
-        document.getElementById('movPagEnd').textContent = endIdx;
-        document.getElementById('movPagTotal').textContent = total;
+        const pStart = document.getElementById('movPagStart');
+        const pEnd = document.getElementById('movPagEnd');
+        const pTot = document.getElementById('movPagTotal');
+        if (pStart) pStart.textContent = total > 0 ? startIdx + 1 : 0;
+        if (pEnd) pEnd.textContent = endIdx;
+        if (pTot) pTot.textContent = total;
 
         renderPaginationNav('movPagNavBtns', movPage, totalPages, (p) => { movPage = p; updateMovPagination(); });
     }
 
     function changeMovPageSize() {
-        movPageSize = parseInt(document.getElementById('movPagSize').value) || 10;
+        movPageSize = parseInt(document.getElementById('movPagSize').value) || 25;
         movPage = 1;
         updateMovPagination();
-    }
-
-    function updateClosedPagination() {
-        const table = document.getElementById('closedDaysTable');
-        if (!table) return;
-        const allRows = Array.from(table.querySelectorAll('tbody tr')).filter(tr => !tr.classList.contains('prod-empty'));
-        const visibleRows = allRows.filter(tr => tr.dataset.searchMatched !== 'false');
-        const total = visibleRows.length;
-        const totalPages = Math.max(1, Math.ceil(total / closedPageSize));
-        if (closedPage > totalPages) closedPage = totalPages;
-        if (closedPage < 1) closedPage = 1;
-
-        const startIdx = total > 0 ? (closedPage - 1) * closedPageSize : 0;
-        const endIdx = Math.min(startIdx + closedPageSize, total);
-
-        allRows.forEach(tr => tr.style.display = 'none');
-        for (let i = startIdx; i < endIdx; i++) {
-            if (visibleRows[i]) visibleRows[i].style.display = '';
-        }
-
-        document.getElementById('closedPagStart').textContent = total > 0 ? startIdx + 1 : 0;
-        document.getElementById('closedPagEnd').textContent = endIdx;
-        document.getElementById('closedPagTotal').textContent = total;
-
-        renderPaginationNav('closedPagNavBtns', closedPage, totalPages, (p) => { closedPage = p; updateClosedPagination(); });
-    }
-
-    function changeClosedPageSize() {
-        closedPageSize = parseInt(document.getElementById('closedPagSize').value) || 10;
-        closedPage = 1;
-        updateClosedPagination();
     }
 
     function renderPaginationNav(containerId, currentPage, totalPages, onPageClick) {
@@ -1340,18 +1696,52 @@
 
     document.addEventListener('DOMContentLoaded', () => {
         updateMovPagination();
-        updateClosedPagination();
-    });
 
-    /* ── Realtime Search in Floating Bottom Nav Bar ── */
-    function registerBottomSearch() {
-        if (window.CurtissNav && window.CurtissNav.enablePageSearch) {
-            window.CurtissNav.enablePageSearch({
-                placeholder: 'Search movements & closed days...',
-                onSearch: function(query) {
-                    filterCashDrawerRealtime(query);
+        // Keyboard support on modal forms (Rule 15)
+        document.querySelectorAll('#manualCashModal input, #closeDayModal input').forEach(input => {
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA') {
+                    const form = e.target.closest('form');
+                    if (form) {
+                        const inputs = Array.from(form.querySelectorAll('input:not([type="hidden"]), select, textarea, button[type="submit"]'));
+                        const idx = inputs.indexOf(e.target);
+                        if (idx >= 0 && idx < inputs.length - 1) {
+                            e.preventDefault();
+                            inputs[idx + 1].focus();
+                        }
+                    }
                 }
             });
+        });
+    });
+
+    /* ── Universal Multi-Column Realtime Search with Floating Bottom Nav ── */
+    function registerBottomSearch() {
+        if (window.CurtissNav && window.CurtissNav.enablePageSearch) {
+            const urlParams = new URLSearchParams(window.location.search);
+            const initialSearch = urlParams.get('search') || '';
+
+            window.CurtissNav.enablePageSearch({
+                placeholder: 'Search movements, dates, amounts, users...',
+                initialValue: initialSearch,
+                onSearch: function(query) {
+                    filterCashDrawerRealtime(query);
+                },
+                onEnter: function(query) {
+                    const url = new URL(window.location.href);
+                    if (query && query.trim()) {
+                        url.searchParams.set('search', query.trim());
+                    } else {
+                        url.searchParams.delete('search');
+                    }
+                    url.searchParams.set('page', '1');
+                    window.location.href = url.toString();
+                }
+            });
+
+            if (initialSearch) {
+                filterCashDrawerRealtime(initialSearch);
+            }
         } else {
             setTimeout(registerBottomSearch, 40);
         }
@@ -1359,24 +1749,35 @@
     registerBottomSearch();
 
     function filterCashDrawerRealtime(query) {
-        const q = query.toLowerCase().trim();
+        const q = (query || '').toLowerCase().trim();
+        const cleanDigits = q.replace(/[^0-9.]/g, '');
+
+        if (q && document.getElementById('tabContentMovements')?.style.display === 'none') {
+            switchCdTab('movements');
+        }
+
         const movRows = document.querySelectorAll('#movementsTable tbody tr');
         movRows.forEach(tr => {
             if (tr.classList.contains('prod-empty')) return;
-            const text = tr.textContent.toLowerCase();
-            tr.dataset.searchMatched = (!q || text.includes(q)) ? 'true' : 'false';
-        });
-
-        const closedRows = document.querySelectorAll('#closedDaysTable tbody tr');
-        closedRows.forEach(tr => {
-            if (tr.classList.contains('prod-empty')) return;
-            const text = tr.textContent.toLowerCase();
-            tr.dataset.searchMatched = (!q || text.includes(q)) ? 'true' : 'false';
+            let matched = false;
+            if (!q) {
+                matched = true;
+            } else {
+                const dataCells = Array.from(tr.querySelectorAll('td'));
+                for (const td of dataCells) {
+                    const text = td.textContent.toLowerCase();
+                    const textNoComma = text.replace(/,/g, '');
+                    if (text.includes(q) || (cleanDigits && textNoComma.includes(cleanDigits))) {
+                        matched = true;
+                        break;
+                    }
+                }
+            }
+            tr.dataset.searchMatched = matched ? 'true' : 'false';
         });
 
         movPage = 1;
         updateMovPagination();
-        closedPage = 1;
-        updateClosedPagination();
     }
 </script>
+

@@ -14,16 +14,33 @@ require_once __DIR__ . '/Settings.php';
 class Auth
 {
     /**
-     * Authenticate user credentials
+     * Authenticate user credentials (Username & Password)
      */
     public static function attempt(string $username, string $password): array
     {
         try {
+            $ip = $_SERVER['REMOTE_ADDR'] ?? 'CLI';
+
+            // Brute force protection check (exclude CLI)
+            if ($ip !== 'CLI' && $ip !== '127.0.0.1' && $ip !== '::1') {
+                $failedAttempts = (int)Database::fetchValue("
+                    SELECT COUNT(*) FROM audit_logs
+                    WHERE action IN ('LOGIN_FAILED_UNKNOWN_USER', 'LOGIN_FAILED_BAD_PASSWORD', 'LOGIN_FAILED_BAD_PIN')
+                      AND ip_address = :ip
+                      AND created_at >= DATE_SUB(NOW(), INTERVAL 5 MINUTE)
+                ", [':ip' => $ip]);
+
+                if ($failedAttempts >= 10) {
+                    Audit::log('LOGIN_THROTTLED', 'auth', null, null, ['ip' => $ip, 'username' => $username, 'method' => 'password']);
+                    return ['success' => false, 'message' => 'Too many failed login attempts. Please wait 5 minutes before trying again.'];
+                }
+            }
+
             $user = Database::fetchOne("
                 SELECT u.*, r.name AS role_name, r.code AS role_code
                 FROM users u
                 JOIN roles r ON u.role_id = r.id
-                WHERE (u.username = :username OR u.email = :email)
+                WHERE (LOWER(u.username) = LOWER(:username) OR LOWER(u.email) = LOWER(:email))
                   AND u.status = 'active'
                   AND u.deleted_at IS NULL
                 LIMIT 1
@@ -39,88 +56,116 @@ class Auth
                 return ['success' => false, 'message' => 'Invalid credentials or inactive account.'];
             }
 
-            return self::setupSession($user);
+            return self::initializeSession($user, 'password');
 
         } catch (Throwable $e) {
             Logger::error("Authentication Attempt Failed: " . $e->getMessage(), $e);
-            return ['success' => false, 'message' => 'Authentication service error: ' . $e->getMessage()];
+            return ['success' => false, 'message' => 'Authentication service error. Please try again.'];
         }
     }
 
     /**
-     * Authenticate user via Security PIN (POS Keypad Terminal)
+     * Authenticate user with 5-digit PIN
      */
     public static function attemptPin(string $pin): array
     {
         try {
             $pin = trim($pin);
-            if ($pin === '') {
-                return ['success' => false, 'message' => 'Please enter your PIN.'];
+            if (!preg_match('/^\d{5}$/', $pin)) {
+                return ['success' => false, 'message' => 'Please enter a valid 5-digit numeric PIN.'];
             }
 
-            // 1. Direct indexed match on pin column
-            $user = Database::fetchOne("
-                SELECT u.id, u.username, u.email, u.password_hash, u.pin, u.pin_hash, u.full_name, u.role_id, u.status,
-                       r.name AS role_name, r.code AS role_code
-                FROM users u
-                INNER JOIN roles r ON u.role_id = r.id
-                WHERE u.pin = :pin
-                  AND u.status = 'active'
-                  AND u.deleted_at IS NULL
-                LIMIT 1
-            ", [':pin' => $pin]);
+            $ip = $_SERVER['REMOTE_ADDR'] ?? 'CLI';
 
-            // 2. If no direct match on pin, check hash match
-            if (!$user) {
-                $candidates = Database::fetchAll("
-                    SELECT u.id, u.username, u.email, u.password_hash, u.pin, u.pin_hash, u.full_name, u.role_id, u.status,
-                           r.name AS role_name, r.code AS role_code
-                    FROM users u
-                    INNER JOIN roles r ON u.role_id = r.id
-                    WHERE u.pin_hash IS NOT NULL
-                      AND u.status = 'active'
-                      AND u.deleted_at IS NULL
-                    LIMIT 50
-                ");
-                foreach ($candidates as $candidate) {
-                    if (password_verify($pin, $candidate['pin_hash']) || hash_equals((string)$candidate['pin_hash'], (string)$pin)) {
-                        $user = $candidate;
-                        break;
-                    }
+            // Brute force protection check (exclude CLI)
+            if ($ip !== 'CLI' && $ip !== '127.0.0.1' && $ip !== '::1') {
+                $failedAttempts = (int)Database::fetchValue("
+                    SELECT COUNT(*) FROM audit_logs
+                    WHERE action IN ('LOGIN_FAILED_UNKNOWN_USER', 'LOGIN_FAILED_BAD_PASSWORD', 'LOGIN_FAILED_BAD_PIN')
+                      AND ip_address = :ip
+                      AND created_at >= DATE_SUB(NOW(), INTERVAL 5 MINUTE)
+                ", [':ip' => $ip]);
+
+                if ($failedAttempts >= 10) {
+                    Audit::log('LOGIN_THROTTLED', 'auth', null, null, ['ip' => $ip, 'method' => 'pin']);
+                    return ['success' => false, 'message' => 'Too many failed login attempts. Please wait 5 minutes before trying again.'];
                 }
             }
 
-            if (!$user) {
-                Audit::log('LOGIN_FAILED_BAD_PIN', 'auth', null, null, ['pin_length' => strlen($pin)]);
-                return ['success' => false, 'message' => 'Invalid PIN. Please try again.'];
+            // Fetch active users with configured PINs
+            $users = Database::fetchAll("
+                SELECT u.*, r.name AS role_name, r.code AS role_code
+                FROM users u
+                JOIN roles r ON u.role_id = r.id
+                WHERE u.status = 'active'
+                  AND u.deleted_at IS NULL
+                  AND u.pin_hash IS NOT NULL
+                  AND u.pin_hash != ''
+            ");
+
+            $matchedUser = null;
+            foreach ($users as $u) {
+                if (password_verify($pin, $u['pin_hash'])) {
+                    $matchedUser = $u;
+                    break;
+                }
             }
 
-            return self::setupSession($user);
+            if (!$matchedUser) {
+                Audit::log('LOGIN_FAILED_BAD_PIN', 'auth', null, null, ['ip' => $ip]);
+                return ['success' => false, 'message' => 'Invalid PIN or inactive account.'];
+            }
+
+            return self::initializeSession($matchedUser, 'pin');
 
         } catch (Throwable $e) {
             Logger::error("PIN Authentication Attempt Failed: " . $e->getMessage(), $e);
-            return ['success' => false, 'message' => 'Authentication service error: ' . $e->getMessage()];
+            return ['success' => false, 'message' => 'Authentication service error. Please try again.'];
         }
     }
 
     /**
-     * Helper to set up user session upon successful authentication
+     * Initialize user session and branch routing after successful authentication
      */
-    private static function setupSession(array $user): array
+    private static function initializeSession(array $user, string $loginMethod = 'password'): array
     {
         // Update last_login_at
         Database::execute("UPDATE users SET last_login_at = NOW() WHERE id = :id", [':id' => $user['id']]);
 
-        // Set Session Data
+        // Regenerate Session ID
         session_regenerate_id(true);
-        $_SESSION['user_id'] = (int)$user['id'];
-        $_SESSION['username'] = $user['username'];
-        $_SESSION['full_name'] = $user['full_name'];
-        $_SESSION['email'] = $user['email'];
-        $_SESSION['role_id'] = (int)$user['role_id'];
-        $_SESSION['role_name'] = $user['role_name'];
-        $_SESSION['role_code'] = $user['role_code'];
+        $_SESSION['user_id']       = (int)$user['id'];
+        $_SESSION['username']      = $user['username'];
+        $_SESSION['full_name']     = $user['full_name'];
+        $_SESSION['email']         = $user['email'];
+        $_SESSION['role_id']       = (int)$user['role_id'];
+        $_SESSION['role_name']     = $user['role_name'];
+        $_SESSION['role_code']     = $user['role_code'];
         $_SESSION['last_activity'] = time();
+        $_SESSION['login_method']  = $loginMethod;
+
+        // Load all assigned roles (multi-role support)
+        try {
+            $assignedRoles = Database::fetchAll("
+                SELECT r.id, r.code, r.name
+                FROM user_roles ur
+                JOIN roles r ON ur.role_id = r.id
+                WHERE ur.user_id = :uid
+                ORDER BY r.id ASC
+            ", [':uid' => (int)$user['id']]);
+        } catch (Throwable $e) {
+            $assignedRoles = [];
+        }
+
+        if (empty($assignedRoles)) {
+            $assignedRoles = [[
+                'id'   => (int)$user['role_id'],
+                'code' => $user['role_code'],
+                'name' => $user['role_name']
+            ]];
+        }
+        $_SESSION['roles']      = $assignedRoles;
+        $_SESSION['role_codes'] = array_column($assignedRoles, 'code');
 
         // Load User Branches
         $branches = self::getUserBranches((int)$user['id'], $user['role_code']);
@@ -131,7 +176,7 @@ class Auth
             return ['success' => false, 'message' => 'No active branch assigned to this account. Contact Administrator.'];
         }
 
-        $isAdminOrSuperAdmin = in_array($user['role_code'], [ROLE_SUPER_ADMIN, ROLE_ADMIN], true);
+        $isAdminOrSuperAdmin = in_array(ROLE_SUPER_ADMIN, $_SESSION['role_codes'], true) || in_array(ROLE_ADMIN, $_SESSION['role_codes'], true);
         $hasMultipleBranches = count($branches) > 1;
 
         // Set default active branch
@@ -159,17 +204,19 @@ class Auth
             }
         }
 
-        Audit::log('LOGIN_SUCCESS', 'auth', (string)$user['id'], null, [
-            'username' => $user['username'],
+        $auditAction = ($loginMethod === 'pin') ? 'LOGIN_PIN_SUCCESS' : 'LOGIN_SUCCESS';
+        Audit::log($auditAction, 'auth', (string)$user['id'], null, [
+            'username'      => $user['username'],
+            'login_method'  => $loginMethod,
             'active_branch' => $_SESSION['active_branch_name'] ?? 'None'
         ]);
 
         return [
-            'success' => true,
-            'multiple_branches' => $hasMultipleBranches,
+            'success'                => true,
+            'multiple_branches'      => $hasMultipleBranches,
             'is_admin_or_superadmin' => $isAdminOrSuperAdmin,
             'needs_branch_selection' => ($isAdminOrSuperAdmin && $hasMultipleBranches),
-            'user' => $user
+            'user'                   => $user
         ];
     }
 
@@ -320,12 +367,19 @@ class Auth
     }
 
     /**
-     * Role Check Helper
+     * Role Check Helper (Supports multi-role assignments)
      */
     public static function hasRole(string ...$roles): bool
     {
         if (!self::isLoggedIn()) return false;
-        return in_array($_SESSION['role_code'], $roles, true);
+        
+        $assignedCodes = $_SESSION['role_codes'] ?? [$_SESSION['role_code'] ?? ''];
+        foreach ($roles as $r) {
+            if (in_array($r, $assignedCodes, true)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -334,31 +388,55 @@ class Auth
     public static function isSpecialUser(): bool
     {
         if (!self::isLoggedIn()) return false;
-        return ($_SESSION['role_code'] ?? '') === ROLE_SPECIAL_USER;
+        $assignedCodes = $_SESSION['role_codes'] ?? [$_SESSION['role_code'] ?? ''];
+        return in_array(ROLE_SPECIAL_USER, $assignedCodes, true);
     }
 
     /**
-     * Permission Check Helper
+     * Check if active logged-in user has Super Admin role
+     */
+    public static function isSuperAdmin(): bool
+    {
+        if (!self::isLoggedIn()) return false;
+        $assignedCodes = $_SESSION['role_codes'] ?? [$_SESSION['role_code'] ?? ''];
+        return in_array(ROLE_SUPER_ADMIN, $assignedCodes, true) 
+            || in_array('superadmin', $assignedCodes, true) 
+            || in_array('super_admin', $assignedCodes, true);
+    }
+
+    /**
+     * Permission Check Helper (Checks permissions across all assigned user roles)
      */
     public static function hasPermission(string $permissionCode): bool
     {
         if (!self::isLoggedIn()) return false;
 
-        $roleCode = $_SESSION['role_code'] ?? '';
-        if ($roleCode === ROLE_SUPER_ADMIN) {
+        // Super Admin bypasses all individual permission restrictions
+        if (self::isSuperAdmin()) {
             return true;
         }
 
-        $roleId = (int)($_SESSION['role_id'] ?? 0);
-        if ($roleId <= 0) return false;
+        // Collect all role IDs assigned to the user
+        $roleIds = [];
+        if (!empty($_SESSION['roles']) && is_array($_SESSION['roles'])) {
+            $roleIds = array_filter(array_map('intval', array_column($_SESSION['roles'], 'id')));
+        }
+        if (empty($roleIds)) {
+            $singleRoleId = (int)($_SESSION['role_id'] ?? 0);
+            if ($singleRoleId > 0) $roleIds = [$singleRoleId];
+        }
+
+        if (empty($roleIds)) return false;
 
         try {
+            $inList = implode(',', $roleIds);
             $row = Database::fetchOne("
                 SELECT rp.permission_id 
                 FROM role_permissions rp
                 JOIN permissions p ON rp.permission_id = p.id
-                WHERE rp.role_id = :role_id AND p.permission_code = :code
-            ", [':role_id' => $roleId, ':code' => $permissionCode]);
+                WHERE rp.role_id IN ({$inList}) AND p.permission_code = :code
+                LIMIT 1
+            ", [':code' => $permissionCode]);
 
             return $row !== null;
         } catch (Throwable $e) {
@@ -394,8 +472,13 @@ class Auth
     public static function getCurrentBranch(): ?array
     {
         if (!self::isLoggedIn()) return null;
+        $bId = self::getCurrentBranchId();
+        $b = Database::fetchOne("SELECT id, name, code FROM branches WHERE id = :id", [':id' => $bId]);
+        if ($b) {
+            return $b;
+        }
         return [
-            'id'   => $_SESSION['active_branch_id'] ?? null,
+            'id'   => $bId,
             'name' => $_SESSION['active_branch_name'] ?? 'Not Selected',
             'code' => $_SESSION['active_branch_code'] ?? 'N/A'
         ];
@@ -414,7 +497,7 @@ class Auth
      */
     public static function getCurrentBranchId(): int
     {
-        return (int)($_SESSION['active_branch_id'] ?? 1);
+        return (int)($_SESSION['branch_id'] ?? $_SESSION['active_branch_id'] ?? 1);
     }
 
 

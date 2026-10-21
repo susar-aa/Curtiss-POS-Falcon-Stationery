@@ -117,7 +117,7 @@ $db->query("DELETE FROM refunds WHERE reference_no LIKE 'REF-TEST-%'");
 $db->query("DELETE FROM sales_returns WHERE return_no LIKE 'RET-TEST-%'");
 
 // 1. Insert test Customer Credit Collection
-$testDateTime = $todayDate . ' 12:00:00';
+$testDateTime = date('Y-m-d H:i:s');
 
 $db->prepare("
     INSERT INTO customer_credit_ledger (customer_id, transaction_type, reference_no, invoice_total, amount_paid, amount_due, balance_after, notes, branch_id, user_id, created_at)

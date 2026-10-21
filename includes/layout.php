@@ -37,10 +37,13 @@ $isEmbedded = !empty($_GET['embedded']);
     <link rel="stylesheet" href="assets/css/components.css">
     <link rel="stylesheet" href="assets/css/nav.css">
     <link rel="stylesheet" href="assets/css/curtiss_select.css">
+    <?php if (!empty($GLOBALS['__dashboardPage']) || basename($_SERVER['SCRIPT_NAME'] ?? '') === 'dashboard.php'): ?>
+    <link rel="stylesheet" href="assets/css/dashboard.css">
+    <?php endif; ?>
     <script src="assets/js/pwa.js" defer></script>
     <?php if (!$isEmbedded) include APP_ROOT . '/includes/nav_shell.php'; ?>
 </head>
-<body <?= $isEmbedded ? 'style="margin:0; padding:0; background:#f8fafc; overflow:hidden;"' : '' ?>>
+<body class="<?= (!empty($GLOBALS['__dashboardPage']) || basename($_SERVER['SCRIPT_NAME'] ?? '') === 'dashboard.php') ? 'dashboard-page' : '' ?>" <?= $isEmbedded ? 'style="margin:0; padding:0; background:#f8fafc; overflow:hidden;"' : '' ?>>
     <div class="app-container" <?= $isEmbedded ? 'style="display:flex; flex-direction:column; width:100%; height:100vh; overflow:hidden; margin:0; padding:0;"' : '' ?>>
         <?php if (!$isEmbedded): ?>
             <?php include APP_ROOT . '/includes/sidebar.php'; ?>

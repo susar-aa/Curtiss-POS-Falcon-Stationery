@@ -18,7 +18,7 @@ if (!Auth::hasPermission('view_reports')) {
 $user = Auth::user();
 $userBranches = $_SESSION['user_branches'] ?? [];
 $canViewAllBranches = Auth::hasRole(ROLE_SUPER_ADMIN, ROLE_ADMIN);
-$canViewFinancials = Auth::hasPermission('view_financial_statements');
+$canViewFinancials = Auth::hasPermission('view_financial_statements') && !Auth::isSpecialUser();
 $canExport = Auth::hasPermission('export_reports');
 
 // Load dropdown options for filters
@@ -30,7 +30,8 @@ $suppliers = Database::fetchAll("SELECT id, name FROM suppliers WHERE status = '
 $defaultDateFrom = date('Y-m-01');
 $defaultDateTo   = date('Y-m-d');
 $activeReportType = $_GET['type'] ?? 'center';
-$selectedBranch = (!empty($_SESSION['all_branches_view'])) ? 'all' : ($user['active_branch_id'] ?? 'all');
+$branchId = (int)($_SESSION['branch_id'] ?? $_SESSION['active_branch_id'] ?? 1);
+$selectedBranch = (!empty($_SESSION['all_branches_view']) && $canViewAllBranches) ? 'all' : ($branchId ?: 'all');
 
 View::render('reports/index', [
     'user'               => $user,

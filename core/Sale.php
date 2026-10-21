@@ -118,12 +118,13 @@ class Sale
     }
 
     /**
-     * Fetch active lots for product in branch where remaining_quantity > 0
+     * Fetch active lots for product in branch where remaining_quantity > 0,
+     * or fallback to zero-stock lot for automatic POS billing.
      */
     public static function getAvailableLotsForProduct(int $productId, int $branchId): array
     {
         try {
-            return Database::fetchAll("
+            $lots = Database::fetchAll("
                 SELECT 
                     id AS lot_id,
                     lot_number,
@@ -145,6 +146,14 @@ class Sale
                   expiry_date ASC,
                   id ASC
             ", [':product_id' => $productId, ':branch_id' => $branchId]);
+
+            if (!empty($lots)) {
+                return $lots;
+            }
+
+            // Fallback for zero-stock / out-of-stock billing
+            $fallbackLot = self::getOrCreateFallbackLot($productId, $branchId);
+            return $fallbackLot ? [$fallbackLot] : [];
         } catch (Throwable $e) {
             Logger::error("Failed to fetch available lots for product #{$productId}: " . $e->getMessage(), $e);
             return [];
@@ -152,9 +161,184 @@ class Sale
     }
 
     /**
+     * Fetch existing lot or generate a fallback lot for zero-stock POS sales
+     */
+    public static function getOrCreateFallbackLot(int $productId, int $branchId): array
+    {
+        try {
+            $db = Database::getInstance()->getConnection();
+            $existing = Database::fetchOne("
+                SELECT 
+                    id AS lot_id,
+                    lot_number,
+                    product_id,
+                    branch_id,
+                    cost,
+                    selling_price,
+                    remaining_quantity,
+                    expiry_date,
+                    batch_number
+                FROM product_lots 
+                WHERE product_id = :pid AND branch_id = :bid 
+                ORDER BY id DESC LIMIT 1
+            ", [':pid' => $productId, ':bid' => $branchId]);
+
+            if ($existing) {
+                return $existing;
+            }
+
+            // Fetch product default pricing to initialize lot
+            $prod = Database::fetchOne("
+                SELECT cost, selling_price, name, sku, barcode 
+                FROM products 
+                WHERE id = :id
+            ", [':id' => $productId]);
+
+            $cost = $prod ? (float)$prod['cost'] : 0.00;
+            $price = $prod ? (float)$prod['selling_price'] : 0.00;
+            $lotNumber = 'LOT-AUTO-' . $productId . '-' . $branchId;
+
+            $stmt = $db->prepare("
+                INSERT INTO product_lots (lot_number, product_id, branch_id, cost, selling_price, initial_quantity, remaining_quantity, status, source_type)
+                VALUES (:lot_no, :pid, :bid, :cost, :price, 0.00, 0.00, 'active', 'adjustment')
+            ");
+            $stmt->execute([
+                ':lot_no' => $lotNumber,
+                ':pid'    => $productId,
+                ':bid'    => $branchId,
+                ':cost'   => $cost,
+                ':price'  => $price
+            ]);
+            $lotId = (int)$db->lastInsertId();
+
+            // Ensure branch_inventory record exists
+            $bi = Database::fetchOne("
+                SELECT id FROM branch_inventory WHERE branch_id = :bid AND product_id = :pid
+            ", [':bid' => $branchId, ':pid' => $productId]);
+            if (!$bi) {
+                $db->prepare("
+                    INSERT INTO branch_inventory (branch_id, product_id, quantity) 
+                    VALUES (:bid, :pid, 0.00)
+                ")->execute([':bid' => $branchId, ':pid' => $productId]);
+            }
+
+            return [
+                'lot_id'             => $lotId,
+                'lot_number'         => $lotNumber,
+                'product_id'         => $productId,
+                'branch_id'          => $branchId,
+                'cost'               => $cost,
+                'selling_price'      => $price,
+                'remaining_quantity' => 0.00,
+                'expiry_date'        => null,
+                'batch_number'       => null
+            ];
+        } catch (Throwable $e) {
+            Logger::error("Failed to get/create fallback lot for product #{$productId}: " . $e->getMessage(), $e);
+            return [
+                'lot_id'             => 0,
+                'lot_number'         => 'LOT-DEFAULT',
+                'product_id'         => $productId,
+                'branch_id'          => $branchId,
+                'cost'               => 0.00,
+                'selling_price'      => 0.00,
+                'remaining_quantity' => 0.00,
+                'expiry_date'        => null,
+                'batch_number'       => null
+            ];
+        }
+    }
+
+    /**
+     * Automatically replenish stock for out-of-stock POS items
+     * Ensures lot and branch_inventory have at least $requiredQuantity available.
+     */
+    public static function ensureLotStock(int $productId, int $lotId, int $branchId, float $requiredQuantity, int $userId): array
+    {
+        $db = Database::getInstance()->getConnection();
+
+        // 1. Fetch lot
+        $lot = null;
+        if ($lotId > 0) {
+            $lot = Database::fetchOne("
+                SELECT id, cost, selling_price, remaining_quantity, expiry_date 
+                FROM product_lots 
+                WHERE id = :lot_id AND branch_id = :branch_id FOR UPDATE
+            ", [':lot_id' => $lotId, ':branch_id' => $branchId]);
+        }
+
+        if (!$lot) {
+            $fallback = self::getOrCreateFallbackLot($productId, $branchId);
+            $lotId = (int)$fallback['lot_id'];
+            $lot = Database::fetchOne("
+                SELECT id, cost, selling_price, remaining_quantity, expiry_date 
+                FROM product_lots 
+                WHERE id = :lot_id AND branch_id = :branch_id FOR UPDATE
+            ", [':lot_id' => $lotId, ':branch_id' => $branchId]);
+        }
+
+        $currentLotQty = $lot ? (float)$lot['remaining_quantity'] : 0.00;
+        if ($currentLotQty < $requiredQuantity) {
+            $needed = round($requiredQuantity - $currentLotQty, 2);
+            $newLotStock = $currentLotQty + $needed;
+
+            // Update lot remaining_quantity and status
+            $db->prepare("
+                UPDATE product_lots 
+                SET remaining_quantity = :rem, status = 'active' 
+                WHERE id = :id
+            ")->execute([':rem' => $newLotStock, ':id' => $lotId]);
+
+            // Update branch_inventory
+            $bi = Database::fetchOne("
+                SELECT quantity FROM branch_inventory 
+                WHERE branch_id = :b AND product_id = :p FOR UPDATE
+            ", [':b' => $branchId, ':p' => $productId]);
+
+            $newBiStock = ($bi ? (float)$bi['quantity'] : 0.00) + $needed;
+            if ($bi) {
+                $db->prepare("
+                    UPDATE branch_inventory SET quantity = :q 
+                    WHERE branch_id = :b AND product_id = :p
+                ")->execute([':q' => $newBiStock, ':b' => $branchId, ':p' => $productId]);
+            } else {
+                $db->prepare("
+                    INSERT INTO branch_inventory (branch_id, product_id, quantity) 
+                    VALUES (:b, :p, :q)
+                ")->execute([':b' => $branchId, ':p' => $productId, ':q' => $newBiStock]);
+            }
+
+            // Record stock_ledger entry
+            $db->prepare("
+                INSERT INTO stock_ledger (branch_id, product_id, lot_id, movement_type, quantity, balance_after, reference_no, notes, user_id)
+                VALUES (:b, :p, :l, 'adjustment', :qty, :bal, :ref, :notes, :uid)
+            ")->execute([
+                ':b'     => $branchId,
+                ':p'     => $productId,
+                ':l'     => $lotId,
+                ':qty'   => $needed,
+                ':bal'   => $newBiStock,
+                ':ref'   => 'POS-AUTO-STOCK',
+                ':notes' => "Automatic POS stock replenishment for zero-stock product #{$productId}",
+                ':uid'   => $userId
+            ]);
+
+            $lot['remaining_quantity'] = $newLotStock;
+        }
+
+        return [
+            'lot_id'             => $lotId,
+            'cost'               => (float)($lot['cost'] ?? 0),
+            'selling_price'      => (float)($lot['selling_price'] ?? 0),
+            'remaining_quantity' => (float)$lot['remaining_quantity'],
+            'expiry_date'        => $lot['expiry_date'] ?? null
+        ];
+    }
+
+    /**
      * Search products for POS cashier interface with lot auto-selection capability
      */
-    public static function searchProducts(int $branchId, string $query): array
+    public static function searchProducts(int $branchId, string $query, bool $inStockOnly = false): array
     {
         try {
             $query = trim($query);
@@ -162,15 +346,18 @@ class Sale
                 return [];
             }
 
-            $params = [':branch_id' => $branchId];
+            $params = [
+                ':branch_id'      => $branchId,
+                ':branch_id_lots' => $branchId
+            ];
             $where = ["p.deleted_at IS NULL AND p.status = 'active'"];
 
-            // 1. Check for exact barcode or SKU match first (regardless of length or format)
+            // 1. Check for exact barcode or SKU match first using indexed lookup
             $exactProduct = Database::fetchOne("
                 SELECT p.id 
                 FROM products p 
                 WHERE p.deleted_at IS NULL AND p.status = 'active'
-                  AND (LOWER(p.barcode) = LOWER(:bc) OR LOWER(p.sku) = LOWER(:sku))
+                  AND (p.barcode = :bc OR p.sku = :sku)
                 LIMIT 1
             ", [':bc' => $query, ':sku' => $query]);
 
@@ -178,16 +365,24 @@ class Sale
                 $where[] = "p.id = :exact_id";
                 $params[':exact_id'] = (int)$exactProduct['id'];
             } else {
-                $where[] = "(p.barcode LIKE :q1 OR p.sku LIKE :q2 OR p.name LIKE :q3 OR b.name LIKE :q4 OR c.name LIKE :q5)";
+                $where[] = "(
+                    p.barcode LIKE :q1 OR 
+                    p.sku LIKE :q2 OR 
+                    p.name LIKE :q3 OR 
+                    b.name LIKE :q4 OR 
+                    c.name LIKE :q5 OR 
+                    CAST(p.selling_price AS CHAR) LIKE :q6 OR 
+                    CONCAT('LKR ', FORMAT(p.selling_price, 2)) LIKE :q7 OR 
+                    CONCAT('Rs. ', FORMAT(p.selling_price, 2)) LIKE :q8
+                )";
                 $term = '%' . $query . '%';
-                $params[':q1'] = $term;
-                $params[':q2'] = $term;
-                $params[':q3'] = $term;
-                $params[':q4'] = $term;
-                $params[':q5'] = $term;
+                for ($i = 1; $i <= 8; $i++) {
+                    $params[":q{$i}"] = $term;
+                }
             }
 
             $whereSql = implode(' AND ', $where);
+            $havingSql = $inStockOnly ? "HAVING (COALESCE(SUM(pl.remaining_quantity), 0) > 0 OR COALESCE(MAX(bi.quantity), 0) > 0)" : "";
 
             $products = Database::fetchAll("
                 SELECT 
@@ -198,20 +393,69 @@ class Sale
                     p.cost AS default_cost,
                     p.selling_price AS default_price,
                     p.has_expiry,
-                    b.name AS brand_name,
-                    c.name AS category_name,
-                    COALESCE(bi.quantity, 0.00) AS total_branch_stock
+                    MAX(b.name) AS brand_name,
+                    MAX(c.name) AS category_name,
+                    COALESCE(MAX(bi.quantity), 0.00) AS total_branch_stock
                 FROM products p
-                JOIN brands b ON p.brand_id = b.id
-                JOIN categories c ON p.category_id = c.id
+                LEFT JOIN brands b ON p.brand_id = b.id
+                LEFT JOIN categories c ON p.category_id = c.id
                 LEFT JOIN branch_inventory bi ON p.id = bi.product_id AND bi.branch_id = :branch_id
+                LEFT JOIN product_lots pl ON p.id = pl.product_id AND pl.branch_id = :branch_id_lots 
+                     AND pl.remaining_quantity > 0 AND pl.status = 'active' 
+                     AND (pl.expiry_date IS NULL OR pl.expiry_date >= CURRENT_DATE())
                 WHERE $whereSql
+                GROUP BY p.id
+                $havingSql
                 ORDER BY p.name ASC
                 LIMIT 20
             ", $params);
 
-            foreach ($products as &$prod) {
-                $lots = self::getAvailableLotsForProduct((int)$prod['product_id'], $branchId);
+            // Batch fetch available active lots for all returned products (Prevents N+1 query loop)
+            $productIds = array_column($products, 'product_id');
+            $lotsByProduct = [];
+            if (!empty($productIds)) {
+                $inSql = implode(',', array_map('intval', $productIds));
+                $allLots = Database::fetchAll("
+                    SELECT 
+                        id AS lot_id,
+                        lot_number,
+                        product_id,
+                        branch_id,
+                        cost,
+                        selling_price,
+                        remaining_quantity,
+                        expiry_date,
+                        batch_number
+                    FROM product_lots
+                    WHERE product_id IN ($inSql) 
+                      AND branch_id = :branch_id 
+                      AND remaining_quantity > 0 
+                      AND status = 'active'
+                      AND (expiry_date IS NULL OR expiry_date >= CURRENT_DATE())
+                    ORDER BY 
+                      CASE WHEN expiry_date IS NOT NULL THEN 0 ELSE 1 END ASC,
+                      expiry_date ASC,
+                      id ASC
+                ", [':branch_id' => $branchId]);
+
+                foreach ($allLots as $l) {
+                    $lotsByProduct[$l['product_id']][] = $l;
+                }
+            }
+
+            $filteredProducts = [];
+            foreach ($products as $prod) {
+                $pid = (int)$prod['product_id'];
+                $lots = $lotsByProduct[$pid] ?? [];
+
+                // If no lots with positive stock exist, attach fallback lot for zero-stock POS billing
+                if (empty($lots)) {
+                    $fbLot = self::getOrCreateFallbackLot($pid, $branchId);
+                    if ($fbLot) {
+                        $lots = [$fbLot];
+                    }
+                }
+
                 $prod['lots'] = $lots;
                 $prod['active_lots_count'] = count($lots);
                 $prod['auto_selected_lot'] = (count($lots) === 1) ? $lots[0] : null;
@@ -223,10 +467,18 @@ class Sale
                         $totalLotStock += (float)($lot['remaining_quantity'] ?? 0);
                     }
                     $prod['total_branch_stock'] = $totalLotStock;
+                } else {
+                    $prod['total_branch_stock'] = (float)($prod['total_branch_stock'] ?? 0);
                 }
+
+                if ($inStockOnly && $prod['total_branch_stock'] <= 0.0001) {
+                    continue; // Skip out-of-stock products only if strictly requested
+                }
+
+                $filteredProducts[] = $prod;
             }
 
-            return $products;
+            return $filteredProducts;
         } catch (Throwable $e) {
             Logger::error("POS product search error: " . $e->getMessage(), $e);
             return [];
@@ -243,8 +495,8 @@ class Sale
             $db->beginTransaction();
 
             $saleId = !empty($data['sale_id']) ? (int)$data['sale_id'] : null;
-            $customerId = !empty($data['customer_id']) ? (int)$data['customer_id'] : 1; // Default Walk-in
-            $salesRepId = !empty($data['sales_rep_id']) ? (int)$data['sales_rep_id'] : null;
+            $customerId = 1; // Default Walk-in
+            $salesRepId = null; // No sales rep attribution
             $heldNotes = !empty($data['held_notes']) ? trim($data['held_notes']) : 'POS Cashier Parked Invoice';
             $items = $data['items'] ?? [];
 
@@ -279,11 +531,12 @@ class Sale
                 ", [':lot_id' => $lotId, ':branch_id' => $branchId]);
 
                 if (!$lot || (float)$lot['remaining_quantity'] < $quantity) {
-                    $available = $lot ? (float)$lot['remaining_quantity'] : 0;
-                    $db->rollBack();
-                    return [
-                        'success' => false, 
-                        'message' => "Insufficient branch lot stock for lot #{$lotId}. Requested: {$quantity}, Available: {$available}."
+                    $ensured = self::ensureLotStock($productId, $lotId, $branchId, $quantity, $userId);
+                    $lotId = $ensured['lot_id'];
+                    $lot = [
+                        'cost'               => $ensured['cost'],
+                        'remaining_quantity' => $ensured['remaining_quantity'],
+                        'selling_price'      => $unitPrice
                     ];
                 }
 
@@ -298,17 +551,17 @@ class Sale
                 $totalCost += $lineCost;
 
                 $processedItems[] = [
-                    'product_id'     => $productId,
-                    'lot_id'         => $lotId,
-                    'quantity'       => $quantity,
-                    'original_price' => $originalPrice,
-                    'unit_price'     => $unitPrice,
-                    'unit_cost'      => $unitCost,
-                    'discount_type'  => $itemDiscount['type'],
-                    'discount_value' => $discountStr,
-                    'discount_amount'=> $itemDiscount['total_discount'],
-                    'line_total'     => $lineTotal,
-                    'line_cost'      => $lineCost
+                    'product_id'       => $productId,
+                    'lot_id'           => $lotId,
+                    'quantity'         => $quantity,
+                    'original_price'   => $originalPrice,
+                    'unit_price'       => $unitPrice,
+                    'unit_cost'        => $unitCost,
+                    'discount_type'    => $itemDiscount['type'],
+                    'discount_value'   => $discountStr,
+                    'discount_amount'  => $itemDiscount['total_discount'],
+                    'line_total'       => $lineTotal,
+                    'line_cost'        => $lineCost
                 ];
 
                 // Audit manual price override if price changed
@@ -321,9 +574,18 @@ class Sale
                 }
             }
 
-            // Invoice level discount
+            // Invoice level discount - exclude items with item-wise discount
+            $eligibleSubtotal = 0.00;
+            foreach ($processedItems as $pi) {
+                $hasItemDisc = !empty($pi['discount_value']) || (float)($pi['discount_amount'] ?? 0) > 0;
+                if (!$hasItemDisc) {
+                    $eligibleSubtotal += (float)$pi['line_total'];
+                }
+            }
+            $eligibleSubtotal = max(0.00, round($eligibleSubtotal, 2));
+
             $invoiceDiscountStr = $data['discount_value'] ?? '';
-            $invDiscount = self::parseDiscount($invoiceDiscountStr, $subtotal);
+            $invDiscount = self::parseDiscount($invoiceDiscountStr, $eligibleSubtotal);
             $totalAmount = round($subtotal - $invDiscount['total_discount'], 2);
 
             if ($saleId) {
@@ -575,17 +837,9 @@ class Sale
             $db->beginTransaction();
 
             $saleId = !empty($data['sale_id']) ? (int)$data['sale_id'] : null;
-            $customerId = !empty($data['customer_id']) ? (int)$data['customer_id'] : 1;
-            $salesRepId = !empty($data['sales_rep_id']) ? (int)$data['sales_rep_id'] : null;
+            $customerId = 1; // Default Walk-in
+            $salesRepId = null; // No sales rep attribution
             $items = $data['items'] ?? [];
-
-            if ($customerId > 1) {
-                $cust = Database::fetchOne("SELECT name, status FROM customers WHERE id = :id AND deleted_at IS NULL", [':id' => $customerId]);
-                if (!$cust || $cust['status'] === 'inactive') {
-                    $db->rollBack();
-                    return ['success' => false, 'message' => "Customer '" . ($cust['name'] ?? 'Selected') . "' is inactive. Cannot create sales for inactive customers."];
-                }
-            }
 
             if (empty($items)) {
                 $db->rollBack();
@@ -595,6 +849,24 @@ class Sale
             $subtotal = 0.00;
             $totalCost = 0.00;
             $processedItems = [];
+
+            // Batch fetch all product lots in a single query (prevents N+1 query loop on multi-item carts)
+            $lotIds = array_unique(array_filter(array_map(function($it) {
+                return (int)($it['lot_id'] ?? 0);
+            }, $items)));
+
+            $lotsById = [];
+            if (!empty($lotIds)) {
+                $inSql = implode(',', array_map('intval', $lotIds));
+                $lotsRows = Database::fetchAll("
+                    SELECT id, cost, remaining_quantity, expiry_date 
+                    FROM product_lots 
+                    WHERE id IN ($inSql) AND branch_id = :branch_id AND status = 'active'
+                ", [':branch_id' => $branchId]);
+                foreach ($lotsRows as $lr) {
+                    $lotsById[(int)$lr['id']] = $lr;
+                }
+            }
 
             foreach ($items as $item) {
                 $productId = (int)$item['product_id'];
@@ -609,25 +881,24 @@ class Sale
                     return ['success' => false, 'message' => 'Quantity must be greater than zero.'];
                 }
 
-                $lot = Database::fetchOne("
-                    SELECT cost, remaining_quantity, expiry_date 
-                    FROM product_lots 
-                    WHERE id = :lot_id AND branch_id = :branch_id AND status = 'active'
-                ", [':lot_id' => $lotId, ':branch_id' => $branchId]);
+                $lot = $lotsById[$lotId] ?? null;
 
                 if (!$lot || (float)$lot['remaining_quantity'] < $quantity) {
-                    $available = $lot ? (float)$lot['remaining_quantity'] : 0;
-                    $db->rollBack();
-                    return [
-                        'success' => false, 
-                        'message' => "Stock lot limit exceeded for item ID {$productId}. Requested: {$quantity}, Available: {$available}."
+                    $ensured = self::ensureLotStock($productId, $lotId, $branchId, $quantity, $userId);
+                    $lotId = $ensured['lot_id'];
+                    $lot = [
+                        'id'                 => $lotId,
+                        'cost'               => $ensured['cost'],
+                        'remaining_quantity' => $ensured['remaining_quantity'],
+                        'expiry_date'        => $ensured['expiry_date']
                     ];
+                    $lotsById[$lotId] = $lot;
                 }
 
                 if (!empty($lot['expiry_date']) && $lot['expiry_date'] < date('Y-m-d')) {
                     $db->rollBack();
                     return [
-                        'success' => false,
+                        'success' => false, 
                         'message' => "Selected lot for product ID {$productId} expired on {$lot['expiry_date']} and cannot be sold."
                     ];
                 }
@@ -635,31 +906,50 @@ class Sale
                 $unitCost = (float)$lot['cost'];
                 $lineSubtotal = round($unitPrice * $quantity, 2);
                 $itemDiscount = self::parseDiscount($discountStr, $lineSubtotal);
+                $itemPromoDisc = (float)($item['promo_discount_amount'] ?? 0);
+                $appliedRuleId = !empty($item['applied_rule_id']) ? (int)$item['applied_rule_id'] : null;
+                $promoName     = !empty($item['promo_name']) ? trim($item['promo_name']) : null;
 
-                $lineTotal = round($lineSubtotal - $itemDiscount['total_discount'], 2);
+                $lineTotal = round(max(0.00, $lineSubtotal - $itemPromoDisc - $itemDiscount['total_discount']), 2);
                 $lineCost = round($unitCost * $quantity, 2);
 
                 $subtotal += $lineTotal;
                 $totalCost += $lineCost;
 
                 $processedItems[] = [
-                    'product_id'     => $productId,
-                    'lot_id'         => $lotId,
-                    'quantity'       => $quantity,
-                    'original_price' => $originalPrice,
-                    'unit_price'     => $unitPrice,
-                    'unit_cost'      => $unitCost,
-                    'discount_type'  => $itemDiscount['type'],
-                    'discount_value' => $discountStr,
-                    'discount_amount'=> $itemDiscount['total_discount'],
-                    'line_total'     => $lineTotal,
-                    'line_cost'      => $lineCost
+                    'product_id'            => $productId,
+                    'lot_id'                => $lotId,
+                    'quantity'              => $quantity,
+                    'original_price'        => $originalPrice,
+                    'unit_price'            => $unitPrice,
+                    'unit_cost'             => $unitCost,
+                    'discount_type'         => $itemDiscount['type'],
+                    'discount_value'        => $discountStr,
+                    'discount_amount'       => $itemDiscount['total_discount'],
+                    'applied_rule_id'       => $appliedRuleId,
+                    'promo_discount_amount' => $itemPromoDisc,
+                    'promo_name'            => $promoName,
+                    'line_total'            => $lineTotal,
+                    'line_cost'             => $lineCost
                 ];
             }
 
+            // Invoice level discount - exclude items with item-wise discount
+            $eligibleSubtotal = 0.00;
+            foreach ($processedItems as $pi) {
+                $hasItemDisc = !empty($pi['discount_value']) || (float)($pi['discount_amount'] ?? 0) > 0;
+                if (!$hasItemDisc) {
+                    $eligibleSubtotal += (float)$pi['line_total'];
+                }
+            }
+            $eligibleSubtotal = max(0.00, round($eligibleSubtotal, 2));
+
             $invoiceDiscountStr = $data['discount_value'] ?? '';
-            $invDiscount = self::parseDiscount($invoiceDiscountStr, $subtotal);
-            $totalAmount = round($subtotal - $invDiscount['total_discount'], 2);
+            $invDiscount = self::parseDiscount($invoiceDiscountStr, $eligibleSubtotal);
+            $invoicePromoDisc = (float)($data['invoice_promo_discount'] ?? 0);
+            $totalItemPromoDisc = array_sum(array_column($processedItems, 'promo_discount_amount'));
+            $totalPromoDisc = (float)($data['promo_discount_amount'] ?? ($totalItemPromoDisc + $invoicePromoDisc));
+            $totalAmount = round(max(0.00, $subtotal - $invDiscount['total_discount'] - $invoicePromoDisc), 2);
 
             if ($saleId) {
                 $sale = Database::fetchOne("SELECT invoice_no FROM sales WHERE id = :id AND branch_id = :branch_id", [':id' => $saleId, ':branch_id' => $branchId]);
@@ -678,6 +968,7 @@ class Sale
                         discount_type = :discount_type,
                         discount_value = :discount_value,
                         discount_amount = :discount_amount,
+                        promo_discount_amount = :promo_discount_amount,
                         roundup_amount = :roundup_amount,
                         total_amount = :total_amount,
                         total_cost = :total_cost,
@@ -686,17 +977,18 @@ class Sale
                 ");
 
                 $stmt->execute([
-                    ':customer_id'    => $customerId,
-                    ':sales_rep_id'   => $salesRepId,
-                    ':user_id'        => $userId,
-                    ':subtotal'       => $subtotal,
-                    ':discount_type'  => $invDiscount['type'],
-                    ':discount_value' => $invoiceDiscountStr,
-                    ':discount_amount'=> $invDiscount['discount_amount'],
-                    ':roundup_amount' => $invDiscount['roundup_amount'],
-                    ':total_amount'   => $totalAmount,
-                    ':total_cost'     => $totalCost,
-                    ':id'             => $saleId
+                    ':customer_id'           => $customerId,
+                    ':sales_rep_id'          => $salesRepId,
+                    ':user_id'               => $userId,
+                    ':subtotal'              => $subtotal,
+                    ':discount_type'         => $invDiscount['type'],
+                    ':discount_value'        => $invoiceDiscountStr,
+                    ':discount_amount'       => $invDiscount['discount_amount'],
+                    ':promo_discount_amount' => $totalPromoDisc,
+                    ':roundup_amount'        => $invDiscount['roundup_amount'],
+                    ':total_amount'          => $totalAmount,
+                    ':total_cost'            => $totalCost,
+                    ':id'                    => $saleId
                 ]);
 
                 $db->prepare("DELETE FROM sale_items WHERE sale_id = :sale_id")->execute([':sale_id' => $saleId]);
@@ -705,28 +997,29 @@ class Sale
                 $stmt = $db->prepare("
                     INSERT INTO sales (
                         invoice_no, branch_id, customer_id, sales_rep_id, user_id, subtotal, 
-                        discount_type, discount_value, discount_amount, roundup_amount, 
+                        discount_type, discount_value, discount_amount, promo_discount_amount, roundup_amount, 
                         total_amount, total_cost, status
                     ) VALUES (
                         :invoice_no, :branch_id, :customer_id, :sales_rep_id, :user_id, :subtotal,
-                        :discount_type, :discount_value, :discount_amount, :roundup_amount,
+                        :discount_type, :discount_value, :discount_amount, :promo_discount_amount, :roundup_amount,
                         :total_amount, :total_cost, 'draft'
                     )
                 ");
 
                 $stmt->execute([
-                    ':invoice_no'     => $invoiceNo,
-                    ':branch_id'      => $branchId,
-                    ':customer_id'    => $customerId,
-                    ':sales_rep_id'   => $salesRepId,
-                    ':user_id'        => $userId,
-                    ':subtotal'       => $subtotal,
-                    ':discount_type'  => $invDiscount['type'],
-                    ':discount_value' => $invoiceDiscountStr,
-                    ':discount_amount'=> $invDiscount['discount_amount'],
-                    ':roundup_amount' => $invDiscount['roundup_amount'],
-                    ':total_amount'   => $totalAmount,
-                    ':total_cost'     => $totalCost
+                    ':invoice_no'            => $invoiceNo,
+                    ':branch_id'             => $branchId,
+                    ':customer_id'           => $customerId,
+                    ':sales_rep_id'          => $salesRepId,
+                    ':user_id'               => $userId,
+                    ':subtotal'              => $subtotal,
+                    ':discount_type'         => $invDiscount['type'],
+                    ':discount_value'        => $invoiceDiscountStr,
+                    ':discount_amount'       => $invDiscount['discount_amount'],
+                    ':promo_discount_amount' => $totalPromoDisc,
+                    ':roundup_amount'        => $invDiscount['roundup_amount'],
+                    ':total_amount'          => $totalAmount,
+                    ':total_cost'            => $totalCost
                 ]);
 
                 $saleId = (int)$db->lastInsertId();
@@ -735,10 +1028,12 @@ class Sale
             $itemStmt = $db->prepare("
                 INSERT INTO sale_items (
                     sale_id, product_id, lot_id, quantity, original_price, unit_price, 
-                    unit_cost, discount_type, discount_value, discount_amount, line_total, line_cost
+                    unit_cost, discount_type, discount_value, discount_amount,
+                    applied_rule_id, promo_discount_amount, promo_name, line_total, line_cost
                 ) VALUES (
                     :sale_id, :product_id, :lot_id, :quantity, :original_price, :unit_price,
-                    :unit_cost, :discount_type, :discount_value, :discount_amount, :line_total, :line_cost
+                    :unit_cost, :discount_type, :discount_value, :discount_amount,
+                    :applied_rule_id, :promo_discount_amount, :promo_name, :line_total, :line_cost
                 )
             ");
 
@@ -769,7 +1064,7 @@ class Sale
 
     /**
      * Atomic Sale Finalization (Stage 7)
-     * Revalidates stock, posts stock ledger, processes customer credit, redeems gift vouchers, creates payment records.
+     * Revalidates stock, posts stock ledger, processes customer credit, creates payment records.
      * All enclosed in ONE strict database transaction with automatic rollback on failure.
      */
     public static function finalizeSale(int $saleId, array $payments, int $userId, int $branchId): array
@@ -793,11 +1088,6 @@ class Sale
                 return ['success' => false, 'message' => 'Sale transaction record not found.'];
             }
 
-            if ($sale['customer_id'] > 1 && $sale['customer_status'] === 'inactive') {
-                if ($db->inTransaction()) $db->rollBack();
-                return ['success' => false, 'message' => "Customer '{$sale['customer_name']}' is inactive. Cannot complete sales for inactive customers."];
-            }
-
             if ($sale['status'] === 'completed') {
                 if ($db->inTransaction()) $db->rollBack();
                 return ['success' => false, 'message' => 'Double-finalization prevented: Sale is already completed.'];
@@ -813,43 +1103,44 @@ class Sale
 
             $totalPayable = (float)$sale['total_amount'];
             $customerId = (int)$sale['customer_id'];
-            $isWalkin = (int)$sale['is_walkin'] === 1 || $customerId === 1;
+            $isWalkin = true;
 
             if (empty($payments)) {
                 if ($db->inTransaction()) $db->rollBack();
                 return ['success' => false, 'message' => 'No payment allocation provided.'];
             }
 
-            // 2. Validate Payment Allocations & Gift Vouchers
-            $validMethods = ['Cash', 'Card', 'Bank', 'Credit', 'Voucher', 'Koko'];
+            // 2. Validate Payment Allocations
+            $validMethods = ['Cash', 'Card', 'Bank'];
             $allocatedTotal = 0.00;
             $cashAllocated = 0.00;
             $creditAllocated = 0.00;
             $nonCashTotal = 0.00;
             $processedPayments = [];
-            $usedVoucherCodes = [];
 
-            foreach ($payments as $p) {
+            $appliedPromos = $payments['applied_promotions'] ?? [];
+            if (isset($payments['payments']) && is_array($payments['payments'])) {
+                $payments = $payments['payments'];
+            }
+
+            foreach ($payments as $k => $p) {
+                if ($k === 'applied_promotions' || $k === 'sales_rep_id' || !is_array($p)) {
+                    continue;
+                }
                 $rawMethod = trim($p['payment_method'] ?? '');
                 $methodMap = [
                     'cash'          => 'Cash',
                     'card'          => 'Card',
                     'bank'          => 'Bank',
                     'bank_transfer' => 'Bank',
-                    'cheque'        => 'Bank',
-                    'credit'        => 'Credit',
-                    'on_account'    => 'Credit',
-                    'voucher'       => 'Voucher',
-                    'koko'          => 'Koko',
-                    'kokopay'       => 'Koko',
-                    'koko_pay'      => 'Koko'
+                    'cheque'        => 'Bank'
                 ];
                 $methodKey = strtolower($rawMethod);
                 $method = $methodMap[$methodKey] ?? ucfirst($methodKey);
 
                 if (!in_array($method, $validMethods, true)) {
                     if ($db->inTransaction()) $db->rollBack();
-                    return ['success' => false, 'message' => "Invalid payment method '{$rawMethod}'. Allowed methods: Cash, Card, Bank, Credit, Voucher, Koko."];
+                    return ['success' => false, 'message' => "Invalid payment method '{$rawMethod}'. Allowed methods: Cash, Card, Bank."];
                 }
 
                 $amount = (float)($p['amount'] ?? 0);
@@ -861,51 +1152,7 @@ class Sale
                     return ['success' => false, 'message' => "Invalid payment amount for method {$method}."];
                 }
 
-                // Credit Payment Rule: Requires registered customer & within available credit limit
-                if ($method === 'Credit') {
-                    if ($isWalkin) {
-                        if ($db->inTransaction()) $db->rollBack();
-                        return ['success' => false, 'message' => 'Credit payment requires a registered customer. Walk-in Customer cannot receive credit.'];
-                    }
-
-                    $custRow = Database::fetchOne("
-                        SELECT id, name, credit_limit, credit_balance, status 
-                        FROM customers 
-                        WHERE id = :id FOR UPDATE
-                    ", [':id' => $customerId]);
-
-                    if (!$custRow) {
-                        if ($db->inTransaction()) $db->rollBack();
-                        return ['success' => false, 'message' => 'Customer record not found for credit allocation.'];
-                    }
-
-                    $cLimit = (float)$custRow['credit_limit'];
-                    $cBalance = (float)$custRow['credit_balance'];
-                    $cAvailable = max(0.00, round($cLimit - $cBalance, 2));
-
-                    if ($cLimit <= 0.00) {
-                        if ($db->inTransaction()) $db->rollBack();
-                        return [
-                            'success' => false, 
-                            'message' => "Customer '{$custRow['name']}' has no credit facility (Credit Limit: LKR 0.00). Credit billing is not permitted."
-                        ];
-                    }
-
-                    if (round($creditAllocated + $amount, 2) > $cAvailable) {
-                        if ($db->inTransaction()) $db->rollBack();
-                        $formattedAvail = number_format($cAvailable, 2);
-                        $formattedLimit = number_format($cLimit, 2);
-                        $formattedBal = number_format($cBalance, 2);
-                        $formattedReq = number_format($creditAllocated + $amount, 2);
-                        return [
-                            'success' => false, 
-                            'message' => "Credit limit exceeded for customer '{$custRow['name']}'. Available Credit: LKR {$formattedAvail} (Limit: LKR {$formattedLimit}, Outstanding: LKR {$formattedBal}). Cannot allocate LKR {$formattedReq}."
-                        ];
-                    }
-
-                    $creditAllocated += $amount;
-                    $nonCashTotal += $amount;
-                } elseif ($method === 'Card' || $method === 'Koko') {
+                if ($method === 'Card') {
                     $nonCashTotal += $amount;
                 } elseif ($method === 'Bank') {
                     if (empty($bankAccountId)) {
@@ -926,63 +1173,6 @@ class Sale
                     $nonCashTotal += $amount;
                 }
 
-                $voucherId = null;
-                // Gift Voucher Rule: Validate voucher code, expiration, status, duplicate code & remaining payable
-                if ($method === 'Voucher') {
-                    $codeKey = strtolower($refNo);
-                    if (empty($refNo)) {
-                        if ($db->inTransaction()) $db->rollBack();
-                        return ['success' => false, 'message' => 'Gift voucher code is required.'];
-                    }
-
-                    if (in_array($codeKey, $usedVoucherCodes, true)) {
-                        if ($db->inTransaction()) $db->rollBack();
-                        return ['success' => false, 'message' => "Duplicate gift voucher '{$refNo}' specified in the same transaction."];
-                    }
-
-                    require_once __DIR__ . '/GiftVoucher.php';
-                    $valRes = GiftVoucher::validateVoucher($refNo, 0.00);
-                    if (!$valRes['valid']) {
-                        if ($db->inTransaction()) $db->rollBack();
-                        return ['success' => false, 'message' => "Gift Voucher Error: " . $valRes['message']];
-                    }
-
-                    $voucherId = (int)$valRes['voucher']['id'];
-                    $voucherAmount = (float)$valRes['voucher']['amount'];
-
-                    if (round($voucherAmount, 2) !== round($amount, 2)) {
-                        if ($db->inTransaction()) $db->rollBack();
-                        return ['success' => false, 'message' => "Gift Voucher amount mismatch for '{$refNo}'. Voucher fixed value is LKR " . number_format($voucherAmount, 2) . "."];
-                    }
-
-                    $remainingPayableBeforeVoucher = round($totalPayable - $nonCashTotal, 2);
-                    if ($voucherAmount > $remainingPayableBeforeVoucher) {
-                        if ($db->inTransaction()) $db->rollBack();
-                        return [
-                            'success' => false, 
-                            'message' => "Voucher value (LKR " . number_format($voucherAmount, 2) . ") exceeds remaining invoice payable (LKR " . number_format($remainingPayableBeforeVoucher, 2) . "). Fixed-value vouchers cannot be partially consumed or converted to cash change."
-                        ];
-                    }
-
-                    $usedVoucherCodes[] = $codeKey;
-                    $nonCashTotal += $amount;
-
-                    // Mark voucher redeemed inside this transaction
-                    $vStmt = $db->prepare("
-                        UPDATE gift_vouchers SET 
-                            status = 'redeemed', 
-                            redeemed_sale_id = :sale_id, 
-                            redeemed_at = CURRENT_TIMESTAMP 
-                        WHERE id = :vid AND status = 'active'
-                    ");
-                    $vStmt->execute([':sale_id' => $saleId, ':vid' => $voucherId]);
-
-                    if ($vStmt->rowCount() === 0) {
-                        if ($db->inTransaction()) $db->rollBack();
-                        return ['success' => false, 'message' => "Gift Voucher '{$refNo}' could not be redeemed. It may already be redeemed or inactive."];
-                    }
-                }
-
                 if ($method === 'Cash') {
                     $cashAllocated += $amount;
                 }
@@ -994,12 +1184,11 @@ class Sale
                     'amount'          => $amount,
                     'reference_no'    => $refNo,
                     'bank_account_id' => $bankAccountId,
-                    'voucher_id'      => $voucherId,
                     'processor_id'    => !empty($p['processor_id']) ? (int)$p['processor_id'] : null
                 ];
             }
 
-            // Check non-cash overpayment rule (Card, Bank, Credit, Voucher overpayment is rejected)
+            // Check non-cash overpayment rule (Card, Bank, Credit overpayment is rejected)
             if (round($nonCashTotal, 2) > round($totalPayable, 2)) {
                 if ($db->inTransaction()) $db->rollBack();
                 return ['success' => false, 'message' => "Non-cash payment total (LKR " . number_format($nonCashTotal, 2) . ") exceeds total invoice payable (LKR " . number_format($totalPayable, 2) . "). Overpayment is only permitted for Cash."];
@@ -1029,6 +1218,7 @@ class Sale
             }
 
             foreach ($items as $item) {
+
                 $lotId = (int)$item['lot_id'];
                 $productId = (int)$item['product_id'];
                 $qty = (float)$item['quantity'];
@@ -1041,9 +1231,12 @@ class Sale
                 ", [':lot_id' => $lotId, ':branch_id' => $branchId]);
 
                 if (!$lot || (float)$lot['remaining_quantity'] < $qty) {
-                    $avail = $lot ? (float)$lot['remaining_quantity'] : 0;
-                    if ($db->inTransaction()) $db->rollBack();
-                    return ['success' => false, 'message' => "Insufficient lot stock for product #{$productId}. Required: {$qty}, Available: {$avail}."];
+                    $ensured = self::ensureLotStock($productId, $lotId, $branchId, $qty, $userId);
+                    $lotId = $ensured['lot_id'];
+                    $lot = [
+                        'remaining_quantity' => $ensured['remaining_quantity'],
+                        'expiry_date'        => $ensured['expiry_date']
+                    ];
                 }
 
                 if (!empty($lot['expiry_date']) && $lot['expiry_date'] < date('Y-m-d')) {
@@ -1070,29 +1263,6 @@ class Sale
                     UPDATE branch_inventory SET quantity = :qty WHERE branch_id = :branch_id AND product_id = :product_id
                 ")->execute([':qty' => $newBiQty, ':branch_id' => $branchId, ':product_id' => $productId]);
 
-                // Auto-deactivate product if total stock drops to 0 upon billing
-                $stockRow = Database::fetchOne("
-                    SELECT COALESCE(SUM(quantity), 0) AS total_stock 
-                    FROM branch_inventory 
-                    WHERE product_id = :product_id
-                ", [':product_id' => $productId]);
-
-                $totalStock = (float)($stockRow['total_stock'] ?? 0);
-                if ($totalStock <= 0) {
-                    $db->prepare("
-                        UPDATE products 
-                        SET status = 'inactive', updated_at = CURRENT_TIMESTAMP 
-                        WHERE id = :product_id AND status = 'active'
-                    ")->execute([':product_id' => $productId]);
-
-                    Audit::log('PRODUCT_AUTO_DEACTIVATED', 'products', (string)$productId, [
-                        'status' => 'active'
-                    ], [
-                        'status' => 'inactive',
-                        'reason' => "Stock depleted to 0 upon POS billing (Invoice #{$sale['invoice_no']})"
-                    ]);
-                }
-
                 // Record Stock Movement Ledger Entry (Append-only)
                 $db->prepare("
                     INSERT INTO stock_ledger (branch_id, product_id, lot_id, movement_type, quantity, balance_after, reference_no, notes, user_id)
@@ -1109,46 +1279,10 @@ class Sale
                 ]);
             }
 
-            // 4. Record Customer Outstanding for Credit Portion
-            if ($creditAllocated > 0) {
-                $cust = Database::fetchOne("
-                    SELECT credit_balance FROM customers WHERE id = :id FOR UPDATE
-                ", [':id' => $customerId]);
-
-                $currentBal = $cust ? (float)$cust['credit_balance'] : 0.00;
-                $newBal = $currentBal + $creditAllocated;
-
-                $db->prepare("
-                    UPDATE customers SET credit_balance = :bal WHERE id = :id
-                ")->execute([':bal' => $newBal, ':id' => $customerId]);
-
-                $nonCreditPaid = $totalPayable - $creditAllocated;
-
-                $db->prepare("
-                    INSERT INTO customer_credit_ledger (
-                        customer_id, transaction_type, reference_no, invoice_total, 
-                        amount_paid, amount_due, balance_after, notes, branch_id, user_id
-                    ) VALUES (
-                        :customer_id, 'credit_sale', :reference_no, :invoice_total,
-                        :amount_paid, :amount_due, :balance_after, :notes, :branch_id, :user_id
-                    )
-                ")->execute([
-                    ':customer_id'  => $customerId,
-                    ':reference_no' => $sale['invoice_no'],
-                    ':invoice_total'=> $totalPayable,
-                    ':amount_paid'  => $nonCreditPaid,
-                    ':amount_due'   => $creditAllocated,
-                    ':balance_after'=> $newBal,
-                    ':notes'        => "POS Credit Sale Invoice #{$sale['invoice_no']}",
-                    ':branch_id'    => $branchId,
-                    ':user_id'      => $userId
-                ]);
-            }
-
             // 5. Create Payment Records
             $payStmt = $db->prepare("
-                INSERT INTO payments (payment_no, sale_id, branch_id, bank_account_id, processor_id, customer_id, payment_method, amount, reference_no, voucher_id, user_id)
-                VALUES (:payment_no, :sale_id, :branch_id, :bank_account_id, :processor_id, :customer_id, :payment_method, :amount, :reference_no, :voucher_id, :user_id)
+                INSERT INTO payments (payment_no, sale_id, branch_id, bank_account_id, processor_id, customer_id, payment_method, amount, reference_no, user_id)
+                VALUES (:payment_no, :sale_id, :branch_id, :bank_account_id, :processor_id, :customer_id, :payment_method, :amount, :reference_no, :user_id)
             ");
 
             foreach ($processedPayments as $pp) {
@@ -1163,7 +1297,6 @@ class Sale
                     ':payment_method' => $pp['payment_method'],
                     ':amount'         => $pp['amount'],
                     ':reference_no'   => $pp['reference_no'],
-                    ':voucher_id'     => $pp['voucher_id'],
                     ':user_id'        => $userId
                 ]);
             }
@@ -1194,6 +1327,13 @@ class Sale
                     updated_at = CURRENT_TIMESTAMP 
                 WHERE id = :id
             ")->execute([':sales_rep_id' => $finalSalesRepId, ':id' => $saleId]);
+
+            // 6.5 Record Promotional Discounts snapshot and update rule usage counts
+            require_once __DIR__ . '/DiscountEngine.php';
+            $appliedPromosToSave = !empty($appliedPromos) ? $appliedPromos : ($payments['applied_promotions'] ?? []);
+            if (!empty($appliedPromosToSave) && is_array($appliedPromosToSave)) {
+                DiscountEngine::recordSaleDiscounts($saleId, $appliedPromosToSave, $db);
+            }
 
             // 7. Atomic Accounting Posting inside transaction before commit
             require_once __DIR__ . '/Accounting.php';
@@ -1283,6 +1423,30 @@ class Sale
 
             $changeAmount = max(0.00, $totalAllocated - (float)$sale['total_amount']);
 
+            // Compute detailed gross, item savings, invoice discount, and total savings
+            $grossSubtotal = 0.00;
+            $itemDiscountTotal = 0.00;
+            foreach ($items as $it) {
+                $origP = (float)($it['original_price'] ?? 0);
+                $unitP = (float)($it['unit_price'] ?? 0);
+                $baseP = $origP > 0 ? $origP : $unitP;
+                $qty = (float)($it['quantity'] ?? 1);
+                $lineGross = round($baseP * $qty, 2);
+                $grossSubtotal += $lineGross;
+
+                $lineDisc = (float)($it['discount_amount'] ?? 0) + (float)($it['promo_discount_amount'] ?? 0);
+                if ($lineDisc <= 0.0001 && $origP > $unitP) {
+                    $lineDisc = round(($origP - $unitP) * $qty, 2);
+                }
+                $itemDiscountTotal += $lineDisc;
+            }
+
+            $invDiscountTotal = (float)($sale['discount_amount'] ?? 0) + (float)($sale['promo_discount_amount'] ?? 0);
+            $totalSavings = max(0.00, round(($grossSubtotal - (float)$sale['total_amount']), 2));
+            if ($totalSavings <= 0.0001 && ($itemDiscountTotal + $invDiscountTotal) > 0) {
+                $totalSavings = round($itemDiscountTotal + $invDiscountTotal, 2);
+            }
+
             // Format customer facing discount text (preserves percentage part only)
             $invDiscountParsed = self::parseDiscount($sale['discount_value'], (float)$sale['subtotal']);
 
@@ -1291,6 +1455,10 @@ class Sale
                 'items'                   => $items,
                 'payments'                => $payments,
                 'customer_facing_discount'=> $invDiscountParsed['customer_facing_text'],
+                'gross_subtotal'          => $grossSubtotal,
+                'item_discount_total'     => $itemDiscountTotal,
+                'invoice_discount_total'  => $invDiscountTotal,
+                'total_savings'           => $totalSavings,
                 'total_allocated'         => $totalAllocated,
                 'change_amount'           => $changeAmount
             ];
@@ -1354,17 +1522,6 @@ class Sale
                 ];
             }
 
-            foreach ($payments as $p) {
-                $method = strtolower(trim($p['payment_method'] ?? ''));
-                if ($method === 'voucher') {
-                    return [
-                        'success'  => false,
-                        'conflict' => true,
-                        'status'   => 'Conflict',
-                        'message'  => 'Gift vouchers require an online connection and cannot be redeemed offline.'
-                    ];
-                }
-            }
 
             // 2.5 Business Day Integrity Validation (Closed-Day Immutability Protection)
             $bdayId = !empty($payload['business_day_id']) ? (int)$payload['business_day_id'] : null;
@@ -1462,20 +1619,7 @@ class Sale
                 $prodName = $prodRow ? $prodRow['name'] : "Product #{$prodId}";
 
                 if (!$lot || (float)$lot['remaining_quantity'] < $reqQty) {
-                    $availQty = $lot ? (float)$lot['remaining_quantity'] : 0.00;
-                    return [
-                        'success'  => false,
-                        'conflict' => true,
-                        'status'   => 'Conflict',
-                        'message'  => "Insufficient stock for lot #{$lotId} of '{$prodName}'. Server has {$availQty} units available, but offline sale requested {$reqQty} units.",
-                        'conflict_details' => [
-                            'product_id'        => $prodId,
-                            'product_name'      => $prodName,
-                            'lot_id'            => $lotId,
-                            'requested_quantity' => $reqQty,
-                            'available_quantity' => $availQty
-                        ]
-                    ];
+                    self::ensureLotStock($prodId, $lotId, $branchId, $reqQty, $userId);
                 }
             }
 
@@ -1518,12 +1662,20 @@ class Sale
                 ];
             }
 
+            $eligibleSubtotal = 0.00;
+            foreach ($itemsToInsert as $it) {
+                if ((float)$it['discount_amount'] <= 0.0001) {
+                    $eligibleSubtotal += (float)$it['subtotal'];
+                }
+            }
+            $eligibleSubtotal = max(0.00, round($eligibleSubtotal, 2));
+
             $discountStr = trim((string)($payload['discount_str'] ?? ''));
-            $parsedDisc = self::parseDiscount($discountStr, $subtotal);
+            $parsedDisc = self::parseDiscount($discountStr, $eligibleSubtotal);
             $totalAmount = round($subtotal - $parsedDisc['total_discount'], 2);
 
             // Pre-Validate Payment Allocations & Business Rules
-            $validMethods = ['Cash', 'Card', 'Bank', 'Credit'];
+            $validMethods = ['Cash', 'Card', 'Bank'];
             $allocatedTotal = 0.00;
             $cashAllocated = 0.00;
             $creditAllocated = 0.00;
@@ -1534,27 +1686,10 @@ class Sale
                 $pmAmt  = (float)($pm['amount'] ?? 0);
 
                 if (!in_array($pmName, $validMethods, true)) {
-                    return ['success' => false, 'message' => "Invalid payment method '{$pmName}' specified for offline sale."];
+                    return ['success' => false, 'message' => "Invalid payment method '{$pmName}' specified for offline sale. Allowed: Cash, Card, Bank."];
                 }
 
-                if ($pmName === 'Credit') {
-                    if ($customerId === 1) {
-                        return ['success' => false, 'message' => 'Credit payment not allowed for Walk-in customer.'];
-                    }
-                    $custRow = Database::fetchOne("SELECT id, name, credit_limit, credit_balance FROM customers WHERE id = :id", [':id' => $customerId]);
-                    if (!$custRow) {
-                        return ['success' => false, 'message' => 'Customer record not found for offline credit allocation.'];
-                    }
-                    $cLimit = (float)$custRow['credit_limit'];
-                    $cBalance = (float)$custRow['credit_balance'];
-                    $cAvailable = max(0.00, round($cLimit - $cBalance, 2));
-                    if ($cLimit <= 0.00 || round($creditAllocated + $pmAmt, 2) > $cAvailable) {
-                        $formattedAvail = number_format($cAvailable, 2);
-                        return ['success' => false, 'message' => "Credit limit exceeded for offline sync on customer '{$custRow['name']}'. Available Credit: LKR {$formattedAvail}."];
-                    }
-                    $creditAllocated += $pmAmt;
-                    $nonCashTotal += $pmAmt;
-                } elseif ($pmName === 'Card' || $pmName === 'Bank') {
+                if ($pmName === 'Card' || $pmName === 'Bank') {
                     $nonCashTotal += $pmAmt;
                 } elseif ($pmName === 'Cash') {
                     $cashAllocated += $pmAmt;
@@ -1597,8 +1732,8 @@ class Sale
                 ':invoice_no'      => $finalInvoiceNo,
                 ':offline_uuid'    => $offlineUuid,
                 ':branch_id'       => $branchId,
-                ':customer_id'     => $customerId,
-                ':sales_rep_id'    => !empty($payload['sales_rep_id']) ? (int)$payload['sales_rep_id'] : null,
+                ':customer_id'     => 1,
+                ':sales_rep_id'    => null,
                 ':user_id'         => $userId,
                 ':subtotal'        => $subtotal,
                 ':discount_type'   => $parsedDisc['type'],
@@ -1650,29 +1785,6 @@ class Sale
                 $db->prepare("UPDATE branch_inventory SET quantity = :q WHERE branch_id = :b AND product_id = :p")
                    ->execute([':q' => $newBi, ':b' => $branchId, ':p' => $iti['product_id']]);
 
-                // Auto-deactivate product if total stock drops to 0 upon billing
-                $stockRow = Database::fetchOne("
-                    SELECT COALESCE(SUM(quantity), 0) AS total_stock 
-                    FROM branch_inventory 
-                    WHERE product_id = :product_id
-                ", [':product_id' => $iti['product_id']]);
-
-                $totalStock = (float)($stockRow['total_stock'] ?? 0);
-                if ($totalStock <= 0) {
-                    $db->prepare("
-                        UPDATE products 
-                        SET status = 'inactive', updated_at = CURRENT_TIMESTAMP 
-                        WHERE id = :product_id AND status = 'active'
-                    ")->execute([':product_id' => $iti['product_id']]);
-
-                    Audit::log('PRODUCT_AUTO_DEACTIVATED', 'products', (string)$iti['product_id'], [
-                        'status' => 'active'
-                    ], [
-                        'status' => 'inactive',
-                        'reason' => "Stock depleted to 0 upon offline POS billing sync (Invoice #{$finalInvoiceNo})"
-                    ]);
-                }
-
                 // Stock Ledger Entry
                 $db->prepare("
                     INSERT INTO stock_ledger (branch_id, product_id, lot_id, movement_type, quantity, balance_after, reference_no, notes, user_id)
@@ -1713,28 +1825,6 @@ class Sale
                 ]);
             }
 
-            if ($creditAllocated > 0) {
-                $custRow = Database::fetchOne("SELECT credit_balance FROM customers WHERE id = :id FOR UPDATE", [':id' => $customerId]);
-                $curBal = $custRow ? (float)$custRow['credit_balance'] : 0.00;
-                $newBal = $curBal + $creditAllocated;
-
-                $db->prepare("UPDATE customers SET credit_balance = :bal WHERE id = :id")->execute([':bal' => $newBal, ':id' => $customerId]);
-
-                $db->prepare("
-                    INSERT INTO customer_credit_ledger (customer_id, transaction_type, reference_no, invoice_total, amount_paid, amount_due, balance_after, notes, branch_id, user_id)
-                    VALUES (:cid, 'credit_sale', :ref, :tot, :paid, :due, :bal, :notes, :bid, :uid)
-                ")->execute([
-                    ':cid'  => $customerId,
-                    ':ref'  => $finalInvoiceNo,
-                    ':tot'  => $totalAmount,
-                    ':paid' => max(0.00, $totalAmount - $creditAllocated),
-                    ':due'  => $creditAllocated,
-                    ':bal'  => $newBal,
-                    ':notes'=> "Offline Credit Sale Sync Invoice #{$finalInvoiceNo}",
-                    ':bid'  => $branchId,
-                    ':uid'  => $userId
-                ]);
-            }
 
             require_once __DIR__ . '/BusinessDay.php';
             $activeDay = BusinessDay::getOrCreateActiveDay($branchId, $userId);
@@ -1795,6 +1885,25 @@ class Sale
             $where = [];
             $params = [];
 
+            // Date preset resolution
+            if (!empty($filters['date_preset']) && empty($filters['date_from']) && empty($filters['date_to'])) {
+                $today = date('Y-m-d');
+                if ($filters['date_preset'] === 'today') {
+                    $filters['date_from'] = $today;
+                    $filters['date_to'] = $today;
+                } elseif ($filters['date_preset'] === 'yesterday') {
+                    $yesterday = date('Y-m-d', strtotime('-1 day'));
+                    $filters['date_from'] = $yesterday;
+                    $filters['date_to'] = $yesterday;
+                } elseif ($filters['date_preset'] === 'week') {
+                    $filters['date_from'] = date('Y-m-d', strtotime('-7 days'));
+                    $filters['date_to'] = $today;
+                } elseif ($filters['date_preset'] === 'month') {
+                    $filters['date_from'] = date('Y-m-01');
+                    $filters['date_to'] = $today;
+                }
+            }
+
             // Branch filter
             if ($branchId > 0 && empty($filters['all_branches'])) {
                 $where[] = "s.branch_id = :branch_id";
@@ -1823,41 +1932,82 @@ class Sale
                 $params[':customer_id'] = (int)$filters['customer_id'];
             }
 
-            // Multi-column search filter
+            $joinPayments = false;
+            if (!empty($filters['payment_method'])) {
+                $joinPayments = true;
+                $where[] = "pmt.payment_method = :pmt_method";
+                $params[':pmt_method'] = $filters['payment_method'];
+            }
+
+            // Universal multi-column search across every displayed data column
             if (!empty($filters['search'])) {
+                $joinPayments = true;
                 $search = trim($filters['search']);
                 $cleanSearch = ltrim($search, '#');
+                $like = '%' . $search . '%';
+                $cleanLike = '%' . $cleanSearch . '%';
                 $where[] = "(
                     s.invoice_no LIKE :s1 OR
                     c.name LIKE :s2 OR
                     c.phone LIKE :s3 OR
                     u.username LIKE :s4 OR
                     u.full_name LIKE :s5 OR
-                    CAST(s.total_amount AS CHAR) LIKE :s6
+                    b.name LIKE :s6 OR
+                    b.code LIKE :s7 OR
+                    s.status LIKE :s8 OR
+                    pmt.payment_method LIKE :s9 OR
+                    DATE_FORMAT(s.created_at, '%Y-%m-%d') LIKE :s10 OR
+                    DATE_FORMAT(s.created_at, '%h:%i %p') LIKE :s11 OR
+                    CAST(s.subtotal AS CHAR) LIKE :s12 OR
+                    CONCAT('LKR ', FORMAT(s.subtotal, 2)) LIKE :s13 OR
+                    FORMAT(s.subtotal, 2) LIKE :s14 OR
+                    CAST(s.discount_amount AS CHAR) LIKE :s15 OR
+                    CONCAT('LKR ', FORMAT(s.discount_amount, 2)) LIKE :s16 OR
+                    FORMAT(s.discount_amount, 2) LIKE :s17 OR
+                    CAST(s.total_amount AS CHAR) LIKE :s18 OR
+                    CONCAT('LKR ', FORMAT(s.total_amount, 2)) LIKE :s19 OR
+                    FORMAT(s.total_amount, 2) LIKE :s20
                 )";
-                $params[':s1'] = $cleanSearch . '%';
-                $params[':s2'] = $search . '%';
-                $params[':s3'] = $search . '%';
-                $params[':s4'] = $search . '%';
-                $params[':s5'] = $search . '%';
-                $params[':s6'] = $search . '%';
+                $params[':s1']  = $cleanLike;
+                $params[':s2']  = $like;
+                $params[':s3']  = $like;
+                $params[':s4']  = $like;
+                $params[':s5']  = $like;
+                $params[':s6']  = $like;
+                $params[':s7']  = $like;
+                $params[':s8']  = $like;
+                $params[':s9']  = $like;
+                $params[':s10'] = $like;
+                $params[':s11'] = $like;
+                $params[':s12'] = $like;
+                $params[':s13'] = $like;
+                $params[':s14'] = $like;
+                $params[':s15'] = $like;
+                $params[':s16'] = $like;
+                $params[':s17'] = $like;
+                $params[':s18'] = $like;
+                $params[':s19'] = $like;
+                $params[':s20'] = $like;
             }
 
             $whereSql = !empty($where) ? 'WHERE ' . implode(' AND ', $where) : '';
+            $pmtJoinSql = $joinPayments ? "LEFT JOIN payments pmt ON pmt.sale_id = s.id" : "";
 
             // Count total items
             $countSql = "
-                SELECT COUNT(s.id) AS total
+                SELECT COUNT(" . ($joinPayments ? "DISTINCT s.id" : "s.id") . ") AS total
                 FROM sales s
+                INNER JOIN branches b ON s.branch_id = b.id
                 LEFT JOIN customers c ON s.customer_id = c.id
                 LEFT JOIN users u ON s.user_id = u.id
+                $pmtJoinSql
                 $whereSql
             ";
             $totalRow = Database::fetchOne($countSql, $params);
             $totalItems = (int)($totalRow['total'] ?? 0);
 
             $page = max(1, $page);
-            $limit = in_array($limit, [25, 50, 75, 100, 500], true) ? $limit : 25;
+            $limit = in_array($limit, [25, 50, 75, 100, 500, 1000, 5000], true) ? $limit : 25;
             $totalPages = max(1, (int)ceil($totalItems / $limit));
             if ($page > $totalPages && $totalPages > 0) {
                 $page = $totalPages;
@@ -1888,7 +2038,9 @@ class Sale
                 INNER JOIN branches b ON s.branch_id = b.id
                 LEFT JOIN customers c ON s.customer_id = c.id
                 LEFT JOIN users u ON s.user_id = u.id
+                $pmtJoinSql
                 $whereSql
+                " . ($joinPayments ? "GROUP BY s.id" : "") . "
                 ORDER BY s.id DESC
                 LIMIT :limit OFFSET :offset
             ";
@@ -2084,7 +2236,7 @@ class Sale
      */
     public static function exportList(array $filters = [], int $branchId = 0): void
     {
-        $res = self::getList($branchId, $filters, 1, 500);
+        $res = self::getList($branchId, $filters, 1, 5000);
         $sales = $res['items'];
 
         $filename = 'Sales_History_' . date('Ymd_His') . '.csv';

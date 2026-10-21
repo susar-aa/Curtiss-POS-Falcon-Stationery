@@ -15,6 +15,10 @@ $hasActiveFilters = !empty($filters['supplier_id']) || !empty($filters['status']
         Export CSV
     </button>
     <?php if (Auth::hasRole(ROLE_SUPER_ADMIN, ROLE_ADMIN, ROLE_MANAGER)): ?>
+    <a href="bulk_grn" class="prod-btn prod-btn-ghost" style="color: #0f172a; border-color: rgba(226,232,240,0.9); background: rgba(255,255,255,0.95);">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M4 6h16M4 12h16M4 18h7"/><circle cx="17" cy="18" r="3"/><path d="M17 16v4M15 18h4"/></svg>
+        + Bulk GRN
+    </a>
     <a href="grn_create" class="prod-btn prod-btn-primary">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
         + Create GRN

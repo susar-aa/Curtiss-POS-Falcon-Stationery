@@ -187,14 +187,14 @@
 }
 .curtiss-pwa-btn.curtiss-pwa-floating {
     position: fixed;
-    bottom: 24px;
+    bottom: 22px;
     right: 24px;
-    z-index: 1060;
-    background: #0f172a;
+    z-index: 8500;
+    background: #1e293b;
     color: #ffffff;
-    border: 1px solid #3b82f6;
-    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4);
-    padding: 0 18px;
-    height: 38px;
+    border: 1px solid #334155;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.35);
+    padding: 0 16px;
+    height: 36px;
 }
 

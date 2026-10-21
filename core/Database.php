@@ -25,13 +25,8 @@ class Database
             $this->pdo = new PDO($dsn, DB_USER, DB_PASS, $options);
         } catch (PDOException $e) {
             Logger::error("Database Connection Failure: " . $e->getMessage(), $e);
-            throw new Exception("Database Connection Failed: " . $e->getMessage());
+            throw new Exception("Database Connection Failed. Please check logs.");
         }
-    }
-
-    public static function hasActiveConnection(): bool
-    {
-        return self::$instance !== null && self::$instance->pdo !== null;
     }
 
     public static function getInstance(): Database
@@ -42,7 +37,7 @@ class Database
         return self::$instance;
     }
 
-    public function getConnection(): ?PDO
+    public function getConnection(): PDO
     {
         return $this->pdo;
     }
@@ -76,6 +71,30 @@ class Database
             Logger::error("SQL fetchOne Failed: " . $e->getMessage(), $e, ['sql' => $sql, 'params' => $params]);
             throw $e;
         }
+    }
+
+    /**
+     * Helper to run single scalar value prepared SELECT queries
+     */
+    public static function fetchValue(string $sql, array $params = [])
+    {
+        try {
+            $stmt = self::getInstance()->getConnection()->prepare($sql);
+            $stmt->execute($params);
+            $result = $stmt->fetchColumn();
+            return $result !== false ? $result : null;
+        } catch (PDOException $e) {
+            Logger::error("SQL fetchValue Failed: " . $e->getMessage(), $e, ['sql' => $sql, 'params' => $params]);
+            throw $e;
+        }
+    }
+
+    /**
+     * Alias for fetchValue
+     */
+    public static function fetchColumn(string $sql, array $params = [])
+    {
+        return self::fetchValue($sql, $params);
     }
 
     /**

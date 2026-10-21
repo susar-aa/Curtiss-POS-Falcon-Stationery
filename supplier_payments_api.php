@@ -16,7 +16,7 @@ if (Auth::isSpecialUser()) {
 }
 
 $user = Auth::user();
-$branchId = (int)($_SESSION['branch_id'] ?? 1);
+$branchId = (int)($_SESSION['branch_id'] ?? $_SESSION['active_branch_id'] ?? 1);
 $userId = (int)($user['id'] ?? 1);
 
 $action = $_GET['action'] ?? $_POST['action'] ?? '';
@@ -35,7 +35,8 @@ try {
                 exit;
             }
 
-            $summary = SupplierPayment::getSupplierOutstandingSummary($supplierId);
+            $targetBranchId = !empty($_GET['branch_id']) ? (int)$_GET['branch_id'] : $branchId;
+            $summary = SupplierPayment::getSupplierOutstandingSummary($supplierId, $targetBranchId);
             echo json_encode($summary);
             break;
 
@@ -46,7 +47,8 @@ try {
                 echo json_encode(['success' => false, 'message' => 'Valid supplier ID is required.']);
                 exit;
             }
-            $ledger = Supplier::getActivityLedger($supplierId);
+            $targetBranchId = !empty($_GET['branch_id']) ? (int)$_GET['branch_id'] : $branchId;
+            $ledger = Supplier::getActivityLedger($supplierId, $targetBranchId);
             echo json_encode(['success' => true, 'activity_ledger' => $ledger]);
             break;
 

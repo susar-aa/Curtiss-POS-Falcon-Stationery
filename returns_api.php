@@ -11,6 +11,13 @@ require_once __DIR__ . '/core/SaleReturn.php';
 require_once __DIR__ . '/core/Sale.php';
 require_once __DIR__ . '/core/Customer.php';
 
+if (!defined('ROLE_SUPER_ADMIN')) define('ROLE_SUPER_ADMIN', 'super_admin');
+if (!defined('ROLE_ADMIN')) define('ROLE_ADMIN', 'admin');
+if (!defined('ROLE_MANAGER')) define('ROLE_MANAGER', 'manager');
+if (!defined('ROLE_ACCOUNTANT')) define('ROLE_ACCOUNTANT', 'accountant');
+if (!defined('ROLE_CASHIER')) define('ROLE_CASHIER', 'cashier');
+if (!defined('ROLE_SPECIAL_USER')) define('ROLE_SPECIAL_USER', 'special_user');
+
 Auth::requireLogin();
 if (Auth::isSpecialUser()) {
     echo json_encode(['success' => false, 'message' => 'Permission denied: Special User is view-only.']);
@@ -18,7 +25,14 @@ if (Auth::isSpecialUser()) {
 }
 
 $user = Auth::user();
-$branchId = (int)($_SESSION['branch_id'] ?? 1);
+$branchId = (int)($_SESSION['branch_id'] ?? $_SESSION['active_branch_id'] ?? $user['active_branch_id'] ?? 1);
+if (Auth::hasRole(ROLE_SUPER_ADMIN) && isset($_REQUEST['branch_id'])) {
+    if ($_REQUEST['branch_id'] === 'all' || (int)$_REQUEST['branch_id'] === 0) {
+        $branchId = 0;
+    } else {
+        $branchId = (int)$_REQUEST['branch_id'];
+    }
+}
 $userId = (int)($user['id'] ?? 1);
 
 $action = $_GET['action'] ?? $_POST['action'] ?? '';

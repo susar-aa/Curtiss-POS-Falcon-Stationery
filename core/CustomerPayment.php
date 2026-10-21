@@ -10,7 +10,6 @@ require_once __DIR__ . '/Database.php';
 require_once __DIR__ . '/Logger.php';
 require_once __DIR__ . '/Audit.php';
 require_once __DIR__ . '/Customer.php';
-require_once __DIR__ . '/GiftVoucher.php';
 
 class CustomerPayment
 {
@@ -207,7 +206,6 @@ class CustomerPayment
                     'bank_account_id' => $singleBankId,
                     'amount'          => $singleAmount,
                     'reference_no'    => $data['reference_no'] ?? null,
-                    'voucher_code'    => $data['voucher_code'] ?? null,
                     'cheque_no'       => $data['cheque_no'] ?? null,
                     'bank_name'       => $data['bank_name'] ?? null,
                     'cheque_date'     => $data['cheque_date'] ?? null,
@@ -245,7 +243,7 @@ class CustomerPayment
             // Pre-validate all splits before executing mutations
             $validatedSplits = [];
             foreach ($splits as $sp) {
-                $rawMethod = trim($sp['payment_method'] ?? 'Cash in Hand');
+                $rawMethod = trim($sp['payment_method'] ?? $sp['method'] ?? 'Cash in Hand');
                 $bankAccountId = !empty($sp['bank_account_id']) ? (int)$sp['bank_account_id'] : null;
 
                 if (strcasecmp($rawMethod, 'Credit') === 0) {
@@ -267,15 +265,43 @@ class CustomerPayment
                     $paymentMethod = 'Card';
                 } elseif (strcasecmp($rawMethod, 'Cheque') === 0) {
                     $paymentMethod = 'Cheque';
-                } elseif (strcasecmp($rawMethod, 'Voucher') === 0) {
-                    $paymentMethod = 'Voucher';
                 } elseif (strcasecmp($rawMethod, 'Bank') === 0 || strcasecmp($rawMethod, 'Bank Transfer') === 0) {
                     $paymentMethod = 'Bank';
                 } else {
-                    $paymentMethod = 'Cash in Hand';
+                    // Check if it matches an active COA account (e.g. 'Cash in Hand (Buwaneka)', '1011', 'COA:115')
+                    $coaAcc = null;
+                    if (stripos($rawMethod, 'COA:') === 0 || stripos($rawMethod, 'coa_') === 0) {
+                        $val = trim(substr($rawMethod, 4));
+                        $coaAcc = Database::fetchOne("SELECT id, account_code, account_name FROM chart_of_accounts WHERE (id = :id OR account_code = :code) AND status = 'active'", [':id' => (int)$val, ':code' => $val]);
+                    } else {
+                        $coaAcc = Database::fetchOne("
+                            SELECT id, account_code, account_name 
+                            FROM chart_of_accounts 
+                            WHERE (LOWER(account_name) = LOWER(:m1) OR account_code = :m2) AND status = 'active'
+                            LIMIT 1
+                        ", [':m1' => $rawMethod, ':m2' => $rawMethod]);
+                    }
+
+                    if ($coaAcc) {
+                        $paymentMethod = $coaAcc['account_name'];
+                    } else {
+                        $paymentMethod = 'Cash in Hand';
+                    }
                 }
 
-                if (!in_array($paymentMethod, ['Cash Drawer', 'Cash in Hand', 'Petty Cash', 'Card', 'Bank', 'Cheque', 'Voucher'], true)) {
+                $validMethods = ['Cash Drawer', 'Cash in Hand', 'Petty Cash', 'Card', 'Bank', 'Cheque'];
+                $isCustomCoa = false;
+                if (!in_array($paymentMethod, $validMethods, true)) {
+                    $coaCheck = Database::fetchOne("
+                        SELECT id FROM chart_of_accounts 
+                        WHERE LOWER(account_name) = LOWER(:name) AND status = 'active'
+                    ", [':name' => $paymentMethod]);
+                    if ($coaCheck) {
+                        $isCustomCoa = true;
+                    }
+                }
+
+                if (!in_array($paymentMethod, $validMethods, true) && !$isCustomCoa) {
                     $db->rollBack();
                     return ['success' => false, 'message' => "Unsupported payment method '{$paymentMethod}' in payment split."];
                 }
@@ -315,20 +341,7 @@ class CustomerPayment
                     }
                 }
 
-                if ($paymentMethod === 'Voucher') {
-                    $vCode = trim($sp['voucher_code'] ?? $sp['reference_no'] ?? '');
-                    if (empty($vCode)) {
-                        $db->rollBack();
-                        return ['success' => false, 'message' => 'Gift voucher code is required for voucher split.'];
-                    }
-                    $valRes = GiftVoucher::validateVoucher($vCode, (float)$sp['amount']);
-                    if (!$valRes['valid']) {
-                        $db->rollBack();
-                        return ['success' => false, 'message' => "Gift Voucher Error: " . $valRes['message']];
-                    }
-                }
-
-                if (in_array($paymentMethod, ['Cash Drawer', 'Cash in Hand'], true)) {
+                if (in_array($paymentMethod, ['Cash Drawer', 'Cash in Hand'], true) || $isCustomCoa) {
                     require_once __DIR__ . '/BusinessDay.php';
                     $activeDay = BusinessDay::getOrCreateActiveDay($branchId, $userId);
                     if (!$activeDay) {
@@ -342,7 +355,6 @@ class CustomerPayment
                     'bank_account_id' => $bankAccountId,
                     'amount'          => round((float)($sp['amount'] ?? 0), 2),
                     'reference_no'    => !empty($sp['reference_no']) ? trim($sp['reference_no']) : null,
-                    'voucher_code'    => !empty($sp['voucher_code']) ? trim($sp['voucher_code']) : null,
                     'cheque_no'       => $chequeNo,
                     'bank_name'       => $bankName,
                     'cheque_date'     => $chequeDate,
@@ -388,18 +400,6 @@ class CustomerPayment
 
                 $linePmtNo = (count($validatedSplits) === 1) ? $basePaymentNo : ($basePaymentNo . '-' . ($idx + 1));
                 $spRef = $vSp['reference_no'] ?: $linePmtNo;
-
-                // Redeem gift voucher if method is voucher
-                $voucherId = null;
-                if ($spMethod === 'Voucher') {
-                    $vRow = Database::fetchOne("SELECT id FROM gift_vouchers WHERE code = :c", [':c' => $vSp['voucher_code']]);
-                    if ($vRow) {
-                        $voucherId = (int)$vRow['id'];
-                        $db->prepare("
-                            UPDATE gift_vouchers SET status = 'redeemed', redeemed_at = CURRENT_TIMESTAMP WHERE id = :vid
-                        ")->execute([':vid' => $voucherId]);
-                    }
-                }
 
                 $splitNote = "Collection via {$spMethod}";
                 if (!empty($notes)) {
@@ -471,8 +471,8 @@ class CustomerPayment
             ", [':customer_id' => $customerId]);
 
             $stmtPay = $db->prepare("
-                INSERT INTO payments (payment_no, sale_id, branch_id, bank_account_id, customer_id, payment_method, amount, reference_no, voucher_id, user_id)
-                VALUES (:payment_no, :sale_id, :branch_id, :bank_account_id, :customer_id, :payment_method, :amount, :reference_no, :voucher_id, :user_id)
+                INSERT INTO payments (payment_no, sale_id, branch_id, bank_account_id, customer_id, payment_method, amount, reference_no, user_id)
+                VALUES (:payment_no, :sale_id, :branch_id, :bank_account_id, :customer_id, :payment_method, :amount, :reference_no, :user_id)
             ");
 
             $invIndex = 0;
@@ -506,7 +506,6 @@ class CustomerPayment
                         ':payment_method'   => $spMethod,
                         ':amount'           => $alloc,
                         ':reference_no'     => $spRef,
-                        ':voucher_id'       => null,
                         ':user_id'          => $userId
                     ]);
 
@@ -528,7 +527,6 @@ class CustomerPayment
                         ':payment_method' => $spMethod,
                         ':amount'         => $remSplitAmt,
                         ':reference_no'   => $spRef,
-                        ':voucher_id'     => null,
                         ':user_id'        => $userId
                     ]);
                 }

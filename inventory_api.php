@@ -30,6 +30,15 @@ try {
             $productId = (int)($_GET['product_id'] ?? 0);
             $targetBranchId = !empty($_GET['branch_id']) ? (int)$_GET['branch_id'] : $branchId;
             $lots = Inventory::getLots($productId, $targetBranchId);
+            if (Auth::isSpecialUser()) {
+                require_once __DIR__ . '/core/MaskingHelper.php';
+                foreach ($lots as &$lot) {
+                    $lot['cost'] = MaskingHelper::maskValue((float)$lot['cost']);
+                    $lot['remaining_quantity'] = MaskingHelper::maskQuantity((float)$lot['remaining_quantity']);
+                    $lot['initial_quantity'] = MaskingHelper::maskQuantity((float)$lot['initial_quantity']);
+                }
+                unset($lot);
+            }
             echo json_encode(['success' => true, 'lots' => $lots]);
             break;
 
@@ -86,7 +95,7 @@ try {
                 exit;
             }
             $items = Database::fetchAll("
-                SELECT sti.*, p.name AS product_name, p.barcode, pl.lot_number
+                SELECT sti.*, p.name AS product_name, p.sku, p.barcode, pl.lot_number
                 FROM stock_transfer_items sti
                 JOIN products p ON sti.product_id = p.id
                 LEFT JOIN product_lots pl ON sti.source_lot_id = pl.id
@@ -96,7 +105,7 @@ try {
             break;
 
         case 'create_transfer':
-            if (!Auth::hasPermission('create_stock_transfer')) {
+            if (!Auth::hasPermission('create_stock_transfer') && !Auth::hasRole(ROLE_SUPER_ADMIN, ROLE_ADMIN, ROLE_MANAGER)) {
                 echo json_encode(['success' => false, 'message' => 'Permission denied to create stock transfers.']);
                 exit;
             }
@@ -106,7 +115,7 @@ try {
             break;
 
         case 'update_transfer':
-            if (!Auth::hasPermission('create_stock_transfer')) {
+            if (!Auth::hasPermission('create_stock_transfer') && !Auth::hasRole(ROLE_SUPER_ADMIN, ROLE_ADMIN, ROLE_MANAGER)) {
                 echo json_encode(['success' => false, 'message' => 'Permission denied to edit stock transfers.']);
                 exit;
             }
@@ -117,7 +126,7 @@ try {
             break;
 
         case 'send_transfer':
-            if (!Auth::hasPermission('create_stock_transfer')) {
+            if (!Auth::hasPermission('create_stock_transfer') && !Auth::hasRole(ROLE_SUPER_ADMIN, ROLE_ADMIN, ROLE_MANAGER)) {
                 echo json_encode(['success' => false, 'message' => 'Permission denied to send stock transfers.']);
                 exit;
             }
@@ -128,13 +137,41 @@ try {
             break;
 
         case 'receive_transfer':
-            if (!Auth::hasPermission('receive_stock_transfer')) {
+            if (!Auth::hasPermission('receive_stock_transfer') && !Auth::hasRole(ROLE_SUPER_ADMIN, ROLE_ADMIN, ROLE_MANAGER)) {
                 echo json_encode(['success' => false, 'message' => 'Permission denied to receive stock transfers.']);
                 exit;
             }
             $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
             $transferId = (int)($input['transfer_id'] ?? 0);
+
+            $trf = Database::fetchOne("SELECT to_branch_id FROM stock_transfers WHERE id = :id", [':id' => $transferId]);
+            if (!$trf) {
+                echo json_encode(['success' => false, 'message' => 'Stock transfer not found.']);
+                exit;
+            }
+
+            $user = Auth::user();
+            $activeBranchId = (int)($_SESSION['branch_id'] ?? $_SESSION['active_branch_id'] ?? $user['active_branch_id'] ?? 1);
+            if ((int)$trf['to_branch_id'] !== $activeBranchId) {
+                echo json_encode([
+                    'success' => false,
+                    'message' => 'Stock transfers can only be confirmed by the destination receiving branch. Please switch to the destination branch to confirm receipt.'
+                ]);
+                exit;
+            }
+
             $res = AdvancedInventory::receiveTransfer($transferId, $userId);
+            echo json_encode($res);
+            break;
+
+        case 'cancel_transfer':
+            if (!Auth::hasPermission('create_stock_transfer') && !Auth::hasRole(ROLE_SUPER_ADMIN, ROLE_ADMIN, ROLE_MANAGER)) {
+                echo json_encode(['success' => false, 'message' => 'Permission denied to cancel stock transfers.']);
+                exit;
+            }
+            $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
+            $transferId = (int)($input['transfer_id'] ?? 0);
+            $res = AdvancedInventory::cancelTransfer($transferId, $userId);
             echo json_encode($res);
             break;
 
@@ -155,7 +192,7 @@ try {
                 exit;
             }
             $adj = Database::fetchOne("
-                SELECT sa.*, p.name AS product_name, p.barcode, pl.lot_number, pl.cost AS lot_cost, pl.selling_price AS lot_selling_price, u.username AS creator_name
+                SELECT sa.*, p.name AS product_name, p.sku, p.barcode, pl.lot_number, pl.cost AS lot_cost, pl.selling_price AS lot_selling_price, u.username AS creator_name
                 FROM stock_adjustments sa
                 JOIN products p ON sa.product_id = p.id
                 JOIN product_lots pl ON sa.lot_id = pl.id
@@ -170,7 +207,7 @@ try {
             break;
 
         case 'record_damaged':
-            if (!Auth::hasPermission('manage_damaged_stock')) {
+            if (!Auth::hasPermission('manage_damaged_stock') && !Auth::hasRole(ROLE_SUPER_ADMIN, ROLE_ADMIN, ROLE_MANAGER)) {
                 echo json_encode(['success' => false, 'message' => 'Permission denied to record damaged stock.']);
                 exit;
             }
@@ -180,7 +217,7 @@ try {
             break;
 
         case 'dispose_damaged':
-            if (!Auth::hasPermission('manage_damaged_stock')) {
+            if (!Auth::hasPermission('manage_damaged_stock') && !Auth::hasRole(ROLE_SUPER_ADMIN, ROLE_ADMIN, ROLE_MANAGER)) {
                 echo json_encode(['success' => false, 'message' => 'Permission denied to dispose damaged stock.']);
                 exit;
             }
@@ -197,7 +234,7 @@ try {
                 exit;
             }
             $dmg = Database::fetchOne("
-                SELECT ds.*, p.name AS product_name, p.barcode, pl.lot_number, pl.cost AS lot_cost, pl.selling_price AS lot_selling_price, u.username AS logger_name,
+                SELECT ds.*, p.name AS product_name, p.sku, p.barcode, pl.lot_number, pl.cost AS lot_cost, pl.selling_price AS lot_selling_price, u.username AS logger_name,
                        sr.return_no
                 FROM damaged_stock ds
                 JOIN products p ON ds.product_id = p.id
@@ -214,6 +251,10 @@ try {
             break;
 
         case 'get_audit_details':
+            if (!Auth::hasPermission('manage_stock_audits') && !Auth::hasPermission('inventory.view') && !Auth::hasRole(ROLE_SUPER_ADMIN, ROLE_ADMIN, ROLE_MANAGER)) {
+                echo json_encode(['success' => false, 'message' => 'Permission denied to view audit details.']);
+                exit;
+            }
             $auditId = (int)($_GET['audit_id'] ?? 0);
             if ($auditId <= 0) {
                 echo json_encode(['success' => false, 'message' => 'Invalid audit ID']);
@@ -231,7 +272,7 @@ try {
                 exit;
             }
             $items = Database::fetchAll("
-                SELECT sai.*, p.name AS product_name, p.barcode, pl.lot_number, pl.cost AS lot_cost
+                SELECT sai.*, p.name AS product_name, p.sku, p.barcode, pl.lot_number, pl.cost AS lot_cost
                 FROM stock_audit_items sai
                 JOIN products p ON sai.product_id = p.id
                 JOIN product_lots pl ON sai.lot_id = pl.id
@@ -242,7 +283,7 @@ try {
             break;
 
         case 'start_audit':
-            if (!Auth::hasPermission('manage_stock_audits')) {
+            if (!Auth::hasPermission('manage_stock_audits') && !Auth::hasRole(ROLE_SUPER_ADMIN, ROLE_ADMIN, ROLE_MANAGER)) {
                 echo json_encode(['success' => false, 'message' => 'Permission denied to start stock audits.']);
                 exit;
             }
@@ -254,7 +295,7 @@ try {
             break;
 
         case 'save_audit_counts':
-            if (!Auth::hasPermission('manage_stock_audits')) {
+            if (!Auth::hasPermission('manage_stock_audits') && !Auth::hasRole(ROLE_SUPER_ADMIN, ROLE_ADMIN, ROLE_MANAGER)) {
                 echo json_encode(['success' => false, 'message' => 'Permission denied to manage stock audits.']);
                 exit;
             }
@@ -266,7 +307,7 @@ try {
             break;
 
         case 'post_audit':
-            if (!Auth::hasPermission('manage_stock_audits')) {
+            if (!Auth::hasPermission('manage_stock_audits') && !Auth::hasRole(ROLE_SUPER_ADMIN, ROLE_ADMIN, ROLE_MANAGER)) {
                 echo json_encode(['success' => false, 'message' => 'Permission denied to post stock audits.']);
                 exit;
             }

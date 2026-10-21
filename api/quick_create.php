@@ -13,7 +13,7 @@ require_once __DIR__ . '/../core/Customer.php';
 
 Auth::requireAuth();
 
-if (!Auth::hasRole(ROLE_SUPER_ADMIN, ROLE_ADMIN, ROLE_MANAGER) && !Auth::hasRole(ROLE_CASHIER) && !Auth::hasPermission('pos.access')) {
+if (!Auth::hasRole(ROLE_SUPER_ADMIN, ROLE_ADMIN, ROLE_MANAGER) && !Auth::hasRole(ROLE_CASHIER) && !Auth::hasPermission('pos.access') && !Auth::hasPermission('view_petty_cash')) {
     echo json_encode(['success' => false, 'message' => 'Unauthorized access.']);
     exit();
 }
@@ -43,6 +43,37 @@ if ($type === 'category') {
     $res = Category::create($name, 'active');
     if ($res['success']) {
         echo json_encode(['success' => true, 'id' => $res['id'], 'name' => $name, 'message' => 'Category created successfully.']);
+    } else {
+        echo json_encode(['success' => false, 'message' => $res['message']]);
+    }
+    exit();
+}
+
+if ($type === 'expense_category') {
+    require_once __DIR__ . '/../core/PettyCash.php';
+    require_once __DIR__ . '/../core/Accounting.php';
+
+    $defaultAccId = (int)(Accounting::getAccountIdByCode(Accounting::CODE_EXPENSES) ?? 17);
+    $autoCode = 'EXP-' . strtoupper(substr(preg_replace('/[^a-zA-Z0-9]/', '', $name), 0, 4)) . rand(100, 999);
+
+    $userId = (int)(Auth::user()['id'] ?? 1);
+    $res = PettyCash::saveCategory([
+        'name'        => $name,
+        'code'        => $autoCode,
+        'account_id'  => $defaultAccId,
+        'description' => 'Quick-created from Expense Voucher',
+        'status'      => 'active'
+    ], $userId);
+
+    if ($res['success']) {
+        $accInfo = Database::fetchOne("SELECT account_code, account_name FROM chart_of_accounts WHERE id = :id", [':id' => $defaultAccId]);
+        $displayName = $name . ' (' . ($accInfo['account_code'] ?? '5100') . ' - ' . ($accInfo['account_name'] ?? 'General Operating Expenses') . ')';
+        echo json_encode([
+            'success' => true,
+            'id'      => $res['id'],
+            'name'    => $displayName,
+            'message' => "Expense category '{$name}' created successfully."
+        ]);
     } else {
         echo json_encode(['success' => false, 'message' => $res['message']]);
     }

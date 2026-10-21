@@ -21,6 +21,11 @@
 </div>
 
 <style>
+/* Hide bottom floating dock on full-screen procurement entry panels */
+#curtiss-dock {
+    display: none !important;
+}
+
 /* ── Reset & Fixed Viewport ── */
 .po-panel-root {
     width: 100%;
@@ -641,6 +646,7 @@ searchInput.addEventListener('input', () => {
     filteredPurchased = selectedSupplierPurchased.filter(p => {
         return (p.product_name && p.product_name.toLowerCase().includes(q)) ||
                (p.barcode && p.barcode.toLowerCase().includes(q)) ||
+               (p.sku && p.sku.toLowerCase().includes(q)) ||
                (p.lot_number && p.lot_number.toLowerCase().includes(q));
     }).slice(0, 15);
 
@@ -681,11 +687,12 @@ function renderSearchDropdown() {
     filteredPurchased.forEach((p, idx) => {
         const isAct = idx === highlightedIdx ? 'active' : '';
         const cost = parseFloat(p.unit_cost || 0).toFixed(2);
+        const skuDisplay = p.sku ? `SKU: ${p.sku} • ` : '';
         html += `
             <div class="po-ac-item ${isAct}" onclick="selectProductByIndex(${idx})">
                 <div>
                     <div style="font-weight: 700; font-size: 0.82rem;">${p.product_name}</div>
-                    <div class="po-ac-meta" style="font-size: 0.70rem; color: #64748b;">SKU: ${p.barcode || '—'} • Lot: ${p.lot_number || 'N/A'}</div>
+                    <div class="po-ac-meta" style="font-size: 0.70rem; color: #64748b;">${skuDisplay}Barcode: ${p.barcode || '—'} • Lot: ${p.lot_number || 'N/A'}</div>
                 </div>
                 <div style="text-align: right;">
                     <div class="po-ac-cost" style="font-family: monospace; font-weight: 800; font-size: 0.8rem; color: #0284c7;">Cost: LKR ${cost}</div>

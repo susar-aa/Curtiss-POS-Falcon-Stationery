@@ -71,6 +71,28 @@ try {
             echo json_encode($res);
             break;
 
+        case 'delete_customer':
+            if (!Auth::hasPermission('customers.delete') || Auth::isSpecialUser()) {
+                echo json_encode(['success' => false, 'message' => 'Permission denied to delete customer.']);
+                exit;
+            }
+            $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
+            $id = (int)($input['id'] ?? 0);
+            $res = Customer::delete($id);
+            echo json_encode($res);
+            break;
+
+        case 'restore_customer':
+            if (!Auth::hasPermission('customers.delete') || Auth::isSpecialUser()) {
+                echo json_encode(['success' => false, 'message' => 'Permission denied to restore customer.']);
+                exit;
+            }
+            $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
+            $id = (int)($input['id'] ?? 0);
+            $res = Customer::restore($id);
+            echo json_encode($res);
+            break;
+
         default:
             echo json_encode(['success' => false, 'message' => 'Invalid API action.']);
             break;

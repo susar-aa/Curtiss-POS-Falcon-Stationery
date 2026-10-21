@@ -11,6 +11,7 @@ define('APP_ROOT', dirname(__DIR__));
 $isProductionVPS = (
     (isset($_SERVER['HTTP_HOST']) && (
         str_contains($_SERVER['HTTP_HOST'], 'falconpos.trycurtiss.com') ||
+        str_contains($_SERVER['HTTP_HOST'], 'falcon') ||
         str_contains($_SERVER['HTTP_HOST'], 'trycurtiss.com')
     )) ||
     (getenv('APP_ENV') === 'production')
@@ -32,7 +33,7 @@ if ($isProductionVPS) {
     define('DB_PASS', '');
 }
 
-// Session & Security Settings
+// Session & Security Settings (Independent Session Scope)
 define('SESSION_NAME', 'FALCON_POS_SESS');
 define('DEFAULT_INACTIVITY_TIMEOUT', 3600); // 1 hour (3600 seconds)
 

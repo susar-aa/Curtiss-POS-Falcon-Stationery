@@ -10,7 +10,7 @@ require_once __DIR__ . '/core/Customer.php';
 
 Auth::requireLogin();
 
-if (!Auth::hasPermission('view_customers') && !Auth::hasPermission('export_customers')) {
+if (!Auth::hasPermission('view_customers') && !Auth::hasPermission('export_customers') && !Auth::hasPermission('customers.view')) {
     http_response_code(403);
     die('Unauthorized: You do not have permission to export customers.');
 }

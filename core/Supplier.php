@@ -9,9 +9,10 @@ require_once __DIR__ . '/Audit.php';
 
 class Supplier
 {
-    public static function all($activeOnly = false, ?string $search = null): array
+    public static function all($activeOnly = false, ?string $search = null, ?int $branchId = null): array
     {
         try {
+            $activeBranchId = $branchId ?: (int)($_SESSION['branch_id'] ?? $_SESSION['active_branch_id'] ?? 1);
             $where = ["s.deleted_at IS NULL"];
             $params = [];
 
@@ -50,14 +51,17 @@ class Supplier
                 }
 
                 $whereSql = implode(" AND ", $where);
+                $params[':b_grn'] = $activeBranchId;
+                $params[':b_ob'] = $activeBranchId;
+
                 $sql = "
                     SELECT 
                         s.*,
                         COALESCE(SUM(GREATEST(0, g.actual_grn_total - g.paid_amount)), 0) + 
                         COALESCE(MAX(CASE WHEN ob.balance_type = 'owe_supplier' THEN GREATEST(0, ob.amount - ob.paid_amount) ELSE 0 END), 0) AS total_outstanding
                     FROM suppliers s
-                    LEFT JOIN grns g ON g.supplier_id = s.id AND g.status = 'Approved'
-                    LEFT JOIN supplier_opening_balances ob ON ob.supplier_id = s.id AND ob.status = 'posted'
+                    LEFT JOIN grns g ON g.supplier_id = s.id AND g.status = 'Approved' AND g.branch_id = :b_grn
+                    LEFT JOIN supplier_opening_balances ob ON ob.supplier_id = s.id AND ob.status = 'posted' AND ob.branch_id = :b_ob
                     WHERE {$whereSql}
                     GROUP BY s.id
                     HAVING (

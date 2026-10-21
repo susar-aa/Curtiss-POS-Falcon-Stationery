@@ -8,6 +8,7 @@ header('Content-Type: application/json; charset=utf-8');
 require_once __DIR__ . '/core/Auth.php';
 require_once __DIR__ . '/core/Sale.php';
 require_once __DIR__ . '/core/Customer.php';
+require_once __DIR__ . '/core/DiscountEngine.php';
 require_once __DIR__ . '/core/Logger.php';
 
 try {
@@ -16,12 +17,15 @@ try {
         exit;
     }
 
-    if (!Auth::hasPermission('pos.access') || Auth::isSpecialUser()) {
-        echo json_encode(['success' => false, 'message' => 'Access denied: Special User is strictly view-only.']);
+    if ((!Auth::hasPermission('pos.access') && !Auth::hasRole(ROLE_SUPER_ADMIN, ROLE_ADMIN, ROLE_MANAGER, ROLE_CASHIER)) || Auth::isSpecialUser()) {
+        echo json_encode(['success' => false, 'message' => 'Access denied: Special User is strictly view-only or unauthorized.']);
         exit;
     }
 
-    $branchId = Auth::getCurrentBranchId();
+    $branchId = (int)($_SESSION['branch_id'] ?? $_SESSION['active_branch_id'] ?? Auth::getCurrentBranchId() ?? 1);
+    if (!empty($_GET['branch_id'])) {
+        $branchId = (int)$_GET['branch_id'];
+    }
     $userId = Auth::getUserId();
 
     $action = $_GET['action'] ?? $_POST['action'] ?? '';
@@ -42,7 +46,7 @@ try {
     switch ($action) {
         case 'search_products':
             $q = trim($_GET['q'] ?? $_POST['q'] ?? $inputData['q'] ?? '');
-            $products = Sale::searchProducts($branchId, $q);
+            $products = Sale::searchProducts($branchId, $q, false);
             echo json_encode(['success' => true, 'data' => $products]);
             break;
 
@@ -56,73 +60,58 @@ try {
             echo json_encode(['success' => true, 'data' => $lots]);
             break;
 
-        case 'search_customers':
-            $q = trim($_GET['q'] ?? $_POST['q'] ?? $inputData['q'] ?? '');
-            $res = Customer::all(['search' => $q, 'status' => 'active'], 1, 10);
-            echo json_encode(['success' => true, 'data' => $res['items']]);
-            break;
-
-        case 'quick_create_customer':
-            $name = trim($inputData['name'] ?? $_POST['name'] ?? '');
-            $phone = trim($inputData['phone'] ?? $_POST['phone'] ?? '');
-            $whatsapp = trim($inputData['whatsapp'] ?? $_POST['whatsapp'] ?? '');
-
-            if (empty($name)) {
-                echo json_encode(['success' => false, 'message' => 'Customer name is required.']);
-                exit;
-            }
-
-            // Limit phone and whatsapp to max 10 numeric digits
-            $cleanPhone = !empty($phone) ? substr(preg_replace('/[^0-9]/', '', $phone), 0, 10) : null;
-            $cleanWhatsapp = !empty($whatsapp) ? substr(preg_replace('/[^0-9]/', '', $whatsapp), 0, 10) : null;
-
-            $createRes = Customer::create([
-                'name'         => $name,
-                'phone'        => $cleanPhone,
-                'whatsapp'     => $cleanWhatsapp,
-                'credit_limit' => 0.00,
-                'status'       => 'active'
-            ]);
-
-            if ($createRes['success']) {
-                $newCust = Customer::find((int)$createRes['id']);
-                echo json_encode([
-                    'success'  => true,
-                    'id'       => $createRes['id'],
-                    'customer' => $newCust,
-                    'message'  => "Customer '{$name}' created successfully."
-                ]);
-            } else {
-                echo json_encode(['success' => false, 'message' => $createRes['message']]);
-            }
-            break;
-
         case 'get_walkin_customer':
-            $walkin = Database::fetchOne("SELECT * FROM customers WHERE is_walkin = 1 AND status = 'active' LIMIT 1");
-            if (!$walkin) {
-                $walkin = Database::fetchOne("SELECT * FROM customers WHERE customer_code = 'CUST-WALKIN' LIMIT 1");
-            }
-            if (!$walkin) {
-                // Self-heal default Walk-in record if missing
-                Database::execute("
-                    INSERT INTO customers (customer_code, name, address, is_walkin, status, credit_limit, credit_balance)
-                    VALUES ('CUST-WALKIN', 'Walk-in Customer', 'Default POS General Customer', 1, 'active', 0.00, 0.00)
-                ");
-                $walkin = Database::fetchOne("SELECT * FROM customers WHERE customer_code = 'CUST-WALKIN' LIMIT 1");
-            }
-            echo json_encode(['success' => true, 'data' => $walkin]);
+            echo json_encode([
+                'success' => true,
+                'data' => [
+                    'id' => 1,
+                    'name' => 'Walk-in Customer',
+                    'customer_code' => 'CUST-WALKIN',
+                    'is_walkin' => 1,
+                    'status' => 'active',
+                    'credit_limit' => 0.00,
+                    'credit_balance' => 0.00
+                ]
+            ]);
             break;
 
         case 'parse_discount':
             $discountStr = $_GET['discount'] ?? $_POST['discount'] ?? $inputData['discount'] ?? '';
             $subtotal = (float)($_GET['subtotal'] ?? $_POST['subtotal'] ?? $inputData['subtotal'] ?? 0);
-            $parsed = Sale::parseDiscount($discountStr, $subtotal);
+            $eligibleSubtotal = isset($_GET['eligible_subtotal']) ? (float)$_GET['eligible_subtotal'] : (isset($_POST['eligible_subtotal']) ? (float)$_POST['eligible_subtotal'] : (isset($inputData['eligible_subtotal']) ? (float)$inputData['eligible_subtotal'] : $subtotal));
+            $parsed = Sale::parseDiscount($discountStr, $eligibleSubtotal);
             $suggestion = Sale::calculateRoundupSuggestion(max(0, $subtotal - $parsed['total_discount']));
             echo json_encode([
                 'success'    => true, 
                 'parsed'     => $parsed,
                 'suggestion' => $suggestion
             ]);
+            break;
+
+        case 'evaluate_discounts':
+            $items = $inputData['items'] ?? (isset($_POST['items']) ? (is_array($_POST['items']) ? $_POST['items'] : json_decode($_POST['items'], true)) : []);
+            if (!is_array($items)) {
+                $items = [];
+            }
+            $context = [
+                'branch_id'               => (int)($inputData['branch_id'] ?? $_POST['branch_id'] ?? $branchId),
+                'customer_id'             => !empty($inputData['customer_id'] ?? $_POST['customer_id']) ? (int)($inputData['customer_id'] ?? $_POST['customer_id']) : null,
+                'coupon_code'             => trim($inputData['coupon_code'] ?? $_POST['coupon_code'] ?? ''),
+                'payment_method'          => trim($inputData['payment_method'] ?? $_POST['payment_method'] ?? ''),
+                'manual_invoice_discount' => trim($inputData['manual_invoice_discount'] ?? $_POST['manual_invoice_discount'] ?? ''),
+            ];
+            $result = DiscountEngine::evaluateCart($items, $context);
+            echo json_encode([
+                'success' => true,
+                'data'    => $result
+            ]);
+            break;
+
+        case 'validate_coupon':
+            $couponCode = trim($inputData['coupon_code'] ?? $_POST['coupon_code'] ?? $_GET['coupon_code'] ?? '');
+            $customerId = !empty($inputData['customer_id'] ?? $_POST['customer_id']) ? (int)($inputData['customer_id'] ?? $_POST['customer_id']) : null;
+            $res = DiscountEngine::validateCoupon($couponCode, $branchId, $customerId);
+            echo json_encode($res);
             break;
 
         case 'hold_invoice':
@@ -142,6 +131,59 @@ try {
             }
             $heldList = Sale::getHeldInvoices($branchId);
             echo json_encode(['success' => true, 'data' => $heldList]);
+            break;
+
+        case 'get_sales_history':
+            $page = max(1, (int)($_GET['page'] ?? $inputData['page'] ?? 1));
+            $limit = max(10, min(100, (int)($_GET['limit'] ?? $inputData['limit'] ?? 25)));
+            $preset = trim($_GET['date_preset'] ?? $inputData['date_preset'] ?? 'today');
+            $search = trim($_GET['search'] ?? $inputData['search'] ?? '');
+            
+            $filters = [];
+            if (!empty($search)) {
+                $filters['search'] = $search;
+            }
+            if (!empty($preset) && in_array($preset, ['today', 'yesterday', 'week', 'month'], true)) {
+                $filters['date_preset'] = $preset;
+            } elseif ($preset === 'all') {
+                // No date restriction
+            } else {
+                $filters['date_preset'] = 'today';
+            }
+            if (!empty($_GET['status']) || !empty($inputData['status'])) {
+                $filters['status'] = trim($_GET['status'] ?? $inputData['status']);
+            }
+
+            $res = Sale::getList($branchId, $filters, $page, $limit);
+            echo json_encode([
+                'success' => true,
+                'data' => $res['items'],
+                'pagination' => [
+                    'page' => $res['page'],
+                    'limit' => $res['limit'],
+                    'totalItems' => $res['totalItems'],
+                    'totalPages' => $res['totalPages']
+                ]
+            ]);
+            break;
+
+        case 'get_sale_details':
+            $saleId = (int)($_GET['sale_id'] ?? $inputData['sale_id'] ?? 0);
+            if ($saleId <= 0) {
+                echo json_encode(['success' => false, 'message' => 'Invalid sale ID.']);
+                exit;
+            }
+            $sale = Sale::getSaleDetails($saleId);
+            if (!$sale) {
+                echo json_encode(['success' => false, 'message' => 'Sale not found.']);
+                exit;
+            }
+            echo json_encode([
+                'success'  => true,
+                'sale'     => $sale['sale'],
+                'items'    => $sale['items'],
+                'payments' => $sale['payments']
+            ]);
             break;
 
         case 'resume_invoice':
@@ -175,6 +217,8 @@ try {
                 exit;
             }
             $payload = !empty($inputData['items']) ? $inputData : $_POST;
+            $payload['customer_id'] = 1;
+            $payload['sales_rep_id'] = null;
             $res = Sale::prepareDraftSale($payload, $userId, $branchId);
             echo json_encode($res);
             break;
@@ -186,6 +230,10 @@ try {
             }
             $saleId = (int)($inputData['sale_id'] ?? $_POST['sale_id'] ?? 0);
             $payments = $inputData['payments'] ?? $_POST['payments'] ?? [];
+            if (!empty($inputData['applied_promotions']) && is_array($inputData['applied_promotions'])) {
+                $payments['applied_promotions'] = $inputData['applied_promotions'];
+            }
+            $payments['sales_rep_id'] = null;
             $res = Sale::finalizeSale($saleId, $payments, $userId, $branchId);
             echo json_encode($res);
             break;
@@ -200,31 +248,9 @@ try {
             echo json_encode(['success' => true, 'data' => $bankAccounts]);
             break;
 
-        case 'validate_voucher':
-            require_once __DIR__ . '/core/GiftVoucher.php';
-            $code = trim($_GET['code'] ?? $_POST['code'] ?? $inputData['code'] ?? '');
-            $payable = (float)($_GET['payable'] ?? $_POST['payable'] ?? $inputData['payable'] ?? 0);
-            $valRes = GiftVoucher::validateVoucher($code, $payable);
-            echo json_encode($valRes);
-            break;
-
-        case 'search_sales_reps':
-            require_once __DIR__ . '/core/Employee.php';
-            $q = trim($_GET['q'] ?? $_POST['q'] ?? $inputData['q'] ?? '');
-            $reps = Employee::getSalesReps($branchId);
-            if (!empty($q)) {
-                $qLower = strtolower($q);
-                $reps = array_values(array_filter($reps, function($r) use ($qLower) {
-                    return strpos(strtolower($r['full_name']), $qLower) !== false ||
-                           strpos(strtolower($r['employee_code']), $qLower) !== false;
-                }));
-            }
-            echo json_encode(['success' => true, 'data' => $reps]);
-            break;
-
         case 'get_billing_cache':
             $products = Database::fetchAll("
-                SELECT p.id, p.name, p.barcode, p.selling_price, p.cost, p.low_stock_threshold, p.category_id, p.brand_id
+                SELECT p.id, p.name, p.sku, p.barcode, p.selling_price, p.cost, p.low_stock_threshold, p.category_id, p.brand_id
                 FROM products p
                 WHERE p.status = 'active' AND p.deleted_at IS NULL
             ");
@@ -232,20 +258,7 @@ try {
             $lots = Database::fetchAll("
                 SELECT pl.id, pl.product_id, pl.lot_number, pl.cost, pl.selling_price, pl.remaining_quantity
                 FROM product_lots pl
-                WHERE pl.branch_id = :b AND pl.remaining_quantity > 0 AND pl.status = 'active'
-            ", [':b' => $branchId]);
-
-            $customers = Database::fetchAll("
-                SELECT id, name, phone, customer_code, is_walkin, credit_limit, credit_balance
-                FROM customers
-                WHERE status = 'active'
-            ");
-
-            $salesReps = Database::fetchAll("
-                SELECT id, employee_code, full_name, phone, job_role
-                FROM employees
-                WHERE status = 'active' AND deleted_at IS NULL AND is_sales_rep = 1 AND branch_id = :b
-                ORDER BY full_name ASC
+                WHERE pl.branch_id = :b AND pl.status = 'active'
             ", [':b' => $branchId]);
 
             $bankAccounts = Database::fetchAll("
@@ -263,8 +276,8 @@ try {
                 'branch'        => $branchInfo,
                 'products'      => $products,
                 'lots'          => $lots,
-                'customers'     => $customers,
-                'sales_reps'    => $salesReps,
+                'customers'     => [],
+                'sales_reps'    => [],
                 'bank_accounts' => $bankAccounts
             ]);
             break;

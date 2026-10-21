@@ -380,6 +380,156 @@
             left: -100px;
         }
 
+        /* ── Mobile Device Restriction System ── */
+        .mobile-block-view {
+            display: none;
+            text-align: center;
+            padding: 0.5rem 0.25rem;
+            animation: cardFadeUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        /* Screen width <= 768px triggers mobile block */
+        @media screen and (max-width: 768px) {
+            .login-desktop-content {
+                display: none !important;
+            }
+            .mobile-block-view {
+                display: block !important;
+            }
+            .login-card {
+                padding: 2rem 1.5rem;
+            }
+        }
+
+        /* Server-side or JS flagged mobile device */
+        body.is-mobile-device .login-desktop-content {
+            display: none !important;
+        }
+        body.is-mobile-device .mobile-block-view {
+            display: block !important;
+        }
+
+        .mobile-block-icon-wrap {
+            position: relative;
+            width: 82px;
+            height: 82px;
+            margin: 0 auto 1.25rem auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, rgba(30, 41, 59, 0.8) 0%, rgba(15, 23, 42, 0.95) 100%);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 24px;
+            box-shadow: 0 15px 30px -10px rgba(0, 0, 0, 0.5);
+        }
+        .mobile-block-glow {
+            position: absolute;
+            inset: -6px;
+            border-radius: 28px;
+            background: radial-gradient(circle, rgba(239, 68, 68, 0.22) 0%, transparent 70%);
+            z-index: 0;
+            pointer-events: none;
+        }
+        .mobile-monitor-icon {
+            position: relative;
+            z-index: 1;
+            color: #94a3b8;
+        }
+        .mobile-block-badge {
+            position: absolute;
+            bottom: -3px;
+            right: -3px;
+            width: 26px;
+            height: 26px;
+            background: #0f172a;
+            border: 2px solid #ef4444;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 2;
+            box-shadow: 0 4px 10px rgba(239, 68, 68, 0.4);
+        }
+        .mobile-pill {
+            display: inline-block;
+            padding: 3px 12px;
+            background: rgba(239, 68, 68, 0.12);
+            border: 1px solid rgba(239, 68, 68, 0.35);
+            color: #f87171;
+            border-radius: 999px;
+            font-size: 11px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            margin-bottom: 0.75rem;
+        }
+        .mobile-title {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.45rem;
+            font-weight: 900;
+            color: #ffffff;
+            line-height: 1.2;
+            margin-bottom: 0.65rem;
+        }
+        .mobile-desc {
+            font-size: 13px;
+            color: #94a3b8;
+            line-height: 1.55;
+            margin-bottom: 1.4rem;
+            max-width: 360px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        .mobile-checklist {
+            background: rgba(30, 41, 59, 0.55);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 16px;
+            padding: 1rem 1.15rem;
+            text-align: left;
+            margin-bottom: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .mobile-check-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+        }
+        .mobile-check-item svg {
+            flex-shrink: 0;
+            margin-top: 2px;
+        }
+        .mobile-check-text strong {
+            display: block;
+            font-size: 12.5px;
+            color: #f8fafc;
+            font-weight: 700;
+        }
+        .mobile-check-text span {
+            display: block;
+            font-size: 11px;
+            color: #64748b;
+            margin-top: 1px;
+        }
+        .mobile-footer-credits {
+            font-size: 11.5px;
+            color: #64748b;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+        .mobile-footer-credits a {
+            color: #38bdf8;
+            text-decoration: none;
+            font-weight: 700;
+        }
+        .mobile-footer-credits a:hover {
+            text-decoration: underline;
+        }
+
         @media (max-width: 480px) {
             .login-card {
                 padding: 1.75rem 1.25rem;
@@ -398,9 +548,11 @@
         }
     </style>
 </head>
-<body>
+<body class="<?= !empty($isMobileDevice) ? 'is-mobile-device' : '' ?>">
 
 <div class="login-card">
+    <!-- Desktop Login Content -->
+    <div class="login-desktop-content" id="loginDesktopContent">
     <!-- Brand Header -->
     <div class="login-brand">
         <div class="login-brand-icon" style="background: transparent; border: none; box-shadow: none; width: auto; height: auto; margin-bottom: 0.65rem;">
@@ -512,9 +664,65 @@
         </form>
     </div>
 
-    <!-- Footer Copyright -->
-    <div class="login-footer">
-        Curtiss POS &copy; <?= date('Y') ?> &bull; Enterprise Point of Sale
+        <!-- Footer Copyright -->
+        <div class="login-footer">
+            Curtiss POS &copy; <?= date('Y') ?> &bull; Enterprise Point of Sale
+        </div>
+    </div>
+    <!-- /login-desktop-content -->
+
+    <!-- Mobile Restricted Access View -->
+    <div class="mobile-block-view" id="mobileBlockView">
+        <div class="mobile-block-icon-wrap">
+            <div class="mobile-block-glow"></div>
+            <svg class="mobile-monitor-icon" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                <line x1="8" y1="21" x2="16" y2="21"></line>
+                <line x1="12" y1="17" x2="12" y2="21"></line>
+            </svg>
+            <div class="mobile-block-badge">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line>
+                </svg>
+            </div>
+        </div>
+
+        <span class="mobile-pill">Desktop Access Only</span>
+        <h2 class="mobile-title">Please Use Desktop</h2>
+        <p class="mobile-desc">
+            Curtiss POS retail terminals and management systems require a desktop computer or laptop workstation. Mobile device access is currently restricted.
+        </p>
+
+        <div class="mobile-checklist">
+            <div class="mobile-check-item">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="2" y="3" width="20" height="14" rx="2"/>
+                    <line x1="8" y1="21" x2="16" y2="21"/>
+                    <line x1="12" y1="17" x2="12" y2="21"/>
+                </svg>
+                <div class="mobile-check-text">
+                    <strong>Desktop PC or Laptop Required</strong>
+                    <span>Optimized for screens 1024×768 and wider</span>
+                </div>
+            </div>
+            <div class="mobile-check-item">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                </svg>
+                <div class="mobile-check-text">
+                    <strong>Hardware Peripherals Support</strong>
+                    <span>Requires physical keyboard, barcode scanner & receipt printer</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="mobile-footer-credits">
+            <span>Powered by Curtiss POS</span>
+            <span>•</span>
+            <a href="https://www.trycurtiss.com" target="_blank" rel="noopener">www.trycurtiss.com</a>
+        </div>
     </div>
 </div>
 
@@ -580,7 +788,7 @@
 
     // Keypad digit entry
     function enterPinDigit(digit) {
-        if (isSubmitting || currentPin.length >= 5) return;
+        if (isSubmitting || currentPin.length >= 5 || document.body.classList.contains('is-mobile-device')) return;
         currentPin += digit;
         updatePinDisplay();
 
@@ -659,6 +867,8 @@
     // Handle Password Form Submission via AJAX
     function handlePasswordSubmit(e) {
         e.preventDefault();
+        if (document.body.classList.contains('is-mobile-device')) return;
+
         const form = document.getElementById('pwdLoginForm');
         const submitBtn = document.getElementById('pwdSubmitBtn');
         const submitText = document.getElementById('pwdSubmitText');
@@ -721,6 +931,7 @@
     }
 
     function focusHiddenInput() {
+        if (document.body.classList.contains('is-mobile-device')) return;
         const hiddenIn = document.getElementById('hiddenPinInput');
         if (hiddenIn) {
             hiddenIn.focus();
@@ -729,6 +940,7 @@
 
     // Physical Keyboard Support
     document.addEventListener('keydown', function(e) {
+        if (document.body.classList.contains('is-mobile-device')) return;
         const pinSection = document.getElementById('pinLoginSection');
         if (pinSection.style.display === 'none') return;
 
@@ -741,10 +953,50 @@
         }
     });
 
-    // Auto-focus on load
+    // Mobile Device Detection & Hard Block
+    function isMobileEnvironment() {
+        const ua = navigator.userAgent || navigator.vendor || window.opera || '';
+        const isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile/i.test(ua);
+        const isSmallWidth = window.innerWidth <= 768;
+        const isTouchHandheld = (('ontouchstart' in window) || navigator.maxTouchPoints > 1) && window.innerWidth <= 850;
+        return isMobileUA || isSmallWidth || isTouchHandheld;
+    }
+
+    function enforceMobileRestriction() {
+        const isMobile = isMobileEnvironment() || <?= !empty($isMobileDevice) ? 'true' : 'false' ?>;
+        if (isMobile) {
+            document.body.classList.add('is-mobile-device');
+            const hiddenIn = document.getElementById('hiddenPinInput');
+            if (hiddenIn) hiddenIn.disabled = true;
+            const pwdInput = document.getElementById('passwordInput');
+            if (pwdInput) pwdInput.disabled = true;
+            const userInput = document.getElementById('usernameInput');
+            if (userInput) userInput.disabled = true;
+        } else {
+            <?php if (empty($isMobileDevice)): ?>
+            document.body.classList.remove('is-mobile-device');
+            const hiddenIn = document.getElementById('hiddenPinInput');
+            if (hiddenIn) hiddenIn.disabled = false;
+            const pwdInput = document.getElementById('passwordInput');
+            if (pwdInput) pwdInput.disabled = false;
+            const userInput = document.getElementById('usernameInput');
+            if (userInput) userInput.disabled = false;
+            <?php endif; ?>
+        }
+    }
+
+    window.addEventListener('resize', enforceMobileRestriction);
+    window.addEventListener('orientationchange', enforceMobileRestriction);
+    enforceMobileRestriction();
+
+    // Auto-focus on load (Desktop only)
     window.addEventListener('DOMContentLoaded', () => {
-        focusHiddenInput();
+        enforceMobileRestriction();
+        if (!document.body.classList.contains('is-mobile-device')) {
+            focusHiddenInput();
+        }
         document.addEventListener('click', (e) => {
+            if (document.body.classList.contains('is-mobile-device')) return;
             const pinSection = document.getElementById('pinLoginSection');
             if (pinSection.style.display !== 'none' && !e.target.closest('button') && !e.target.closest('input')) {
                 focusHiddenInput();

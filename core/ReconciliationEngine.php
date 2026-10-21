@@ -31,7 +31,6 @@ class ReconciliationEngine
             'cash'               => self::reconcileCash(),
             'bank'               => self::reconcileBank(),
             'petty_cash'         => self::reconcilePettyCash(),
-            'vouchers'           => self::reconcileVouchers(),
             'supplier_credit'    => self::reconcileSupplierCredit(),
             'outstanding_cheques'=> self::reconcileOutstandingCheques(),
             'card_receivable'    => self::reconcileCardReceivable(),
@@ -62,9 +61,10 @@ class ReconciliationEngine
 
             // Total active lots valuation vs GL 1200 Inventory Asset
             $stmtVal = $db->query("
-                SELECT COALESCE(SUM(remaining_quantity * cost), 0.00) AS operational_valuation
-                FROM product_lots
-                WHERE remaining_quantity > 0 AND status = 'active'
+                SELECT COALESCE(SUM(pl.remaining_quantity * pl.cost), 0.00) AS operational_valuation
+                FROM product_lots pl
+                JOIN products p ON pl.product_id = p.id
+                WHERE pl.remaining_quantity > 0 AND pl.status = 'active'
             ");
             $opValuation = (float)$stmtVal->fetchColumn();
 
@@ -349,46 +349,6 @@ class ReconciliationEngine
             ];
         } catch (Throwable $e) {
             Logger::error("Reconciliation error in Petty Cash: " . $e->getMessage(), $e);
-            return ['status' => 'ERROR', 'message' => $e->getMessage()];
-        }
-    }
-
-    /**
-     * 7. Gift Voucher Reconciliation
-     */
-    public static function reconcileVouchers(): array
-    {
-        try {
-            $db = Database::getInstance()->getConnection();
-
-            // GL 2010 Gift Voucher Liability (Credit balance)
-            $stmtGL = $db->query("
-                SELECT COALESCE(SUM(jl.credit - jl.debit), 0.00) AS gl_voucher
-                FROM journal_lines jl
-                JOIN journal_entries je ON jl.journal_entry_id = je.id
-                JOIN chart_of_accounts coa ON jl.account_id = coa.id
-                WHERE je.posting_status IN ('posted', 'reversed') AND coa.account_code = '2010'
-            ");
-            $glVoucher = (float)$stmtGL->fetchColumn();
-
-            // Sum of active (unredeemed) gift vouchers
-            $stmtV = $db->query("
-                SELECT COALESCE(SUM(amount), 0.00) AS active_voucher_total
-                FROM gift_vouchers
-                WHERE status = 'active'
-            ");
-            $activeVouchers = (float)$stmtV->fetchColumn();
-
-            $diff = round(abs($glVoucher - $activeVouchers), 2);
-
-            return [
-                'status'                => ($diff < 1.00) ? 'PASS' : 'WARN',
-                'gl_voucher_liability'  => round($glVoucher, 2),
-                'active_vouchers_total' => round($activeVouchers, 2),
-                'variance'              => $diff
-            ];
-        } catch (Throwable $e) {
-            Logger::error("Reconciliation error in Gift Vouchers: " . $e->getMessage(), $e);
             return ['status' => 'ERROR', 'message' => $e->getMessage()];
         }
     }

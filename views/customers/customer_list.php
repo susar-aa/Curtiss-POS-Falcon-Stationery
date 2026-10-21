@@ -1,19 +1,30 @@
 <?php
 /**
- * Curtiss POS - Customer List View (Redesign Theme & Design Rules Enforced)
- * Glassmorphism layout, summary stats cards, dual side drawer (Profile & Transaction History), 
- * integrated Payment Collection modal, floating bottom nav search, top-right header searchable select filter.
+ * Curtiss POS - Customer List View (Curtiss Master Rules Enforced)
+ * Fixed viewport height calc(100vh - 110px), internal scrolling table (.prod-table-scroll),
+ * 48px row heights, sticky uppercase headers, alternating zebra striping,
+ * clickable theme-matched status pills, full-row click for details drawer,
+ * floating top-right header action bar (#curtiss-floating-header-right),
+ * Trash Bin & soft-delete restore support, and universal realtime search.
  */
 $canManage = Auth::hasPermission('customers.manage') && !Auth::isSpecialUser();
 $canChangeStatus = Auth::hasPermission('customers.status') && !Auth::isSpecialUser();
 $canPay = Auth::hasPermission('customers.pay') && !Auth::isSpecialUser();
+$canDelete = Auth::hasPermission('customers.delete') && !Auth::isSpecialUser();
 ?>
 <link rel="stylesheet" href="assets/css/curtiss_select.css">
 
-<!-- Floating Top-Right Action Header -->
+<!-- Floating Top-Right Action Header Container -->
 <div id="curtiss-floating-header-right" style="position: fixed; top: 16px; right: 20px; z-index: 1050; display: flex; align-items: center; gap: 8px;">
-    <form method="GET" action="customers.php" id="headerCustomerFilterForm" style="margin: 0; padding: 0;">
-        <select name="status" id="headerCustomerStatusSelect" class="inv-select curtiss-select-enhance" style="height: 38px; padding: 0 16px; border-radius: 999px; font-size: 12px; font-weight: 700; background: rgba(255,255,255,0.96); border: 1px solid rgba(226,232,240,0.9); color: #0f172a; min-width: 170px;" onchange="this.form.submit()">
+    <!-- Status Filter Form -->
+    <form method="GET" action="customers.php" id="headerCustomerFilterForm" style="margin: 0; padding: 0; display: flex; align-items: center; gap: 8px;">
+        <?php if (!empty($view)): ?>
+            <input type="hidden" name="view" value="<?= View::escape($view) ?>">
+        <?php endif; ?>
+        <?php if (!empty($limit)): ?>
+            <input type="hidden" name="limit" value="<?= (int)$limit ?>">
+        <?php endif; ?>
+        <select name="status" id="headerCustomerStatusSelect" class="curtiss-select-enhance" style="height: 34px; min-height: 34px; padding: 0 14px; border-radius: 999px; font-size: 12px; font-weight: 700; background: rgba(255,255,255,0.96); border: 1px solid rgba(226,232,240,0.9); color: #0f172a; min-width: 150px;" onchange="this.form.submit()">
             <option value="">All Statuses</option>
             <option value="active" <?= ($status === 'active') ? 'selected' : '' ?>>Active</option>
             <option value="inactive" <?= ($status === 'inactive') ? 'selected' : '' ?>>Inactive</option>
@@ -21,18 +32,32 @@ $canPay = Auth::hasPermission('customers.pay') && !Auth::isSpecialUser();
     </form>
 
     <?php if ($canManage): ?>
-    <button type="button" class="inv-btn inv-btn-primary" onclick="openCreateCustomerModal()">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-        Add New Customer
+    <button type="button" class="inv-btn inv-btn-primary" onclick="openCreateCustomerModal()" style="height: 34px; min-height: 34px; line-height: 32px; padding: 0 14px;">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        <span>Add Customer</span>
     </button>
+    <?php endif; ?>
+
+    <a href="customer_export.php" class="inv-btn inv-btn-ghost" title="Export Customers CSV" style="height: 34px; min-height: 34px; line-height: 32px; padding: 0 12px;">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        <span>Export</span>
+    </a>
+
+    <?php if ($view === 'deleted'): ?>
+        <a href="customers.php" class="inv-btn inv-btn-ghost" style="height: 34px; min-height: 34px; line-height: 32px; padding: 0 12px; background: #ffffff; color: #0f172a; border-color: #cbd5e1;">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5"/><polyline points="12 19 5 12 12 5"/></svg>
+            <span>Active Customers</span>
+        </a>
+    <?php else: ?>
+        <a href="customers.php?view=deleted" class="inv-btn" style="height: 34px; min-height: 34px; line-height: 32px; padding: 0 12px; color: #dc2626; background: #fef2f2; border: 1px solid #fca5a5;" title="View Trash Bin">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+            <span>Trash Bin</span>
+        </a>
     <?php endif; ?>
 </div>
 
 <style>
-/* ── Page Layout & Typography ── */
-.inv-header {
-    margin-bottom: 1.25rem;
-}
+/* ── Master Theme & Typography ── */
 .inv-title {
     font-size: 1.35rem;
     font-weight: 800;
@@ -40,18 +65,15 @@ $canPay = Auth::hasPermission('customers.pay') && !Auth::isSpecialUser();
     letter-spacing: -0.025em;
     line-height: 1.2;
 }
-.inv-subtitle {
-    font-size: 0.8rem;
-    color: #94a3b8;
-    margin-top: 4px;
-    font-weight: 500;
-}
 
 .inv-btn {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    padding: 8px 16px;
+    padding: 0 14px;
+    height: 34px;
+    min-height: 34px;
+    line-height: 32px;
     border-radius: 999px;
     font-size: 12px;
     font-weight: 700;
@@ -61,13 +83,13 @@ $canPay = Auth::hasPermission('customers.pay') && !Auth::isSpecialUser();
     transition: all 0.18s ease;
     white-space: nowrap;
     font-family: inherit;
+    box-sizing: border-box;
 }
 .inv-btn-ghost {
     background: rgba(255,255,255,0.9);
     border-color: rgba(226,232,240,0.9);
     color: #0f172a;
     box-shadow: 0 2px 8px rgba(0,0,0,0.04);
-    backdrop-filter: blur(8px);
 }
 .inv-btn-ghost:hover {
     background: #ffffff;
@@ -77,7 +99,7 @@ $canPay = Auth::hasPermission('customers.pay') && !Auth::isSpecialUser();
 .inv-btn-primary {
     background: #0f172a;
     color: #ffffff;
-    box-shadow: 0 4px 12px rgba(15,23,42,0.25);
+    box-shadow: 0 4px 12px rgba(15,23,42,0.2);
 }
 .inv-btn-primary:hover {
     background: #1e293b;
@@ -102,90 +124,172 @@ $canPay = Auth::hasPermission('customers.pay') && !Auth::isSpecialUser();
     transform: translateY(-1px);
 }
 
-/* Glassmorphism Container */
-.inv-card {
-    background: rgba(255, 255, 255, 0.94);
+/* ── Standard 48px Table & Zebra Striping ── */
+.prod-table-panel {
+    background: rgba(255,255,255,0.96);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
     border: 1px solid rgba(226, 232, 240, 0.9);
-    border-radius: 16px;
-    box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.05), 0 4px 12px -2px rgba(0, 0, 0, 0.03);
-    margin-bottom: 1.25rem;
-    padding: 1.25rem;
-    width: 100%;
-    box-sizing: border-box;
+    border-radius: 14px;
+    box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.04);
+    overflow: hidden;
 }
-
-/* Table Styling */
-.inv-table-wrap {
-    width: 100%;
-    overflow-x: auto;
-    border-radius: 12px;
+.prod-table-scroll {
+    overflow-y: auto;
+    flex: 1;
+    min-height: 0;
 }
-.inv-table {
+.prod-table {
     width: 100%;
     border-collapse: separate;
     border-spacing: 0;
-    font-size: 0.83rem;
+    font-size: 12.5px;
 }
-.inv-table th {
+.prod-table thead th {
     background: #f8fafc;
     color: #64748b;
-    font-size: 0.68rem;
+    font-size: 10px;
     font-weight: 800;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.07em;
     padding: 10px 14px;
     border-bottom: 1px solid #e2e8f0;
+    position: sticky;
+    top: 0;
+    z-index: 10;
     text-align: left;
     white-space: nowrap;
 }
-.inv-table td {
-    padding: 12px 14px;
-    border-bottom: 1px solid #f1f5f9;
-    color: #334155;
-    vertical-align: middle;
+.prod-table thead th.col-right { text-align: right; }
+.prod-table thead th.col-center { text-align: center; }
+
+.prod-table tbody tr {
+    height: 48px;
+    min-height: 48px;
     transition: background 0.15s ease;
 }
-.inv-row {
-    cursor: pointer;
+.prod-table tbody tr:nth-child(even) { background: rgba(248, 250, 252, 0.57); }
+.prod-table tbody tr:nth-child(odd)  { background: #ffffff; }
+.prod-table tbody tr:hover            { background: #f1f5f9 !important; }
+
+.prod-table td {
+    height: 48px;
+    padding: 0 14px;
+    font-size: 12.5px;
+    color: #1e293b;
+    vertical-align: middle;
+    box-sizing: border-box;
+    border-bottom: 1px solid #f1f5f9;
 }
-.inv-row:hover td {
-    background: #f8fafc;
+.prod-table td.col-right { text-align: right; }
+.prod-table td.col-center { text-align: center; }
+
+/* ── In-Cell Status Badges & Action Buttons (28px) ── */
+.prod-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 12px;
+    height: 28px;
+    min-height: 28px;
+    line-height: 26px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+    border: 1px solid transparent;
+    box-sizing: border-box;
+    text-transform: uppercase;
 }
-.inv-row:last-child td {
-    border-bottom: none;
+.prod-badge .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    display: inline-block;
+}
+.prod-badge-active {
+    background: #dcfce7;
+    color: #15803d;
+    border-color: #bbf7d0;
+}
+.prod-badge-active .dot {
+    background: #16a34a;
+}
+.prod-badge-inactive {
+    background: #fee2e2;
+    color: #b91c1c;
+    border-color: #fecdd3;
+}
+.prod-badge-inactive .dot {
+    background: #dc2626;
 }
 
-/* Code Pills & Badges */
+.prod-act-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    height: 28px;
+    min-height: 28px;
+    line-height: 26px;
+    padding: 0 12px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    border: 1px solid transparent;
+    cursor: pointer;
+    text-decoration: none;
+    transition: all 0.15s ease;
+    box-sizing: border-box;
+}
+
 .inv-code-pill {
     display: inline-block;
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    font-size: 0.75rem;
+    font-size: 11px;
     font-weight: 800;
     background: #f1f5f9;
     color: #0f172a;
-    padding: 3px 8px;
+    padding: 2px 8px;
     border-radius: 6px;
     border: 1px solid #e2e8f0;
 }
 
-.cust-status-badge {
+/* ── Pagination Footer ── */
+.prod-table-footer {
+    flex-shrink: 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 16px;
+    background: #f8fafc;
+    border-top: 1px solid #e2e8f0;
+    font-size: 12px;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+.page-pill {
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    padding: 3px 10px;
+    padding: 0 12px;
+    height: 28px;
+    line-height: 26px;
     border-radius: 999px;
-    font-size: 0.68rem;
-    font-weight: 800;
-    letter-spacing: 0.02em;
-    white-space: nowrap;
-    text-transform: uppercase;
+    font-size: 11px;
+    font-weight: 700;
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    color: #0f172a;
+    text-decoration: none;
+    transition: all 0.15s ease;
 }
-.cust-status-active { background: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; }
-.cust-status-inactive { background: #ffe4e6; color: #be123c; border: 1px solid #fecdd3; }
+.page-pill:hover {
+    background: #f1f5f9;
+    border-color: #94a3b8;
+}
 
-/* Slide-in Drawers (Same 480px width) */
+/* ── Drawers (480px width) ── */
 .inv-drawer-backdrop {
     position: fixed;
     top: 0;
@@ -221,7 +325,7 @@ $canPay = Auth::hasPermission('customers.pay') && !Auth::isSpecialUser();
     right: 0;
 }
 .inv-drawer-header {
-    padding: 1.25rem 1.5rem;
+    padding: 1.1rem 1.4rem;
     border-bottom: 1px solid #e2e8f0;
     display: flex;
     justify-content: space-between;
@@ -229,15 +333,15 @@ $canPay = Auth::hasPermission('customers.pay') && !Auth::isSpecialUser();
     background: #f8fafc;
 }
 .inv-drawer-body {
-    padding: 1.5rem;
+    padding: 1.4rem;
     overflow-y: auto;
     flex: 1;
     display: flex;
     flex-direction: column;
-    gap: 1.25rem;
+    gap: 1.1rem;
 }
 .inv-drawer-footer {
-    padding: 1rem 1.5rem;
+    padding: 0.85rem 1.4rem;
     border-top: 1px solid #e2e8f0;
     background: #f8fafc;
     display: flex;
@@ -257,35 +361,7 @@ $canPay = Auth::hasPermission('customers.pay') && !Auth::isSpecialUser();
     color: #0f172a;
 }
 
-/* Pagination */
-.inv-pagination {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-top: 1rem;
-    padding-top: 0.75rem;
-    border-top: 1px solid #f1f5f9;
-}
-.page-pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 6px 14px;
-    border-radius: 999px;
-    font-size: 11px;
-    font-weight: 700;
-    background: #ffffff;
-    border: 1px solid #cbd5e1;
-    color: #0f172a;
-    text-decoration: none;
-    transition: all 0.15s ease;
-}
-.page-pill:hover {
-    background: #f8fafc;
-    border-color: #94a3b8;
-}
-
-/* Modals */
+/* ── Modals ── */
 .inv-modal-backdrop {
     position: fixed;
     top: 0;
@@ -321,7 +397,7 @@ $canPay = Auth::hasPermission('customers.pay') && !Auth::isSpecialUser();
     to { opacity: 1; transform: translateY(0); }
 }
 .inv-modal-header {
-    padding: 1.1rem 1.5rem;
+    padding: 1.1rem 1.4rem;
     background: #f8fafc;
     border-bottom: 1px solid #e2e8f0;
     display: flex;
@@ -330,7 +406,7 @@ $canPay = Auth::hasPermission('customers.pay') && !Auth::isSpecialUser();
     flex-shrink: 0;
 }
 .inv-modal-body {
-    padding: 1.25rem 1.5rem;
+    padding: 1.25rem 1.4rem;
     display: flex;
     flex-direction: column;
     gap: 1.1rem;
@@ -339,7 +415,7 @@ $canPay = Auth::hasPermission('customers.pay') && !Auth::isSpecialUser();
     overflow-y: auto;
 }
 .inv-modal-footer {
-    padding: 0.85rem 1.5rem;
+    padding: 0.85rem 1.4rem;
     background: #f8fafc;
     border-top: 1px solid #e2e8f0;
     display: flex;
@@ -351,22 +427,22 @@ $canPay = Auth::hasPermission('customers.pay') && !Auth::isSpecialUser();
 .inv-field {
     display: flex;
     flex-direction: column;
-    gap: 5px;
+    gap: 4px;
 }
 .inv-label {
-    font-size: 0.75rem;
+    font-size: 0.72rem;
     font-weight: 700;
     color: #475569;
     text-transform: uppercase;
-    letter-spacing: 0.03em;
+    letter-spacing: 0.04em;
 }
 .inv-input {
     width: 100%;
-    height: 38px;
+    height: 36px;
     border: 1px solid #cbd5e1;
-    border-radius: 10px;
+    border-radius: 8px;
     padding: 0 12px;
-    font-size: 0.85rem;
+    font-size: 12.5px;
     color: #0f172a;
     outline: none;
     box-sizing: border-box;
@@ -377,182 +453,239 @@ $canPay = Auth::hasPermission('customers.pay') && !Auth::isSpecialUser();
 }
 </style>
 
-<!-- Header Title -->
-<div class="inv-header">
-    <h1 class="inv-title">Customers & Customer Credit</h1>
-    <p class="inv-subtitle">Manage retail customers, card barcodes, credit outstanding, and payment collections.</p>
-</div>
+<!-- Fixed Viewport Workspace -->
+<div style="width: 100%; max-width: 100%; height: calc(100vh - 110px); display: flex; flex-direction: column; box-sizing: border-box; overflow: hidden; padding-bottom: 8px;">
 
-<?php if (!empty($successMsg)): ?>
-    <div style="background: #dcfce7; border: 1px solid #bbf7d0; color: #15803d; padding: 12px 16px; border-radius: 12px; font-size: 0.85rem; font-weight: 700; margin-bottom: 1.25rem;">
-        <?= View::escape($successMsg) ?>
-    </div>
-<?php endif; ?>
-
-<?php if (!empty($errorMsg)): ?>
-    <div style="background: #ffe4e6; border: 1px solid #fecdd3; color: #be123c; padding: 12px 16px; border-radius: 12px; font-size: 0.85rem; font-weight: 700; margin-bottom: 1.25rem;">
-        <?= View::escape($errorMsg) ?>
-    </div>
-<?php endif; ?>
-
-<!-- Summary Statistics Cards Grid -->
-<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 1rem; margin-bottom: 1.25rem;">
-    <!-- Total Customers -->
-    <div style="background: rgba(255, 255, 255, 0.94); backdrop-filter: blur(16px); border: 1px solid rgba(226, 232, 240, 0.9); border-radius: 14px; padding: 1.1rem 1.25rem; box-shadow: 0 4px 12px rgba(0,0,0,0.03); display: flex; align-items: center; justify-content: space-between;">
-        <div>
-            <div style="font-size: 0.68rem; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;">Total Customers</div>
-            <div style="font-size: 1.4rem; font-weight: 800; color: #0f172a; margin-top: 4px;"><?= number_format((int)($stats['total_customers'] ?? 0)) ?></div>
-        </div>
-        <div style="width: 42px; height: 42px; border-radius: 10px; background: #f0f9ff; color: #0284c7; display: flex; align-items: center; justify-content: center;">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+    <!-- Page Header (Headline Only) -->
+    <div class="inv-header" style="flex-shrink: 0; display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.65rem;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+            <div style="width: 8px; height: 8px; border-radius: 50%; background: #0f172a;"></div>
+            <h1 class="inv-title" style="margin: 0;"><?= $view === 'deleted' ? 'Customers - Trash Bin' : 'Customers & Customer Credit' ?></h1>
         </div>
     </div>
 
-    <!-- Active Accounts -->
-    <div style="background: rgba(255, 255, 255, 0.94); backdrop-filter: blur(16px); border: 1px solid rgba(226, 232, 240, 0.9); border-radius: 14px; padding: 1.1rem 1.25rem; box-shadow: 0 4px 12px rgba(0,0,0,0.03); display: flex; align-items: center; justify-content: space-between;">
-        <div>
-            <div style="font-size: 0.68rem; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;">Active Accounts</div>
-            <div style="font-size: 1.4rem; font-weight: 800; color: #166534; margin-top: 4px;"><?= number_format((int)($stats['active_customers'] ?? 0)) ?></div>
-        </div>
-        <div style="width: 42px; height: 42px; border-radius: 10px; background: #f0fdf4; color: #16a34a; display: flex; align-items: center; justify-content: center;">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-        </div>
-    </div>
-
-    <!-- Total Outstanding Credit -->
-    <div style="background: rgba(255, 255, 255, 0.94); backdrop-filter: blur(16px); border: 1px solid rgba(226, 232, 240, 0.9); border-radius: 14px; padding: 1.1rem 1.25rem; box-shadow: 0 4px 12px rgba(0,0,0,0.03); display: flex; align-items: center; justify-content: space-between;">
-        <div>
-            <div style="font-size: 0.68rem; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;">Total Credit Balance</div>
-            <div style="font-size: 1.3rem; font-weight: 800; font-family: ui-monospace, monospace; color: <?= (is_numeric($stats['total_outstanding'] ?? 0) && (float)$stats['total_outstanding'] > 0) ? '#dc2626' : '#166534' ?>; margin-top: 4px;">
-                LKR <?= is_numeric($stats['total_outstanding'] ?? 0) ? number_format((float)$stats['total_outstanding'], 2) : View::escape($stats['total_outstanding'] ?? '0.00') ?>
-            </div>
-        </div>
-        <div style="width: 42px; height: 42px; border-radius: 10px; background: #fef2f2; color: #dc2626; display: flex; align-items: center; justify-content: center;">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
-        </div>
-    </div>
-
-    <!-- Loyalty Card Holders -->
-    <div style="background: rgba(255, 255, 255, 0.94); backdrop-filter: blur(16px); border: 1px solid rgba(226, 232, 240, 0.9); border-radius: 14px; padding: 1.1rem 1.25rem; box-shadow: 0 4px 12px rgba(0,0,0,0.03); display: flex; align-items: center; justify-content: space-between;">
-        <div>
-            <div style="font-size: 0.68rem; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;">Card Barcode Holders</div>
-            <div style="font-size: 1.4rem; font-weight: 800; color: #0f172a; margin-top: 4px;"><?= number_format((int)($stats['card_holders'] ?? 0)) ?></div>
-        </div>
-        <div style="width: 42px; height: 42px; border-radius: 10px; background: #faf5ff; color: #9333ea; display: flex; align-items: center; justify-content: center;">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="7" y1="8" x2="7" y2="16"/><line x1="11" y1="8" x2="11" y2="16"/><line x1="15" y1="8" x2="17" y2="16"/></svg>
-        </div>
-    </div>
-</div>
-
-<!-- Main Table Card -->
-<div class="inv-card">
-    <div class="inv-table-wrap">
-        <table class="inv-table" id="customersTable">
-            <thead>
-                <tr>
-                    <th>Customer Code / ID</th>
-                    <th>Customer Name</th>
-                    <th>Phone / WhatsApp</th>
-                    <th>Card Barcode</th>
-                    <th>Credit Limit</th>
-                    <th>Outstanding Balance</th>
-                    <th>Status</th>
-                    <th style="text-align: right;">Action</th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php if (empty($customers)): ?>
-                    <tr>
-                        <td colspan="8" style="text-align: center; color: #94a3b8; padding: 2.5rem 1rem; font-weight: 500;">
-                            No customers found matching the search criteria.
-                        </td>
-                    </tr>
-                <?php else: ?>
-                    <?php foreach ($customers as $c): ?>
-                        <?php
-                        $bal = is_string($c['credit_balance']) ? $c['credit_balance'] : (float)$c['credit_balance'];
-                        $isWalkin = !empty($c['is_walkin']);
-                        $isNumBal = is_numeric($c['credit_balance']);
-                        $balVal = $isNumBal ? (float)$c['credit_balance'] : 0;
-                        $balColor = ($isNumBal && $balVal > 0) ? '#dc2626' : '#166534';
-                        $st = strtolower($c['status']);
-                        $badgeClass = ($st === 'active') ? 'cust-status-active' : 'cust-status-inactive';
-
-                        $searchData = strtolower(($c['customer_code'] ?? '') . ' ' . ($c['name'] ?? '') . ' ' . ($c['phone'] ?? '') . ' ' . ($c['whatsapp'] ?? '') . ' ' . ($c['card_barcode'] ?? '') . ' #' . $c['id']);
-                        ?>
-                        <tr class="inv-row" data-cust-id="<?= (int)$c['id'] ?>" data-search="<?= View::escape($searchData) ?>" onclick="openCustomerDetailDrawer(<?= (int)$c['id'] ?>)">
-                            <td>
-                                <span class="inv-code-pill" style="color: #0284c7; background: #e0f2fe; border-color: #bae6fd;"><?= View::escape($c['customer_code']) ?></span>
-                                <div style="font-size: 0.68rem; color: #94a3b8; margin-top: 2px;">ID: #<?= (int)$c['id'] ?></div>
-                            </td>
-                            <td>
-                                <div style="font-weight: 800; color: #0f172a; font-size: 0.88rem; display: flex; align-items: center; flex-wrap: wrap; gap: 4px;">
-                                    <?= View::escape($c['name']) ?>
-                                    <?php if (!empty($c['is_loyalty'])): ?>
-                                        <span class="inv-code-pill" style="font-size: 0.65rem; color: #7c3aed; background: #f5f3ff; border-color: #ddd6fe; font-weight: 800; padding: 1px 8px;" title="Loyalty Member">
-                                            ★ Loyalty<?= !empty($c['loyalty_discount_override']) ? ' (' . number_format((float)$c['loyalty_discount_override'], 1) . '%)' : '' ?>
-                                        </span>
-                                    <?php endif; ?>
-                                    <?php if ($isWalkin): ?>
-                                        <span class="inv-code-pill" style="font-size: 0.62rem; color: #0369a1; background: #e0f2fe; border-color: #bae6fd;">Default Walk-in</span>
-                                    <?php endif; ?>
-                                </div>
-                            </td>
-                            <td>
-                                <div style="font-weight: 600; color: #334155;"><?= View::escape($c['phone'] ?? 'N/A') ?></div>
-                                <?php if (!empty($c['whatsapp'])): ?>
-                                    <span style="font-size: 0.68rem; font-weight: 700; color: #16a34a;">WA: <?= View::escape($c['whatsapp']) ?></span>
-                                <?php endif; ?>
-                            </td>
-                            <td>
-                                <?php if (!empty($c['card_barcode'])): ?>
-                                    <span class="inv-code-pill"><?= View::escape($c['card_barcode']) ?></span>
-                                <?php else: ?>
-                                    <span style="color: #cbd5e1;">None</span>
-                                <?php endif; ?>
-                            </td>
-                            <td style="font-weight: 700; font-family: ui-monospace, monospace; color: #475569;">
-                                LKR <?= is_numeric($c['credit_limit']) ? number_format((float)$c['credit_limit'], 2) : View::escape($c['credit_limit']) ?>
-                            </td>
-                            <td style="font-weight: 800; font-family: ui-monospace, monospace; color: <?= $balColor ?>;">
-                                LKR <?= is_numeric($bal) ? number_format((float)$bal, 2) : View::escape($bal) ?>
-                            </td>
-                            <td>
-                                <span class="cust-status-badge <?= $badgeClass ?>"><?= ucfirst($st) ?></span>
-                            </td>
-                            <td style="text-align: right;" onclick="event.stopPropagation()">
-                                <button type="button" class="inv-btn inv-btn-ghost" style="padding: 5px 12px; font-size: 11px; gap: 4px;" onclick="openCustomerDetailDrawer(<?= (int)$c['id'] ?>)">
-                                    <span>Details</span>
-                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
-                                </button>
-                            </td>
-                        </tr>
-                    <?php endforeach; ?>
-                <?php endif; ?>
-            </tbody>
-        </table>
-    </div>
-
-    <!-- Pagination -->
-    <?php if ($totalPages > 1): ?>
-        <div class="inv-pagination">
-            <div style="font-size: 0.78rem; color: #64748b; font-weight: 500;">
-                Showing page <strong style="color: #0f172a;"><?= $page ?></strong> of <strong style="color: #0f172a;"><?= $totalPages ?></strong> (Total <?= $totalItems ?> customers)
-            </div>
-            <div style="display: flex; gap: 8px;">
-                <?php if ($page > 1): ?>
-                    <a href="customers.php?page=<?= $page - 1 ?>&search=<?= urlencode($search) ?>&status=<?= urlencode($status) ?>" class="page-pill">
-                        ‹ Previous
-                    </a>
-                <?php endif; ?>
-                <?php if ($page < $totalPages): ?>
-                    <a href="customers.php?page=<?= $page + 1 ?>&search=<?= urlencode($search) ?>&status=<?= urlencode($status) ?>" class="page-pill">
-                        Next ›
-                    </a>
-                <?php endif; ?>
-            </div>
+    <?php if (!empty($successMsg)): ?>
+        <div style="flex-shrink: 0; background: #dcfce7; border: 1px solid #bbf7d0; color: #15803d; padding: 10px 14px; border-radius: 10px; font-size: 12px; font-weight: 700; margin-bottom: 0.65rem;">
+            <?= View::escape($successMsg) ?>
         </div>
     <?php endif; ?>
+
+    <?php if (!empty($errorMsg)): ?>
+        <div style="flex-shrink: 0; background: #ffe4e6; border: 1px solid #fecdd3; color: #be123c; padding: 10px 14px; border-radius: 10px; font-size: 12px; font-weight: 700; margin-bottom: 0.65rem;">
+            <?= View::escape($errorMsg) ?>
+        </div>
+    <?php endif; ?>
+
+    <!-- Summary Statistics Cards Grid (Fixed Shrink) -->
+    <div style="flex-shrink: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0.75rem; margin-bottom: 0.75rem;">
+        <!-- Total Customers -->
+        <div style="background: rgba(255, 255, 255, 0.94); backdrop-filter: blur(16px); border: 1px solid rgba(226, 232, 240, 0.9); border-radius: 12px; padding: 0.9rem 1.1rem; box-shadow: 0 2px 8px rgba(0,0,0,0.02); display: flex; align-items: center; justify-content: space-between;">
+            <div>
+                <div style="font-size: 10px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;">Total Customers</div>
+                <div style="font-size: 1.3rem; font-weight: 800; color: #0f172a; margin-top: 2px;"><?= number_format((int)($stats['total_customers'] ?? 0)) ?></div>
+            </div>
+            <div style="width: 38px; height: 38px; border-radius: 8px; background: #f0f9ff; color: #0284c7; display: flex; align-items: center; justify-content: center;">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            </div>
+        </div>
+
+        <!-- Active Accounts -->
+        <div style="background: rgba(255, 255, 255, 0.94); backdrop-filter: blur(16px); border: 1px solid rgba(226, 232, 240, 0.9); border-radius: 12px; padding: 0.9rem 1.1rem; box-shadow: 0 2px 8px rgba(0,0,0,0.02); display: flex; align-items: center; justify-content: space-between;">
+            <div>
+                <div style="font-size: 10px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;">Active Accounts</div>
+                <div style="font-size: 1.3rem; font-weight: 800; color: #166534; margin-top: 2px;"><?= number_format((int)($stats['active_customers'] ?? 0)) ?></div>
+            </div>
+            <div style="width: 38px; height: 38px; border-radius: 8px; background: #f0fdf4; color: #16a34a; display: flex; align-items: center; justify-content: center;">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            </div>
+        </div>
+
+        <!-- Total Outstanding Credit -->
+        <div style="background: rgba(255, 255, 255, 0.94); backdrop-filter: blur(16px); border: 1px solid rgba(226, 232, 240, 0.9); border-radius: 12px; padding: 0.9rem 1.1rem; box-shadow: 0 2px 8px rgba(0,0,0,0.02); display: flex; align-items: center; justify-content: space-between;">
+            <div>
+                <div style="font-size: 10px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;">Total Credit Balance</div>
+                <div style="font-size: 1.25rem; font-weight: 800; font-family: ui-monospace, monospace; color: <?= (is_numeric($stats['total_outstanding'] ?? 0) && (float)$stats['total_outstanding'] > 0) ? '#dc2626' : '#166534' ?>; margin-top: 2px;">
+                    LKR <?= is_numeric($stats['total_outstanding'] ?? 0) ? number_format((float)$stats['total_outstanding'], 2) : View::escape($stats['total_outstanding'] ?? '0.00') ?>
+                </div>
+            </div>
+            <div style="width: 38px; height: 38px; border-radius: 8px; background: #fef2f2; color: #dc2626; display: flex; align-items: center; justify-content: center;">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+            </div>
+        </div>
+
+        <!-- Loyalty Card Holders -->
+        <div style="background: rgba(255, 255, 255, 0.94); backdrop-filter: blur(16px); border: 1px solid rgba(226, 232, 240, 0.9); border-radius: 12px; padding: 0.9rem 1.1rem; box-shadow: 0 2px 8px rgba(0,0,0,0.02); display: flex; align-items: center; justify-content: space-between;">
+            <div>
+                <div style="font-size: 10px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;">Card Barcode Holders</div>
+                <div style="font-size: 1.3rem; font-weight: 800; color: #0f172a; margin-top: 2px;"><?= number_format((int)($stats['card_holders'] ?? 0)) ?></div>
+            </div>
+            <div style="width: 38px; height: 38px; border-radius: 8px; background: #faf5ff; color: #9333ea; display: flex; align-items: center; justify-content: center;">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="7" y1="8" x2="7" y2="16"/><line x1="11" y1="8" x2="11" y2="16"/><line x1="15" y1="8" x2="17" y2="16"/></svg>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Table Panel & Internal Scroll (Flex 1) -->
+    <div class="prod-table-panel" style="flex: 1; min-height: 0; display: flex; flex-direction: column;">
+        <div class="prod-table-scroll">
+            <table class="prod-table" id="customersTable">
+                <thead>
+                    <tr>
+                        <th style="width: 140px;">Customer Code / ID</th>
+                        <th>Customer Name</th>
+                        <th style="width: 160px;">Phone / WhatsApp</th>
+                        <th style="width: 130px;">Card Barcode</th>
+                        <th class="col-right" style="width: 130px;">Credit Limit</th>
+                        <th class="col-right" style="width: 150px;">Outstanding (LKR)</th>
+                        <th class="col-center" style="width: 110px;">Status</th>
+                        <th class="col-right" style="width: 120px;">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php if (empty($customers)): ?>
+                        <tr>
+                            <td colspan="8" style="text-align: center; color: #94a3b8; padding: 2.5rem 1rem; font-weight: 500;">
+                                No customers found matching the search criteria.
+                            </td>
+                        </tr>
+                    <?php else: ?>
+                        <?php foreach ($customers as $c): ?>
+                            <?php
+                            $bal = is_string($c['credit_balance']) ? $c['credit_balance'] : (float)$c['credit_balance'];
+                            $isWalkin = !empty($c['is_walkin']);
+                            $isNumBal = is_numeric($c['credit_balance']);
+                            $balVal = $isNumBal ? (float)$c['credit_balance'] : 0;
+                            $balColor = ($isNumBal && $balVal > 0) ? '#dc2626' : '#166534';
+                            $st = strtolower($c['status'] ?? 'active');
+
+                            $hasLimit = ($c['credit_limit'] !== null && $c['credit_limit'] !== '');
+                            $rawLimit = $hasLimit ? (float)$c['credit_limit'] : null;
+                            $formattedLimit = $hasLimit ? number_format((float)$c['credit_limit'], 2) : 'No Limit';
+                            $formattedBal = is_numeric($bal) ? number_format((float)$bal, 2) : $bal;
+
+                            $searchData = strtolower(implode(' ', [
+                                $c['customer_code'] ?? '',
+                                '#' . $c['id'],
+                                $c['id'],
+                                $c['name'] ?? '',
+                                $c['phone'] ?? '',
+                                $c['whatsapp'] ?? '',
+                                $c['card_barcode'] ?? '',
+                                $st,
+                                (string)($rawLimit ?? ''),
+                                (string)$formattedLimit,
+                                $hasLimit ? 'LKR ' . $formattedLimit : 'no limit unlimited',
+                                (string)$balVal,
+                                (string)$formattedBal,
+                                'LKR ' . $formattedBal
+                            ]));
+                            ?>
+                            <tr class="inv-row" data-cust-id="<?= (int)$c['id'] ?>" data-search="<?= View::escape($searchData) ?>" onclick="openCustomerDetailDrawer(<?= (int)$c['id'] ?>)" style="cursor: pointer;">
+                                <td>
+                                    <span class="inv-code-pill" style="color: #0284c7; background: #e0f2fe; border-color: #bae6fd;"><?= View::escape($c['customer_code']) ?></span>
+                                    <span style="font-size: 10.5px; color: #94a3b8; margin-left: 4px;">#<?= (int)$c['id'] ?></span>
+                                </td>
+                                <td>
+                                    <div style="font-weight: 800; color: #0f172a; font-size: 12.5px; display: flex; align-items: center; flex-wrap: wrap; gap: 4px;">
+                                        <?= View::escape($c['name']) ?>
+                                        <?php if (!empty($c['is_loyalty'])): ?>
+                                            <span class="inv-code-pill" style="font-size: 10px; color: #7c3aed; background: #f5f3ff; border-color: #ddd6fe; font-weight: 800; padding: 1px 6px;" title="Loyalty Member">
+                                                ★ Loyalty<?= !empty($c['loyalty_discount_override']) ? ' (' . number_format((float)$c['loyalty_discount_override'], 1) . '%)' : '' ?>
+                                            </span>
+                                        <?php endif; ?>
+                                        <?php if ($isWalkin): ?>
+                                            <span class="inv-code-pill" style="font-size: 10px; color: #0369a1; background: #e0f2fe; border-color: #bae6fd;">Default Walk-in</span>
+                                        <?php endif; ?>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div style="font-weight: 600; color: #334155; font-size: 12px;"><?= View::escape($c['phone'] ?? 'N/A') ?></div>
+                                    <?php if (!empty($c['whatsapp'])): ?>
+                                        <div style="font-size: 10.5px; font-weight: 700; color: #16a34a;">WA: <?= View::escape($c['whatsapp']) ?></div>
+                                    <?php endif; ?>
+                                </td>
+                                <td>
+                                    <?php if (!empty($c['card_barcode'])): ?>
+                                        <span class="inv-code-pill"><?= View::escape($c['card_barcode']) ?></span>
+                                    <?php else: ?>
+                                        <span style="color: #cbd5e1; font-size: 11px;">None</span>
+                                    <?php endif; ?>
+                                </td>
+                                <td class="col-right" style="font-weight: 700; font-family: ui-monospace, monospace; color: #475569;">
+                                    <?php if ($c['credit_limit'] !== null && $c['credit_limit'] !== ''): ?>
+                                        <?= number_format((float)$c['credit_limit'], 2) ?>
+                                    <?php else: ?>
+                                        <span class="inv-code-pill" style="background: #f1f5f9; color: #64748b; font-weight: 700; font-size: 10.5px;">No Limit</span>
+                                    <?php endif; ?>
+                                </td>
+                                <td class="col-right" style="font-weight: 800; font-family: ui-monospace, monospace; color: <?= $balColor ?>;">
+                                    <?= is_numeric($bal) ? number_format((float)$bal, 2) : View::escape($bal) ?>
+                                </td>
+                                <td class="col-center">
+                                    <?php if ($view === 'deleted'): ?>
+                                        <span class="prod-badge" style="background: #fee2e2; color: #b91c1c; border-color: #fecdd3;"><span class="dot" style="background: #dc2626;"></span>Deleted</span>
+                                    <?php elseif ($st === 'active'): ?>
+                                        <span class="prod-badge prod-badge-active" <?= ($canChangeStatus && !$isWalkin) ? 'onclick="event.stopPropagation(); toggleCustomerStatus(' . (int)$c['id'] . ');"' : '' ?> style="cursor: <?= ($canChangeStatus && !$isWalkin) ? 'pointer' : 'default' ?>;" title="<?= ($canChangeStatus && !$isWalkin) ? 'Click to toggle status' : '' ?>"><span class="dot"></span>Active</span>
+                                    <?php else: ?>
+                                        <span class="prod-badge prod-badge-inactive" <?= ($canChangeStatus && !$isWalkin) ? 'onclick="event.stopPropagation(); toggleCustomerStatus(' . (int)$c['id'] . ');"' : '' ?> style="cursor: <?= ($canChangeStatus && !$isWalkin) ? 'pointer' : 'default' ?>;" title="<?= ($canChangeStatus && !$isWalkin) ? 'Click to toggle status' : '' ?>"><span class="dot"></span>Deactive</span>
+                                    <?php endif; ?>
+                                </td>
+                                <td class="col-right" onclick="event.stopPropagation()">
+                                    <?php if ($view === 'deleted'): ?>
+                                        <button type="button" class="prod-act-btn" onclick="restoreCustomer(<?= (int)$c['id'] ?>)" style="background: #dcfce7; color: #15803d; border: 1px solid #bbf7d0;">
+                                            Restore
+                                        </button>
+                                    <?php else: ?>
+                                        <div style="display: inline-flex; align-items: center; justify-content: flex-end; gap: 4px;">
+                                            <?php if ($balVal > 0 && $canPay): ?>
+                                                <button type="button" class="prod-act-btn inv-btn-success" onclick="openCollectPaymentModal(<?= (int)$c['id'] ?>)" title="Collect Outstanding Payment">
+                                                    Collect
+                                                </button>
+                                            <?php endif; ?>
+                                            <?php if ($canDelete && !$isWalkin): ?>
+                                                <button type="button" class="prod-act-btn" onclick="deleteCustomer(<?= (int)$c['id'] ?>)" style="color: #dc2626; background: #fef2f2; border: 1px solid #fca5a5;" title="Move to Trash Bin">
+                                                    Delete
+                                                </button>
+                                            <?php endif; ?>
+                                        </div>
+                                    <?php endif; ?>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Pagination Footer -->
+        <div class="prod-table-footer">
+            <div style="color: #64748b; font-weight: 600;">
+                <?php
+                $startItem = $totalItems > 0 ? (($page - 1) * $limit) + 1 : 0;
+                $endItem = min($totalItems, $page * $limit);
+                ?>
+                Showing <strong style="color: #0f172a;"><?= $startItem ?></strong> to <strong style="color: #0f172a;"><?= $endItem ?></strong> of <strong style="color: #0f172a;"><?= number_format($totalItems) ?></strong> entries
+            </div>
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <div style="display: flex; align-items: center; gap: 6px;">
+                    <span style="color: #64748b; font-weight: 700; font-size: 11px; text-transform: uppercase;">Per page:</span>
+                    <select id="custLimitSelect" onchange="changeCustomerPageSize(this.value)" style="height: 28px; padding: 0 8px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 12px; font-weight: 700; color: #0f172a; background: #ffffff;">
+                        <?php foreach ([25, 50, 75, 100, 500] as $lim): ?>
+                            <option value="<?= $lim ?>" <?= ($limit === $lim) ? 'selected' : '' ?>><?= $lim ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div style="display: flex; gap: 6px;">
+                    <?php if ($page > 1): ?>
+                        <a href="customers.php?page=<?= $page - 1 ?>&limit=<?= $limit ?>&search=<?= urlencode($search) ?>&status=<?= urlencode($status) ?>&view=<?= urlencode($view) ?>" class="page-pill">‹ Previous</a>
+                    <?php endif; ?>
+                    <?php if ($page < $totalPages): ?>
+                        <a href="customers.php?page=<?= $page + 1 ?>&limit=<?= $limit ?>&search=<?= urlencode($search) ?>&status=<?= urlencode($status) ?>&view=<?= urlencode($view) ?>" class="page-pill">Next ›</a>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <!-- PANEL 1: Slide-in Customer Profile Side Panel Drawer -->
@@ -647,13 +780,13 @@ $canPay = Auth::hasPermission('customers.pay') && !Auth::isSpecialUser();
         <div class="inv-drawer-body">
             <!-- Filter Tabs -->
             <div style="display: flex; gap: 6px; background: #f1f5f9; padding: 4px; border-radius: 10px;">
-                <button type="button" id="txTabAll" class="inv-btn inv-btn-ghost" style="flex:1; justify-content:center; padding: 6px 8px; font-size: 11px; background: #ffffff; box-shadow: 0 1px 3px rgba(0,0,0,0.05);" onclick="switchTxTab('all')">
+                <button type="button" id="txTabAll" class="inv-btn inv-btn-ghost" style="flex:1; justify-content:center; padding: 0 8px; font-size: 11px; background: #ffffff; box-shadow: 0 1px 3px rgba(0,0,0,0.05);" onclick="switchTxTab('all')">
                     All Activity
                 </button>
-                <button type="button" id="txTabSales" class="inv-btn inv-btn-ghost" style="flex:1; justify-content:center; padding: 6px 8px; font-size: 11px; border-color: transparent; background: transparent;" onclick="switchTxTab('sales')">
+                <button type="button" id="txTabSales" class="inv-btn inv-btn-ghost" style="flex:1; justify-content:center; padding: 0 8px; font-size: 11px; border-color: transparent; background: transparent;" onclick="switchTxTab('sales')">
                     Sales Invoices
                 </button>
-                <button type="button" id="txTabLedger" class="inv-btn inv-btn-ghost" style="flex:1; justify-content:center; padding: 6px 8px; font-size: 11px; border-color: transparent; background: transparent;" onclick="switchTxTab('ledger')">
+                <button type="button" id="txTabLedger" class="inv-btn inv-btn-ghost" style="flex:1; justify-content:center; padding: 0 8px; font-size: 11px; border-color: transparent; background: transparent;" onclick="switchTxTab('ledger')">
                     Credit Ledger
                 </button>
             </div>
@@ -762,9 +895,10 @@ $canPay = Auth::hasPermission('customers.pay') && !Auth::isSpecialUser();
                             <thead>
                                 <tr style="background: #f8fafc; border-bottom: 1px solid #e2e8f0; height: 34px; color: #64748b; font-size: 10.5px; font-weight: 800; text-transform: uppercase;">
                                     <th style="padding: 0 10px; text-align: left;">Payment Account / Method</th>
-                                    <th style="padding: 0 10px; text-align: right; width: 140px;">Amount (LKR)</th>
-                                    <th style="padding: 0 10px; text-align: left; width: 150px;">Cheque / Ref / Voucher</th>
-                                    <th style="padding: 0 10px; text-align: left; width: 125px;">Cheque Date</th>
+                                    <th style="padding: 0 10px; text-align: right; width: 130px;">Amount (LKR)</th>
+                                    <th style="padding: 0 10px; text-align: left; width: 140px;">Cheque / Ref / Voucher</th>
+                                    <th style="padding: 0 10px; text-align: left; width: 130px;">Cheque Bank</th>
+                                    <th style="padding: 0 10px; text-align: left; width: 120px;">Banking Date</th>
                                     <th style="padding: 0 8px; text-align: center; width: 36px;"></th>
                                 </tr>
                             </thead>
@@ -797,9 +931,9 @@ $canPay = Auth::hasPermission('customers.pay') && !Auth::isSpecialUser();
             <!-- Sticky Modal Footer -->
             <div class="inv-modal-footer">
                 <button type="button" class="inv-btn inv-btn-ghost" onclick="closeCollectPaymentModal()">Cancel</button>
-                <button type="submit" class="inv-btn inv-btn-success" id="submitPaymentBtn" style="padding: 8px 20px; font-size: 12px; font-weight: 700;">
+                <button type="submit" class="inv-btn inv-btn-success" id="submitPaymentBtn" style="padding: 0 20px; font-size: 12px; font-weight: 700;">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-                    Process Collection Payment
+                    <span>Process Collection Payment</span>
                 </button>
             </div>
         </form>
@@ -845,8 +979,19 @@ $canPay = Auth::hasPermission('customers.pay') && !Auth::isSpecialUser();
                         <input type="text" class="inv-input" name="card_barcode" placeholder="Scan customer loyalty card">
                     </div>
                     <div class="inv-field">
-                        <label class="inv-label">Credit Limit (LKR)</label>
-                        <input type="number" step="0.01" class="inv-input" name="credit_limit" value="0.00" placeholder="0.00">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                            <label class="inv-label" style="margin-bottom: 0;">Credit Limit</label>
+                            <label style="display: flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 700; color: #0284c7; cursor: pointer; user-select: none;">
+                                <input type="checkbox" id="modal_has_credit_limit" name="has_credit_limit" value="1" onchange="toggleCreditLimitInput(this, 'modal_credit_limit_wrap', 'modal_credit_limit_input', 'modal_credit_no_limit_badge', 'modal_credit_limit_status')" style="width: 14px; height: 14px; accent-color: #0284c7; cursor: pointer;">
+                                <span id="modal_credit_limit_status">Off (No Limit)</span>
+                            </label>
+                        </div>
+                        <div id="modal_credit_limit_wrap" style="display: none;">
+                            <input type="number" step="0.01" min="0" class="inv-input" id="modal_credit_limit_input" name="credit_limit" placeholder="Enter Credit Limit (LKR)..." disabled>
+                        </div>
+                        <div id="modal_credit_no_limit_badge" style="display: flex; align-items: center; height: 38px; padding: 0 12px; background: #f8fafc; border: 1.5px dashed #cbd5e1; border-radius: 8px; font-size: 12px; font-weight: 700; color: #64748b;">
+                            <i class="fa-solid fa-infinity" style="margin-right: 6px; color: #0284c7;"></i> No Credit Limit (Unlimited)
+                        </div>
                     </div>
                 </div>
 
@@ -880,7 +1025,9 @@ $canPay = Auth::hasPermission('customers.pay') && !Auth::isSpecialUser();
 window.CAN_MANAGE_CUSTOMERS = <?= $canManage ? 'true' : 'false' ?>;
 window.CAN_CHANGE_STATUS = <?= $canChangeStatus ? 'true' : 'false' ?>;
 window.CAN_PAY_CUSTOMERS = <?= $canPay ? 'true' : 'false' ?>;
+window.CAN_DELETE_CUSTOMERS = <?= $canDelete ? 'true' : 'false' ?>;
 window.customerBankAccounts = <?= json_encode($bankAccounts ?? []) ?>;
+window.customerCashAccounts = <?= json_encode($cashAccounts ?? []) ?>;
 
 let currentLoadedCustomerDetails = null;
 let currentTxTabMode = 'all';
@@ -897,9 +1044,15 @@ document.addEventListener('DOMContentLoaded', () => {
     function registerBottomSearch() {
         if (window.CurtissNav && window.CurtissNav.enablePageSearch) {
             window.CurtissNav.enablePageSearch({
-                placeholder: 'Search Customer Code, Name, Barcode, Phone...',
+                placeholder: 'Search Customer Code, Name, Barcode, Phone, Balance...',
                 onSearch: function(query) {
                     filterCustomersTableRealtime(query);
+                },
+                onEnter: function(query) {
+                    const url = new URL(window.location.href);
+                    url.searchParams.set('search', query);
+                    url.searchParams.set('page', 1);
+                    window.location.href = url.toString();
                 }
             });
         } else {
@@ -916,12 +1069,20 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function filterCustomersTableRealtime(query) {
-    const q = query.toLowerCase().trim();
+    const q = (query || '').toLowerCase().trim();
     const rows = document.querySelectorAll('#customersTable tbody tr.inv-row');
 
     rows.forEach(tr => {
-        const searchAttr = tr.getAttribute('data-search') || '';
-        if (!q || searchAttr.includes(q)) {
+        if (!q) {
+            tr.style.display = '';
+            return;
+        }
+        // Exclude action column cells from text matching
+        const dataCells = Array.from(tr.querySelectorAll('td:not(.col-right:last-child)'));
+        const rowText = dataCells.map(td => td.textContent).join(' ').toLowerCase();
+        const searchAttr = (tr.getAttribute('data-search') || '').toLowerCase();
+
+        if (rowText.includes(q) || searchAttr.includes(q)) {
             tr.style.display = '';
         } else {
             tr.style.display = 'none';
@@ -929,13 +1090,107 @@ function filterCustomersTableRealtime(query) {
     });
 }
 
+function changeCustomerPageSize(val) {
+    const url = new URL(window.location.href);
+    url.searchParams.set('limit', val);
+    url.searchParams.set('page', 1);
+    window.location.href = url.toString();
+}
+
+async function toggleCustomerStatus(id) {
+    if (!confirm('Are you sure you want to toggle this customer account status?')) return;
+    try {
+        const res = await fetch('customer_api.php?action=toggle_status', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: id })
+        });
+        const result = await res.json();
+        if (result.success) {
+            location.reload();
+        } else {
+            alert('Error: ' + (result.message || 'Could not update customer status.'));
+        }
+    } catch (err) {
+        alert('Server error: ' + err.message);
+    }
+}
+
+async function deleteCustomer(id) {
+    if (!confirm('Are you sure you want to move this customer to the Trash Bin?')) return;
+    try {
+        const res = await fetch('customer_api.php?action=delete_customer', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: id })
+        });
+        const result = await res.json();
+        if (result.success) {
+            location.reload();
+        } else {
+            alert('Error: ' + (result.message || 'Could not delete customer.'));
+        }
+    } catch (err) {
+        alert('Server error: ' + err.message);
+    }
+}
+
+async function restoreCustomer(id) {
+    if (!confirm('Are you sure you want to restore this customer from the Trash Bin?')) return;
+    try {
+        const res = await fetch('customer_api.php?action=restore_customer', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: id })
+        });
+        const result = await res.json();
+        if (result.success) {
+            location.reload();
+        } else {
+            alert('Error: ' + (result.message || 'Could not restore customer.'));
+        }
+    } catch (err) {
+        alert('Server error: ' + err.message);
+    }
+}
+
 function openCreateCustomerModal() {
-    document.getElementById('createCustomerForm').reset();
+    const form = document.getElementById('createCustomerForm');
+    form.reset();
+    const cb = document.getElementById('modal_has_credit_limit');
+    if (cb) {
+        cb.checked = false;
+        toggleCreditLimitInput(cb, 'modal_credit_limit_wrap', 'modal_credit_limit_input', 'modal_credit_no_limit_badge', 'modal_credit_limit_status');
+    }
     document.getElementById('createCustomerModal').classList.add('active');
 }
 
 function closeCreateCustomerModal() {
     document.getElementById('createCustomerModal').classList.remove('active');
+}
+
+function toggleCreditLimitInput(cb, wrapId, inputId, badgeId, statusId) {
+    const wrap = document.getElementById(wrapId);
+    const input = document.getElementById(inputId);
+    const badge = document.getElementById(badgeId);
+    const status = document.getElementById(statusId);
+    if (cb.checked) {
+        if (wrap) wrap.style.display = 'block';
+        if (badge) badge.style.display = 'none';
+        if (input) {
+            input.disabled = false;
+            input.focus();
+        }
+        if (status) status.textContent = 'Limit Enabled';
+    } else {
+        if (wrap) wrap.style.display = 'none';
+        if (badge) badge.style.display = 'flex';
+        if (input) {
+            input.disabled = true;
+            input.value = '';
+        }
+        if (status) status.textContent = 'Off (No Limit)';
+    }
 }
 
 async function handleCreateCustomerSubmit(e) {
@@ -1005,13 +1260,13 @@ async function openCustomerDetailDrawer(customerId) {
             document.getElementById('drawerWalkinBadge').innerHTML = badges;
         }
 
-        document.getElementById('drawerCustStatusBadge').className = 'cust-status-badge ' + (st === 'active' ? 'cust-status-active' : 'cust-status-inactive');
-        document.getElementById('drawerCustStatusBadge').textContent = st.toUpperCase();
+        document.getElementById('drawerCustStatusBadge').className = 'prod-badge ' + (st === 'active' ? 'prod-badge-active' : 'prod-badge-inactive');
+        document.getElementById('drawerCustStatusBadge').innerHTML = `<span class="dot"></span>${st.toUpperCase()}`;
 
         // Render Action Buttons inside Side Panel Drawer
         const actionsContainer = document.getElementById('drawerQuickActions');
         let actionsHtml = `
-            <button type="button" class="inv-btn inv-btn-ghost" style="font-size: 11px; padding: 6px 12px; background: #f1f5f9;" onclick="openTxHistoryDrawer(${cust.id})">
+            <button type="button" class="inv-btn inv-btn-ghost" style="font-size: 11px; padding: 0 12px; background: #f1f5f9;" onclick="openTxHistoryDrawer(${cust.id})">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
                 History
             </button>
@@ -1019,7 +1274,7 @@ async function openCustomerDetailDrawer(customerId) {
 
         if (balVal > 0 && window.CAN_PAY_CUSTOMERS) {
             actionsHtml += `
-                <button type="button" class="inv-btn inv-btn-success" style="font-size: 11px; padding: 6px 12px;" onclick="openCollectPaymentModal(${cust.id})">
+                <button type="button" class="inv-btn inv-btn-success" style="font-size: 11px; padding: 0 12px;" onclick="openCollectPaymentModal(${cust.id})">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
                     Collect Payment
                 </button>
@@ -1028,7 +1283,7 @@ async function openCustomerDetailDrawer(customerId) {
 
         if (window.CAN_MANAGE_CUSTOMERS) {
             actionsHtml += `
-                <a href="customer_edit.php?id=${cust.id}" class="inv-btn inv-btn-ghost" style="font-size: 11px; padding: 6px 12px;">
+                <a href="customer_edit.php?id=${cust.id}" class="inv-btn inv-btn-ghost" style="font-size: 11px; padding: 0 12px;">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                     Edit
                 </a>
@@ -1038,7 +1293,7 @@ async function openCustomerDetailDrawer(customerId) {
         if (window.CAN_CHANGE_STATUS && !isWalkin) {
             const isAct = st === 'active';
             actionsHtml += `
-                <button type="button" class="inv-btn ${isAct ? 'inv-btn-danger' : 'inv-btn-success'}" style="font-size: 11px; padding: 6px 12px;" onclick="toggleCustomerStatusFromDrawer(${cust.id}, '${st}')">
+                <button type="button" class="inv-btn ${isAct ? 'inv-btn-danger' : 'inv-btn-success'}" style="font-size: 11px; padding: 0 12px;" onclick="toggleCustomerStatusFromDrawer(${cust.id}, '${st}')">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">${isAct ? '<circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>' : '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>'}</svg>
                     ${isAct ? 'Deactivate' : 'Activate'}
                 </button>
@@ -1046,10 +1301,11 @@ async function openCustomerDetailDrawer(customerId) {
         }
         actionsContainer.innerHTML = actionsHtml;
 
-        const limitVal = is_numeric(cust.credit_limit) ? parseFloat(cust.credit_limit).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2}) : cust.credit_limit;
+        const hasNoLimit = (cust.credit_limit === null || cust.credit_limit === undefined || cust.credit_limit === '');
+        const limitVal = hasNoLimit ? 'No Limit' : (is_numeric(cust.credit_limit) ? 'LKR ' + parseFloat(cust.credit_limit).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2}) : cust.credit_limit);
         const balDisplay = is_numeric(cust.credit_balance) ? balVal.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2}) : cust.credit_balance;
 
-        document.getElementById('drawerCreditLimit').textContent = 'LKR ' + limitVal;
+        document.getElementById('drawerCreditLimit').textContent = limitVal;
         const balEl = document.getElementById('drawerOutstandingBalance');
         balEl.textContent = 'LKR ' + balDisplay;
         balEl.style.color = (is_numeric(cust.credit_balance) && balVal > 0) ? '#dc2626' : '#166534';
@@ -1057,7 +1313,7 @@ async function openCustomerDetailDrawer(customerId) {
         const payTriggerContainer = document.getElementById('drawerPayTriggerContainer');
         if (balVal > 0 && window.CAN_PAY_CUSTOMERS) {
             payTriggerContainer.innerHTML = `
-                <button type="button" class="inv-btn inv-btn-success" style="width: 100%; justify-content: center; padding: 5px 10px; font-size: 11px;" onclick="openCollectPaymentModal(${cust.id})">
+                <button type="button" class="inv-btn inv-btn-success" style="width: 100%; justify-content: center; padding: 0 10px; font-size: 11px;" onclick="openCollectPaymentModal(${cust.id})">
                     Collect LKR ${balDisplay}
                 </button>
             `;
@@ -1100,7 +1356,7 @@ async function openCustomerDetailDrawer(customerId) {
                 <div style="color: #94a3b8; font-size: 0.78rem; padding: 10px; text-align: center; background: #f8fafc; border-radius: 8px;">
                     No recent purchases recorded.
                     <div style="margin-top: 6px;">
-                        <button type="button" class="inv-btn inv-btn-ghost" style="font-size: 11px; padding: 4px 10px;" onclick="openTxHistoryDrawer(${cust.id})">View History Drawer</button>
+                        <button type="button" class="inv-btn inv-btn-ghost" style="font-size: 11px; padding: 0 10px;" onclick="openTxHistoryDrawer(${cust.id})">View History Drawer</button>
                     </div>
                 </div>
             `;
@@ -1327,11 +1583,22 @@ function onCustomerTotalAmountChanged(val) {
 
 function getCustomerPaymentMethodOptions(selectedKey) {
     let html = '';
-    const methods = [
-        { key: 'Cash in Hand', label: 'Cash in Hand (Main Safe)' },
-        { key: 'Cash Drawer', label: 'Cash Drawer (POS Register)' },
-        { key: 'Petty Cash', label: 'Petty Cash Account' }
-    ];
+    const methods = [];
+
+    if (window.customerCashAccounts && window.customerCashAccounts.length > 0) {
+        window.customerCashAccounts.forEach(ca => {
+            const isMain = (ca.account_code === '1010');
+            methods.push({
+                key: isMain ? 'Cash in Hand' : ca.account_name,
+                label: isMain ? 'Cash in Hand (Main Safe)' : `${ca.account_name} (${ca.account_code})`
+            });
+        });
+    } else {
+        methods.push({ key: 'Cash in Hand', label: 'Cash in Hand (Main Safe)' });
+    }
+
+    methods.push({ key: 'Cash Drawer', label: 'Cash Drawer (POS Register)' });
+    methods.push({ key: 'Petty Cash', label: 'Petty Cash Account' });
 
     if (window.customerBankAccounts && window.customerBankAccounts.length > 0) {
         window.customerBankAccounts.forEach(b => {
@@ -1382,6 +1649,9 @@ function renderCustomerSplitRows() {
                     <input type="text" class="inv-input" value="${esc(row.ref || '')}" placeholder="${refPlaceholder}" oninput="updateCustomerSplitRef(${idx}, this.value)" style="height: 32px; font-size: 11.5px; width: 100%;">
                 </td>
                 <td style="padding: 5px 10px;">
+                    <input type="text" class="inv-input" value="${esc(row.cheque_bank || '')}" placeholder="e.g. BOC, Commercial" oninput="updateCustomerSplitChequeBank(${idx}, this.value)" ${isCheque ? '' : 'disabled style="height: 32px; font-size: 11px; opacity: 0.4; width: 100%;"'} style="height: 32px; font-size: 11px; width: 100%;">
+                </td>
+                <td style="padding: 5px 10px;">
                     <input type="date" class="inv-input" value="${row.cheque_date || '<?= date('Y-m-d') ?>'}" onchange="updateCustomerSplitChequeDate(${idx}, this.value)" ${isCheque ? '' : 'disabled style="height: 32px; font-size: 11px; opacity: 0.4; width: 100%;"'} style="height: 32px; font-size: 11px; width: 100%;">
                 </td>
                 <td style="padding: 5px 8px; text-align: center;">
@@ -1421,6 +1691,7 @@ function addCustomerSplitRow() {
         method: defaultMethod,
         amount: rem,
         ref: '',
+        cheque_bank: '',
         cheque_date: todayStr
     });
 
@@ -1462,6 +1733,10 @@ function syncCustomerTotalToSplits() {
 
 function updateCustomerSplitRef(idx, val) {
     customerSplitRows[idx].ref = val;
+}
+
+function updateCustomerSplitChequeBank(idx, val) {
+    customerSplitRows[idx].cheque_bank = val;
 }
 
 function updateCustomerSplitChequeDate(idx, val) {
@@ -1598,7 +1873,10 @@ async function openCollectPaymentModal(customerId) {
 
         document.getElementById('payModalCustTitle').textContent = (data.name || 'Customer') + ' (' + (data.customer_code || ('#' + customerId)) + ')';
         document.getElementById('payModalOutstandingVal').textContent = 'LKR ' + balVal.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
-        document.getElementById('payModalLimitInfo').textContent = `Credit Limit: LKR ${parseFloat(data.credit_limit || 0).toLocaleString('en-US', {minimumFractionDigits:2})} | Available: LKR ${parseFloat(data.available_credit || 0).toLocaleString('en-US', {minimumFractionDigits:2})}`;
+        const hasNoLimit = (data.credit_limit === null || data.credit_limit === undefined || data.credit_limit === '');
+        const limitDisplay = hasNoLimit ? 'No Limit' : `LKR ${parseFloat(data.credit_limit || 0).toLocaleString('en-US', {minimumFractionDigits:2})}`;
+        const availDisplay = hasNoLimit ? 'Unlimited' : `LKR ${parseFloat(data.available_credit || 0).toLocaleString('en-US', {minimumFractionDigits:2})}`;
+        document.getElementById('payModalLimitInfo').textContent = `Credit Limit: ${limitDisplay} | Available: ${availDisplay}`;
         
         const initialAmount = balVal > 0 ? balVal : 0;
         document.getElementById('payAmountInput').value = initialAmount > 0 ? initialAmount.toFixed(2) : '';
@@ -1609,6 +1887,7 @@ async function openCollectPaymentModal(customerId) {
             method: 'Cash in Hand',
             amount: initialAmount,
             ref: '',
+            cheque_bank: '',
             cheque_date: todayStr
         }];
         renderCustomerSplitRows();
@@ -1687,10 +1966,17 @@ async function handleCollectPaymentSubmit(e) {
             return;
         }
 
-        if (row.method === 'Cheque' && !row.ref) {
-            alert(`Please enter the Cheque Number for Split #${i + 1}.`);
-            btn.disabled = false;
-            return;
+        if (row.method === 'Cheque') {
+            if (!row.ref) {
+                alert(`Please enter the Cheque Number for Split #${i + 1}.`);
+                btn.disabled = false;
+                return;
+            }
+            if (!row.cheque_bank || !row.cheque_bank.trim()) {
+                alert(`Please enter the Cheque Bank name (e.g. BOC, Commercial) for Split #${i + 1}.`);
+                btn.disabled = false;
+                return;
+            }
         }
 
         if (row.method === 'Voucher' && !row.ref) {
@@ -1714,6 +2000,7 @@ async function handleCollectPaymentSubmit(e) {
             amount: parseFloat(r.amount) || 0,
             reference_no: r.ref || '',
             cheque_no: (m === 'Cheque') ? (r.ref || '') : '',
+            bank_name: (m === 'Cheque') ? (r.cheque_bank || '') : '',
             cheque_date: (m === 'Cheque') ? (r.cheque_date || '<?= date('Y-m-d') ?>') : '',
             voucher_code: (m === 'Voucher') ? (r.ref || '') : ''
         };

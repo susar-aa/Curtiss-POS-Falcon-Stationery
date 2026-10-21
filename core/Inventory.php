@@ -53,7 +53,11 @@ class Inventory
             ];
 
             if (!empty($filters['search'])) {
-                $searchTerm = '%' . trim($filters['search']) . '%';
+                $rawTerm = trim($filters['search']);
+                $searchTerm = '%' . $rawTerm . '%';
+                $cleanNumeric = str_replace(',', '', $rawTerm);
+                $cleanNumericTerm = '%' . $cleanNumeric . '%';
+
                 $where[] = "(
                     p.sku LIKE :s1 OR 
                     p.barcode LIKE :s2 OR 
@@ -63,15 +67,29 @@ class Inventory
                     CAST(p.cost AS CHAR) LIKE :s6 OR 
                     FORMAT(p.cost, 2) LIKE :s7 OR 
                     CONCAT('LKR ', FORMAT(p.cost, 2)) LIKE :s8 OR 
-                    CAST(p.selling_price AS CHAR) LIKE :s9 OR 
-                    FORMAT(p.selling_price, 2) LIKE :s10 OR 
-                    CONCAT('LKR ', FORMAT(p.selling_price, 2)) LIKE :s11 OR 
-                    CAST(COALESCE(bi.quantity, 0) AS CHAR) LIKE :s12 OR 
-                    FORMAT(COALESCE(bi.quantity, 0), 2) LIKE :s13
+                    CONCAT('Rs. ', FORMAT(p.cost, 2)) LIKE :s9 OR 
+                    CAST(p.selling_price AS CHAR) LIKE :s10 OR 
+                    FORMAT(p.selling_price, 2) LIKE :s11 OR 
+                    CONCAT('LKR ', FORMAT(p.selling_price, 2)) LIKE :s12 OR 
+                    CONCAT('Rs. ', FORMAT(p.selling_price, 2)) LIKE :s13 OR 
+                    CAST(COALESCE(bi.quantity, 0) AS CHAR) LIKE :s14 OR 
+                    FORMAT(COALESCE(bi.quantity, 0), 2) LIKE :s15
                 )";
-                for ($i = 1; $i <= 13; $i++) {
-                    $params[":s{$i}"] = $searchTerm;
-                }
+                $params[':s1']  = $searchTerm;
+                $params[':s2']  = $searchTerm;
+                $params[':s3']  = $searchTerm;
+                $params[':s4']  = $searchTerm;
+                $params[':s5']  = $searchTerm;
+                $params[':s6']  = $cleanNumericTerm;
+                $params[':s7']  = $searchTerm;
+                $params[':s8']  = $searchTerm;
+                $params[':s9']  = $searchTerm;
+                $params[':s10'] = $cleanNumericTerm;
+                $params[':s11'] = $searchTerm;
+                $params[':s12'] = $searchTerm;
+                $params[':s13'] = $searchTerm;
+                $params[':s14'] = $cleanNumericTerm;
+                $params[':s15'] = $searchTerm;
             }
 
             if (!empty($filters['brand_id'])) {
@@ -384,7 +402,15 @@ class Inventory
     public static function getLots(?int $productId = null, ?int $branchId = null, bool $activeOnly = false): array
     {
         try {
-            Database::execute("UPDATE product_lots SET status = 'depleted' WHERE remaining_quantity <= 0 AND status = 'active'");
+            if ($productId && $branchId) {
+                Database::execute("UPDATE product_lots SET status = 'depleted' WHERE product_id = :p AND branch_id = :b AND remaining_quantity <= 0 AND status = 'active'", [':p' => $productId, ':b' => $branchId]);
+            } elseif ($productId) {
+                Database::execute("UPDATE product_lots SET status = 'depleted' WHERE product_id = :p AND remaining_quantity <= 0 AND status = 'active'", [':p' => $productId]);
+            } elseif ($branchId) {
+                Database::execute("UPDATE product_lots SET status = 'depleted' WHERE branch_id = :b AND remaining_quantity <= 0 AND status = 'active'", [':b' => $branchId]);
+            } else {
+                Database::execute("UPDATE product_lots SET status = 'depleted' WHERE remaining_quantity <= 0 AND status = 'active'");
+            }
 
             $where = ["p.deleted_at IS NULL"];
             $params = [];
@@ -410,9 +436,14 @@ class Inventory
                     pl.*, 
                     p.name AS product_name, 
                     p.barcode, 
+                    COALESCE(p.sku, p.barcode) AS sku,
+                    br.name AS brand_name,
+                    cat.name AS category_name,
                     b.name AS branch_name
                 FROM product_lots pl
                 JOIN products p ON pl.product_id = p.id
+                LEFT JOIN brands br ON p.brand_id = br.id
+                LEFT JOIN categories cat ON p.category_id = cat.id
                 JOIN branches b ON pl.branch_id = b.id
                 $whereSql
                 ORDER BY pl.id DESC
@@ -448,8 +479,38 @@ class Inventory
             }
 
             if (!empty($filters['search'])) {
-                $where[] = "(p.name LIKE :search OR p.barcode LIKE :search OR sl.reference_no LIKE :search)";
-                $params[':search'] = '%' . trim($filters['search']) . '%';
+                $rawTerm = trim($filters['search']);
+                $searchTerm = '%' . $rawTerm . '%';
+                $cleanNum = preg_replace('/[^0-9.]/', '', $rawTerm);
+
+                $searchParts = [
+                    "p.name LIKE :s1",
+                    "p.barcode LIKE :s2",
+                    "COALESCE(p.sku, '') LIKE :s3",
+                    "COALESCE(sl.reference_no, '') LIKE :s4",
+                    "sl.movement_type LIKE :s5",
+                    "REPLACE(sl.movement_type, '_', ' ') LIKE :s6",
+                    "COALESCE(pl.lot_number, '') LIKE :s7",
+                    "COALESCE(u.username, '') LIKE :s8",
+                    "COALESCE(sl.notes, '') LIKE :s9",
+                    "CAST(sl.quantity AS CHAR) LIKE :s10",
+                    "CAST(sl.balance_after AS CHAR) LIKE :s11"
+                ];
+
+                for ($i = 1; $i <= 11; $i++) {
+                    $params[":s{$i}"] = $searchTerm;
+                }
+
+                if ($cleanNum !== '' && is_numeric($cleanNum)) {
+                    $searchParts[] = "ABS(sl.quantity - :sNum1) < 0.01";
+                    $searchParts[] = "ABS(sl.balance_after - :sNum2) < 0.01";
+                    $searchParts[] = "ABS(COALESCE(pl.cost, 0) - :sNum3) < 0.01";
+                    $params[':sNum1'] = (float)$cleanNum;
+                    $params[':sNum2'] = (float)$cleanNum;
+                    $params[':sNum3'] = (float)$cleanNum;
+                }
+
+                $where[] = "(" . implode(" OR ", $searchParts) . ")";
             }
 
             $whereSql = !empty($where) ? "WHERE " . implode(" AND ", $where) : "";
@@ -458,19 +519,24 @@ class Inventory
                 SELECT COUNT(*) AS total 
                 FROM stock_ledger sl 
                 JOIN products p ON sl.product_id = p.id 
+                LEFT JOIN product_lots pl ON sl.lot_id = pl.id
+                LEFT JOIN users u ON sl.user_id = u.id
                 $whereSql
             ", $params);
 
             $totalItems = (int)($countRow['total'] ?? 0);
-            $offset = ($page - 1) * $limit;
+            $offset = (int)(($page - 1) * $limit);
 
             $sql = "
                 SELECT 
                     sl.*,
                     p.name AS product_name,
                     p.barcode,
+                    COALESCE(p.sku, p.barcode) AS sku,
                     b.name AS branch_name,
                     pl.lot_number,
+                    pl.cost AS unit_cost,
+                    pl.selling_price,
                     u.username AS username
                 FROM stock_ledger sl
                 JOIN products p ON sl.product_id = p.id
@@ -479,7 +545,7 @@ class Inventory
                 LEFT JOIN users u ON sl.user_id = u.id
                 $whereSql
                 ORDER BY sl.id DESC
-                LIMIT $limit OFFSET $offset
+                LIMIT " . (int)$limit . " OFFSET " . (int)$offset . "
             ";
 
             $items = Database::fetchAll($sql, $params);
@@ -489,7 +555,7 @@ class Inventory
                 'totalItems' => $totalItems,
                 'page'       => $page,
                 'limit'      => $limit,
-                'totalPages' => max(1, ceil($totalItems / $limit))
+                'totalPages' => max(1, (int)ceil($totalItems / $limit))
             ];
         } catch (Throwable $e) {
             Logger::error("Failed to fetch stock ledger list: " . $e->getMessage(), $e);

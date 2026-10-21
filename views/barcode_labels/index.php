@@ -1110,7 +1110,7 @@ function createSingleLabelElement(item) {
     el.className = 'label-item';
 
     const shopNameHtml = activeSettings.show_shop_name 
-        ? `<div class="label-shop-name">${escapeHtml(activeSettings.shop_name || 'KANDY KIDS')}</div>` 
+        ? `<div class="label-shop-name">${escapeHtml(activeSettings.shop_name || 'FALCON STATIONERY')}</div>` 
         : '';
 
     const codeHtml = activeSettings.show_product_code 
@@ -1232,7 +1232,7 @@ function createPreviewCard(item) {
     const pricePrefix = activeSettings.price_prefix || 'Rs.';
     card.innerHTML = `
         <div style="width: 100%;">
-            <div style="font-weight: 900; font-size: 11px; text-transform: uppercase;">${escapeHtml(activeSettings.shop_name || 'KANDY KIDS')}</div>
+            <div style="font-weight: 900; font-size: 11px; text-transform: uppercase;">${escapeHtml(activeSettings.shop_name || 'FALCON STATIONERY')}</div>
             <div style="font-weight: 700; font-size: 10px; margin: 3px 0; max-height: 28px; overflow: hidden;">${escapeHtml(item.product_name)}</div>
             <div style="font-size: 9.5px; font-weight: 800; color: #475569;">Code: ${escapeHtml(item.product_code)}</div>
         </div>
@@ -1300,7 +1300,7 @@ function generateTsplCommands() {
 }
 
 function appendTsplLabelBlock(lines, item, startX) {
-    const shop = activeSettings.shop_name || 'KANDY KIDS';
+    const shop = activeSettings.shop_name || 'FALCON STATIONERY';
     const pricePrefix = activeSettings.price_prefix || 'Rs.';
     const priceStr = `${pricePrefix} ${item.selling_price.toFixed(2)}`;
 

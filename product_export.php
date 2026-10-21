@@ -26,7 +26,7 @@ if (!empty($selectedIds)) {
     if (!empty($idsArr)) {
         $inSql = implode(',', $idsArr);
         $products = Database::fetchAll("
-            SELECT p.id, COALESCE(p.sku, p.barcode) AS sku, p.barcode, b.name AS brand_name, c.name AS category_name,
+            SELECT p.id, p.sku, p.barcode, b.name AS brand_name, c.name AS category_name,
                    p.name, s.name AS supplier_name, p.cost, p.selling_price, p.opening_stock, p.low_stock_threshold, p.status
             FROM products p
             LEFT JOIN brands b ON p.brand_id = b.id
@@ -45,7 +45,7 @@ if (!empty($selectedIds)) {
 }
 
 header('Content-Type: text/csv; charset=utf-8');
-header('Content-Disposition: attachment; filename=curtiss_products_master_' . date('Y-m-d_H-i-s') . '.csv');
+header('Content-Disposition: attachment; filename=falcon_products_master_' . date('Y-m-d_H-i-s') . '.csv');
 
 // Print UTF-8 BOM so Excel opens with proper encoding
 echo "\xEF\xBB\xBF";
@@ -67,32 +67,81 @@ fputcsv($output, [
     'Status'
 ]);
 
-foreach ($products as $p) {
-    $cost = (float)$p['cost'];
-    if (MaskingHelper::isSpecialUser()) {
-        $cost = MaskingHelper::maskValue($cost);
+// Batch-fetch active price lots for all exported products (Rule 5: No N+1 queries)
+$branchId = (int)($_SESSION['branch_id'] ?? $_SESSION['active_branch_id'] ?? 1);
+$productIds = array_column($products, 'id');
+$lotsByProduct = [];
+
+if (!empty($productIds)) {
+    $inClause = implode(',', array_map('intval', $productIds));
+    $lots = Database::fetchAll("
+        SELECT pl.product_id, pl.cost, pl.selling_price, pl.remaining_quantity
+        FROM product_lots pl
+        WHERE pl.product_id IN ($inClause)
+          AND pl.branch_id = :branch_id
+          AND pl.status = 'active'
+          AND pl.remaining_quantity > 0
+        ORDER BY pl.id ASC
+    ", [':branch_id' => $branchId]);
+
+    foreach ($lots as $l) {
+        $lotsByProduct[(int)$l['product_id']][] = $l;
     }
+}
 
-    $sku = (string)($p['sku'] ?? $p['barcode']);
+foreach ($products as $p) {
+    $pId = (int)$p['id'];
     $barcode = (string)$p['barcode'];
-
-    // Excel text format wrapper so leading zeros are preserved when opened in Excel
+    $sku = (string)(!empty($p['sku']) ? $p['sku'] : $barcode);
     $skuFormatted = '="' . $sku . '"';
     $barcodeFormatted = '="' . $barcode . '"';
 
-    fputcsv($output, [
-        $skuFormatted,
-        $barcodeFormatted,
-        $p['brand_name'] ?? 'Unassigned',
-        $p['category_name'] ?? 'Uncategorized',
-        $p['name'],
-        $p['supplier_name'] ?? 'No Supplier',
-        number_format($cost, 2, '.', ''),
-        number_format((float)$p['selling_price'], 2, '.', ''),
-        number_format((float)$p['opening_stock'], 2, '.', ''),
-        number_format((float)($p['low_stock_threshold'] ?? 10), 2, '.', ''),
-        ucfirst($p['status'])
-    ]);
+    if (isset($lotsByProduct[$pId]) && count($lotsByProduct[$pId]) > 1) {
+        // Multiple active price lots exist: export each price lot as a distinct row
+        foreach ($lotsByProduct[$pId] as $lot) {
+            $lotCost = (float)$lot['cost'];
+            if (MaskingHelper::isSpecialUser()) {
+                $lotCost = MaskingHelper::maskValue($lotCost);
+            }
+            $lotPrice = (float)$lot['selling_price'];
+            $lotStock = (float)$lot['remaining_quantity'];
+
+            fputcsv($output, [
+                $skuFormatted,
+                $barcodeFormatted,
+                $p['brand_name'] ?? 'Unassigned',
+                $p['category_name'] ?? 'Uncategorized',
+                $p['name'],
+                $p['supplier_name'] ?? 'No Supplier',
+                number_format($lotCost, 2, '.', ''),
+                number_format($lotPrice, 2, '.', ''),
+                number_format($lotStock, 2, '.', ''),
+                number_format((float)($p['low_stock_threshold'] ?? 10), 2, '.', ''),
+                ucfirst($p['status'])
+            ]);
+        }
+    } else {
+        // Standard single product row
+        $cost = (float)$p['cost'];
+        if (MaskingHelper::isSpecialUser()) {
+            $cost = MaskingHelper::maskValue($cost);
+        }
+        $stock = isset($lotsByProduct[$pId][0]) ? (float)$lotsByProduct[$pId][0]['remaining_quantity'] : (float)($p['opening_stock'] ?? 0);
+
+        fputcsv($output, [
+            $skuFormatted,
+            $barcodeFormatted,
+            $p['brand_name'] ?? 'Unassigned',
+            $p['category_name'] ?? 'Uncategorized',
+            $p['name'],
+            $p['supplier_name'] ?? 'No Supplier',
+            number_format($cost, 2, '.', ''),
+            number_format((float)$p['selling_price'], 2, '.', ''),
+            number_format($stock, 2, '.', ''),
+            number_format((float)($p['low_stock_threshold'] ?? 10), 2, '.', ''),
+            ucfirst($p['status'])
+        ]);
+    }
 }
 
 fclose($output);

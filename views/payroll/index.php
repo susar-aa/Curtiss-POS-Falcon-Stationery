@@ -12,6 +12,7 @@ $canPay = Auth::hasPermission('payroll.pay') || Auth::hasRole(ROLE_SUPER_ADMIN, 
 $canRemit = Auth::hasPermission('payroll.remit') || Auth::hasRole(ROLE_SUPER_ADMIN, ROLE_ADMIN, ROLE_ACCOUNTANT);
 ?>
 
+<meta name="csrf-token" content="<?php echo htmlspecialchars(Auth::generateCsrfToken(), ENT_QUOTES, 'UTF-8'); ?>">
 <link rel="stylesheet" href="assets/css/curtiss_select.css">
 <script src="assets/js/curtiss_select.js"></script>
 
@@ -881,6 +882,12 @@ let currentPeriodsData = [];
 let activePeriodId = null;
 let activePeriodObj = null;
 
+function getCsrfToken() {
+    return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+}
+
+let payrollSearchDebounceTimer = null;
+
 document.addEventListener('DOMContentLoaded', () => {
     if (typeof CurtissSearchableSelect !== 'undefined') {
         const branchSel = document.getElementById('filterPayrollBranch');
@@ -892,8 +899,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (typeof CurtissNav !== 'undefined' && CurtissNav.enablePageSearch) {
         CurtissNav.enablePageSearch((term) => {
-            currentPeriodPage = 1;
-            loadPayrollPeriods(term);
+            clearTimeout(payrollSearchDebounceTimer);
+            payrollSearchDebounceTimer = setTimeout(() => {
+                currentPeriodPage = 1;
+                loadPayrollPeriods(term);
+            }, 300);
         });
     }
 
@@ -1322,6 +1332,7 @@ async function saveEntryCommission(entryId, newCommVal) {
         formData.append('entry_id', entryId);
         formData.append('commissions', commVal);
         formData.append('other_deductions', otherVal);
+        formData.append('csrf_token', getCsrfToken());
 
         const res = await fetch('payroll_api.php?action=update_entry', {
             method: 'POST',
@@ -1354,6 +1365,7 @@ async function saveEntryOtherDeduction(entryId, newOtherVal) {
         formData.append('entry_id', entryId);
         formData.append('commissions', commVal);
         formData.append('other_deductions', otherVal);
+        formData.append('csrf_token', getCsrfToken());
 
         const res = await fetch('payroll_api.php?action=update_entry', {
             method: 'POST',
@@ -1515,6 +1527,7 @@ async function approvePayrollPeriod(periodId) {
     try {
         const formData = new FormData();
         formData.append('period_id', periodId);
+        formData.append('csrf_token', getCsrfToken());
 
         const res = await fetch('payroll_api.php?action=approve_period', {
             method: 'POST',
@@ -1546,6 +1559,7 @@ async function handleCreatePeriod(event) {
     try {
         const form = document.getElementById('createPeriodForm');
         const formData = new FormData(form);
+        formData.append('csrf_token', getCsrfToken());
 
         const res = await fetch('payroll_api.php?action=create_period', {
             method: 'POST',
@@ -1813,6 +1827,7 @@ async function handleRecordPayment(event) {
         });
 
         formData.append('splits', JSON.stringify(splitsPayload));
+        formData.append('csrf_token', getCsrfToken());
 
         const res = await fetch('payroll_api.php?action=record_payment', {
             method: 'POST',
@@ -1843,6 +1858,7 @@ async function promptCancelPeriod(periodId) {
         const formData = new FormData();
         formData.append('period_id', periodId);
         formData.append('reason', reason.trim());
+        formData.append('csrf_token', getCsrfToken());
 
         const res = await fetch('payroll_api.php?action=cancel_period', {
             method: 'POST',
@@ -1949,6 +1965,7 @@ async function handleRemitEpfEtf(event) {
     try {
         const form = document.getElementById('remitForm');
         const formData = new FormData(form);
+        formData.append('csrf_token', getCsrfToken());
 
         const res = await fetch('payroll_api.php?action=remit_epf_etf', {
             method: 'POST',

@@ -113,19 +113,45 @@ class PettyCash
     /**
      * Fetch all Expense Categories (active or all)
      */
-    public static function getCategories(bool $activeOnly = true): array
+    public static function getCategories(bool $activeOnly = true, bool $includeDeleted = false): array
     {
         try {
-            $where = $activeOnly ? "WHERE ec.status = 'active'" : "";
+            $where = [];
+            if (!$includeDeleted) {
+                $where[] = "ec.deleted_at IS NULL";
+            }
+            if ($activeOnly) {
+                $where[] = "ec.status = 'active'";
+            }
+            $whereSql = !empty($where) ? "WHERE " . implode(" AND ", $where) : "";
             return Database::fetchAll("
                 SELECT ec.*, coa.account_code, coa.account_name
                 FROM expense_categories ec
                 JOIN chart_of_accounts coa ON ec.account_id = coa.id
-                $where
+                $whereSql
                 ORDER BY ec.name ASC
             ");
         } catch (Throwable $e) {
             Logger::error("Failed to fetch expense categories: " . $e->getMessage(), $e);
+            return [];
+        }
+    }
+
+    /**
+     * Fetch soft-deleted Expense Categories for trash bin
+     */
+    public static function getDeletedCategories(): array
+    {
+        try {
+            return Database::fetchAll("
+                SELECT ec.*, coa.account_code, coa.account_name
+                FROM expense_categories ec
+                JOIN chart_of_accounts coa ON ec.account_id = coa.id
+                WHERE ec.deleted_at IS NOT NULL
+                ORDER BY ec.deleted_at DESC
+            ");
+        } catch (Throwable $e) {
+            Logger::error("Failed to fetch deleted expense categories: " . $e->getMessage(), $e);
             return [];
         }
     }
@@ -165,22 +191,22 @@ class PettyCash
                 return ['success' => false, 'message' => "Category must map to a valid expense GL account (5xxx). Account '{$accCode}' is not an expense account."];
             }
 
-            // Code uniqueness
-            $dupSql = "SELECT id FROM expense_categories WHERE code = :code";
-            $dupParams = [':code' => $code];
+            // Case-insensitive code and name uniqueness among non-deleted categories
+            $dupSql = "SELECT id FROM expense_categories WHERE (LOWER(code) = LOWER(:code) OR LOWER(name) = LOWER(:name)) AND deleted_at IS NULL";
+            $dupParams = [':code' => $code, ':name' => $name];
             if ($id) {
                 $dupSql .= " AND id != :id";
                 $dupParams[':id'] = $id;
             }
             if (Database::fetchOne($dupSql, $dupParams)) {
-                return ['success' => false, 'message' => "Category code '{$code}' is already assigned."];
+                return ['success' => false, 'message' => "An active expense category with code '{$code}' or name '{$name}' already exists."];
             }
 
             if ($id) {
                 Database::execute("
                     UPDATE expense_categories SET
                         name = :name, code = :code, account_id = :account_id,
-                        description = :description, status = :status
+                        description = :description, status = :status, updated_at = CURRENT_TIMESTAMP
                     WHERE id = :id
                 ", [
                     ':name'        => $name,
@@ -224,31 +250,45 @@ class PettyCash
     }
 
     /**
-     * Delete Expense Category safely (blocked if associated vouchers exist)
+     * Soft-delete Expense Category safely (moves to Trash Bin)
      */
-    public static function deleteCategory(int $id): array
+    public static function deleteCategory(int $id, int $userId): array
     {
         try {
-            $cat = Database::fetchOne("SELECT * FROM expense_categories WHERE id = :id", [':id' => $id]);
+            $cat = Database::fetchOne("SELECT * FROM expense_categories WHERE id = :id AND deleted_at IS NULL", [':id' => $id]);
             if (!$cat) {
                 return ['success' => false, 'message' => 'Expense category not found.'];
             }
 
-            $usage = Database::fetchOne("SELECT COUNT(*) AS total FROM petty_cash_vouchers WHERE category_id = :id", [':id' => $id]);
-            if (!empty($usage['total'])) {
-                return [
-                    'success' => false,
-                    'message' => 'Cannot delete expense category that has associated vouchers. Deactivate it instead.'
-                ];
+            Database::execute("UPDATE expense_categories SET deleted_at = CURRENT_TIMESTAMP WHERE id = :id", [':id' => $id]);
+
+            Audit::log('EXPENSE_CATEGORY_SOFT_DELETED', 'petty_cash', (string)$id, null, ['name' => $cat['name']]);
+
+            return ['success' => true, 'message' => "Expense category '{$cat['name']}' moved to trash bin."];
+        } catch (Throwable $e) {
+            Logger::error("Failed to soft-delete category #{$id}: " . $e->getMessage(), $e);
+            return ['success' => false, 'message' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Restore soft-deleted Expense Category from Trash Bin
+     */
+    public static function restoreCategory(int $id, int $userId): array
+    {
+        try {
+            $cat = Database::fetchOne("SELECT * FROM expense_categories WHERE id = :id AND deleted_at IS NOT NULL", [':id' => $id]);
+            if (!$cat) {
+                return ['success' => false, 'message' => 'Trashed expense category not found.'];
             }
 
-            Database::execute("DELETE FROM expense_categories WHERE id = :id", [':id' => $id]);
+            Database::execute("UPDATE expense_categories SET deleted_at = NULL WHERE id = :id", [':id' => $id]);
 
-            Audit::log('EXPENSE_CATEGORY_DELETED', 'petty_cash', (string)$id, null, ['name' => $cat['name']]);
+            Audit::log('EXPENSE_CATEGORY_RESTORED', 'petty_cash', (string)$id, null, ['name' => $cat['name']]);
 
-            return ['success' => true, 'message' => "Expense category '{$cat['name']}' deleted successfully."];
+            return ['success' => true, 'message' => "Expense category '{$cat['name']}' restored successfully."];
         } catch (Throwable $e) {
-            Logger::error("Failed to delete category #{$id}: " . $e->getMessage(), $e);
+            Logger::error("Failed to restore category #{$id}: " . $e->getMessage(), $e);
             return ['success' => false, 'message' => $e->getMessage()];
         }
     }
@@ -579,6 +619,49 @@ class PettyCash
     }
 
     /**
+     * Cancel / Discard a Draft Petty Cash Voucher (Soft Delete)
+     */
+    public static function cancelVoucher(int $voucherId, int $userId, int $branchId): array
+    {
+        $db = Database::getInstance()->getConnection();
+
+        try {
+            $db->beginTransaction();
+
+            $voucher = Database::fetchOne("
+                SELECT * FROM petty_cash_vouchers WHERE id = :id AND branch_id = :branch_id FOR UPDATE
+            ", [':id' => $voucherId, ':branch_id' => $branchId]);
+
+            if (!$voucher) {
+                $db->rollBack();
+                return ['success' => false, 'message' => 'Petty cash voucher not found.'];
+            }
+
+            if ($voucher['status'] !== 'draft') {
+                $db->rollBack();
+                return ['success' => false, 'message' => "Only draft vouchers can be cancelled/discarded. For posted vouchers, use Reverse."];
+            }
+
+            $db->prepare("UPDATE petty_cash_vouchers SET deleted_at = CURRENT_TIMESTAMP WHERE id = :id")
+               ->execute([':id' => $voucherId]);
+
+            $db->commit();
+
+            Audit::log('PETTY_CASH_VOUCHER_CANCELLED', 'petty_cash', (string)$voucherId, null, [
+                'voucher_no' => $voucher['voucher_no'], 'amount' => $voucher['amount']
+            ]);
+
+            return ['success' => true, 'message' => "Draft voucher {$voucher['voucher_no']} cancelled successfully."];
+        } catch (Throwable $e) {
+            if ($db->inTransaction()) {
+                $db->rollBack();
+            }
+            Logger::error("Failed to cancel voucher #{$voucherId}: " . $e->getMessage(), $e);
+            return ['success' => false, 'message' => $e->getMessage()];
+        }
+    }
+
+    /**
      * Reimburse / Top-Up Petty Cash Fund (from Bank or Cash in Hand)
      */
     public static function reimburseFund(array $data, int $userId, int $branchId): array
@@ -588,61 +671,101 @@ class PettyCash
         try {
             $db->beginTransaction();
 
-            $sourceType    = strtolower(trim($data['source_type'] ?? 'bank'));
+            $rawSource     = trim($data['source_type'] ?? 'bank');
             $amount        = round((float)($data['amount'] ?? 0), 2);
             $referenceNo   = !empty($data['reference_no']) ? trim($data['reference_no']) : null;
             $notes         = !empty($data['notes']) ? trim($data['notes']) : null;
             $reimbDate     = !empty($data['reimbursement_date']) ? trim($data['reimbursement_date']) : date('Y-m-d');
             $bankAccountId = !empty($data['bank_account_id']) ? (int)$data['bank_account_id'] : null;
 
-            if (!in_array($sourceType, ['bank', 'cash_in_hand']) || $amount <= 0.00) {
+            if ($amount <= 0.00) {
                 $db->rollBack();
-                return ['success' => false, 'message' => 'Valid funding source (bank or cash_in_hand) and positive amount (> 0) are required.'];
+                return ['success' => false, 'message' => 'Positive amount (> 0) is required for fund top-up.'];
             }
 
             $reimbNo     = self::generateNumber('PCR', 'petty_cash_reimbursements');
             $pcAccountId = Accounting::getAccountIdByCode(Accounting::CODE_PETTY_CASH);
 
-            if ($sourceType === 'cash_in_hand') {
-                // Cash in Hand reimbursement is taken from physical POS Cash Drawer!
-                // Must verify active open business day for branch
-                $activeDay = BusinessDay::getOrCreateActiveDay($branchId, $userId);
-                if (!$activeDay) {
+            $sourceType = 'bank';
+            $creditAccountId = null;
+            $sourceLabel = '';
+
+            if (str_starts_with($rawSource, 'bank_')) {
+                $bankAccountId = (int)str_replace('bank_', '', $rawSource);
+                $bankAcc = Banking::getBankAccount($bankAccountId);
+                if (!$bankAcc || $bankAcc['status'] !== 'active') {
                     $db->rollBack();
-                    return [
-                        'success' => false,
-                        'message' => 'Cannot reimburse from Cash in Hand. No active business day is currently open for this branch.'
-                    ];
+                    return ['success' => false, 'message' => 'Selected bank account does not exist or is inactive.'];
                 }
+                $sourceType = 'bank';
+                $creditAccountId = (int)$bankAcc['account_id'];
+                $sourceLabel = "Bank Transfer: {$bankAcc['bank_name']} - {$bankAcc['account_name']} ({$bankAcc['account_number']})";
 
-                $creditAccountId = Accounting::getAccountIdByCode(Accounting::CODE_CASH);
-                $sourceLabel = 'Cash in Hand Drawer';
-                $bankAccountId = null; // No bank account for cash in hand
-
-            } else { // bank
-                // Bank-funded reimbursement does NOT affect POS Cash Drawer
+            } elseif ($rawSource === 'bank') {
+                $sourceType = 'bank';
                 if ($bankAccountId) {
                     $bankAcc = Banking::getBankAccount($bankAccountId);
                     if (!$bankAcc || $bankAcc['status'] !== 'active') {
                         $db->rollBack();
                         return ['success' => false, 'message' => 'Selected bank account does not exist or is inactive.'];
                     }
-                    $creditAccountId = (int)$bankAcc['account_id']; // Dedicated Bank COA
-                    $sourceLabel = "Bank Account ({$bankAcc['bank_name']} - {$bankAcc['account_number']})";
+                    $creditAccountId = (int)$bankAcc['account_id'];
+                    $sourceLabel = "Bank Transfer: {$bankAcc['bank_name']} - {$bankAcc['account_name']} ({$bankAcc['account_number']})";
                 } else {
-                    // Try to find first active bank account for branch or global
                     $allBankAccs = Banking::getBankAccounts($branchId, true);
                     if (!empty($allBankAccs)) {
                         $bankAcc = $allBankAccs[0];
                         $bankAccountId = (int)$bankAcc['id'];
                         $creditAccountId = (int)$bankAcc['account_id'];
-                        $sourceLabel = "Bank Account ({$bankAcc['bank_name']})";
+                        $sourceLabel = "Bank Transfer: {$bankAcc['bank_name']} - {$bankAcc['account_name']} ({$bankAcc['account_number']})";
                     } else {
                         $creditAccountId = Accounting::getAccountIdByCode(Accounting::CODE_BANK);
                         $sourceLabel = 'Bank Account';
                         $bankAccountId = null;
                     }
                 }
+
+            } elseif ($rawSource === 'cash_in_hand') {
+                $sourceType = 'cash_in_hand';
+                $bankAccountId = null;
+                $creditAccountId = Accounting::getAccountIdByCode(Accounting::CODE_CASH_IN_HAND) ?: Accounting::getAccountIdByCode(Accounting::CODE_CASH);
+                $sourceLabel = 'Cash in Hand (Main Safe)';
+
+            } elseif (str_starts_with($rawSource, 'cash_') || str_starts_with($rawSource, 'coa_')) {
+                $coaId = (int)str_replace(['cash_', 'coa_'], '', $rawSource);
+                $coaAcc = Database::fetchOne("SELECT id, account_code, account_name FROM chart_of_accounts WHERE id = :id AND status = 'active'", [':id' => $coaId]);
+                if (!$coaAcc) {
+                    $db->rollBack();
+                    return ['success' => false, 'message' => 'Selected cash account does not exist or is inactive.'];
+                }
+                $sourceType = 'cash_in_hand';
+                $bankAccountId = null;
+                $creditAccountId = (int)$coaAcc['id'];
+                $sourceLabel = "{$coaAcc['account_name']} ({$coaAcc['account_code']})";
+
+            } elseif ($rawSource === 'cash_drawer') {
+                $sourceType = 'cash_drawer';
+                $bankAccountId = null;
+                $activeDay = BusinessDay::getOrCreateActiveDay($branchId, $userId);
+                if (!$activeDay) {
+                    $db->rollBack();
+                    return [
+                        'success' => false,
+                        'message' => 'Cannot top-up from Cash Drawer. No active business day is currently open for this branch.'
+                    ];
+                }
+                $creditAccountId = Accounting::getAccountIdByCode(Accounting::CODE_CASH_DRAWER);
+                $sourceLabel = 'Cash Drawer (POS Register)';
+
+            } elseif ($rawSource === 'opening_balance') {
+                $sourceType = 'opening_balance';
+                $bankAccountId = null;
+                $creditAccountId = Accounting::getAccountIdByCode(Accounting::CODE_EQUITY); // 3010
+                $sourceLabel = 'Opening Balance Equity (Initial Setup / Migration)';
+
+            } else {
+                $db->rollBack();
+                return ['success' => false, 'message' => "Invalid funding source '{$rawSource}'."];
             }
 
             // 1. Create Reimbursement Header Record
@@ -670,8 +793,8 @@ class PettyCash
 
             $reimbursementId = (int)$db->lastInsertId();
 
-            // 2. Drawer Movement Integration (ONLY if source_type === 'cash_in_hand')
-            if ($sourceType === 'cash_in_hand' && isset($activeDay)) {
+            // 2. Drawer Movement Integration (ONLY if source_type === 'cash_drawer')
+            if ($sourceType === 'cash_drawer' && isset($activeDay)) {
                 $mvRes = BusinessDay::recordDrawerMovement([
                     'business_day_id' => (int)$activeDay['id'],
                     'branch_id'       => $branchId,
@@ -727,6 +850,7 @@ class PettyCash
                 'success'          => true,
                 'reimbursement_id' => $reimbursementId,
                 'reimbursement_no' => $reimbNo,
+                'journal_entry_id' => $jeId,
                 'amount'           => $amount,
                 'message'          => "Petty Cash fund replenished by LKR " . number_format($amount, 2) . " from {$sourceLabel}."
             ];
@@ -986,7 +1110,10 @@ class PettyCash
     public static function getVouchersList(int $branchId, array $filters = [], int $page = 1, int $limit = 15): array
     {
         try {
-            $where = ["pcv.branch_id = :branch_id"];
+            $where = [
+                "pcv.branch_id = :branch_id",
+                "pcv.deleted_at IS NULL"
+            ];
             $params = [':branch_id' => $branchId];
 
             if (!empty($filters['category_id'])) {
@@ -1010,13 +1137,29 @@ class PettyCash
             }
 
             if (!empty($filters['search'])) {
-                $where[] = "(pcv.voucher_no LIKE :q OR pcv.payee LIKE :q OR pcv.description LIKE :q)";
-                $params[':q'] = '%' . trim($filters['search']) . '%';
+                $searchTerm = '%' . trim($filters['search']) . '%';
+                $where[] = "(
+                    pcv.voucher_no LIKE :s1 OR pcv.payee LIKE :s2 OR pcv.description LIKE :s3 OR
+                    ec.name LIKE :s4 OR ec.code LIKE :s5 OR u.username LIKE :s6 OR pcv.status LIKE :s7 OR
+                    pcv.reference_no LIKE :s8 OR pcv.receipt_ref LIKE :s9 OR
+                    CAST(pcv.amount AS CHAR) LIKE :s10 OR CONCAT('LKR ', FORMAT(pcv.amount, 2)) LIKE :s11 OR
+                    FORMAT(pcv.amount, 2) LIKE :s12
+                )";
+                for ($i = 1; $i <= 12; $i++) {
+                    $params[":s{$i}"] = $searchTerm;
+                }
             }
 
             $whereSql = implode(" AND ", $where);
 
-            $countRow = Database::fetchOne("SELECT COUNT(*) AS total FROM petty_cash_vouchers pcv WHERE $whereSql", $params);
+            $countRow = Database::fetchOne("
+                SELECT COUNT(*) AS total 
+                FROM petty_cash_vouchers pcv
+                JOIN expense_categories ec ON pcv.category_id = ec.id
+                JOIN users u ON pcv.created_by = u.id
+                WHERE $whereSql
+            ", $params);
+
             $totalItems = (int)($countRow['total'] ?? 0);
             $offset = ($page - 1) * $limit;
 
@@ -1047,13 +1190,15 @@ class PettyCash
     /**
      * Get Reimbursements List
      */
-    public static function getReimbursementsList(int $branchId, int $limit = 20): array
+    public static function getReimbursementsList(int $branchId, int $limit = 50): array
     {
         try {
             return Database::fetchAll("
-                SELECT pcr.*, u.username AS creator_name
+                SELECT pcr.*, u.username AS creator_name,
+                       ba.bank_name, ba.account_name AS bank_account_name, ba.account_number AS bank_account_number
                 FROM petty_cash_reimbursements pcr
                 JOIN users u ON pcr.created_by = u.id
+                LEFT JOIN bank_accounts ba ON pcr.bank_account_id = ba.id
                 WHERE pcr.branch_id = :branch_id
                 ORDER BY pcr.id DESC
                 LIMIT $limit
@@ -1067,7 +1212,7 @@ class PettyCash
     /**
      * Get Adjustments List
      */
-    public static function getAdjustmentsList(int $branchId, int $limit = 20): array
+    public static function getAdjustmentsList(int $branchId, int $limit = 50): array
     {
         try {
             return Database::fetchAll("
@@ -1109,12 +1254,15 @@ class PettyCash
 
             if (!empty($search)) {
                 $searchTerm = '%' . trim($search) . '%';
-                $where[] = "(je.entry_number LIKE :s1 OR je.description LIKE :s2 OR jl.memo LIKE :s3 OR b.name LIKE :s4 OR je.source_type LIKE :s5)";
-                $params[':s1'] = $searchTerm;
-                $params[':s2'] = $searchTerm;
-                $params[':s3'] = $searchTerm;
-                $params[':s4'] = $searchTerm;
-                $params[':s5'] = $searchTerm;
+                $where[] = "(
+                    je.entry_number LIKE :s1 OR je.description LIKE :s2 OR jl.memo LIKE :s3 OR
+                    b.name LIKE :s4 OR je.source_type LIKE :s5 OR CAST(je.entry_date AS CHAR) LIKE :s6 OR
+                    CAST(jl.debit AS CHAR) LIKE :s7 OR CONCAT('LKR ', FORMAT(jl.debit, 2)) LIKE :s8 OR FORMAT(jl.debit, 2) LIKE :s9 OR
+                    CAST(jl.credit AS CHAR) LIKE :s10 OR CONCAT('LKR ', FORMAT(jl.credit, 2)) LIKE :s11 OR FORMAT(jl.credit, 2) LIKE :s12
+                )";
+                for ($i = 1; $i <= 12; $i++) {
+                    $params[":s{$i}"] = $searchTerm;
+                }
             }
 
             $whereSql = implode(' AND ', $where);

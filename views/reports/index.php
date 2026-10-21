@@ -4,6 +4,7 @@
  * Modular Reports Center Dashboard & Dedicated Report Views.
  */
 ?>
+<meta name="csrf-token" content="<?= htmlspecialchars(class_exists('Csrf') ? Csrf::token() : (class_exists('Auth') ? Auth::generateCsrfToken() : '')) ?>">
 <link rel="stylesheet" href="assets/css/curtiss_select.css">
 <script src="assets/js/curtiss_select.js"></script>
 
@@ -14,10 +15,6 @@
         Reports List
     </button>
 
-    <button type="button" class="inv-btn inv-btn-ghost" onclick="openFilterModal()" id="btnFilterTrigger" style="position: relative;">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
-        Filter Scope
-        <span id="filterActiveDot" style="display: none; position: absolute; top: 6px; right: 8px; width: 7px; height: 7px; background: #2563eb; border-radius: 50%; border: 2px solid #fff;"></span>
     <button type="button" class="inv-btn inv-btn-ghost" onclick="openColumnCustomizerModal()" id="btnColumnTrigger" style="display: none; position: relative;">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 3h7a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-7m0-18H5a2 2 0 0 0-2 2v14a2 2 0 0 1 2 2h7m0-18v18"/></svg>
         Customize Columns
@@ -64,7 +61,10 @@ body, button, input, select, textarea {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    padding: 8px 16px;
+    height: 34px;
+    min-height: 34px;
+    line-height: 32px;
+    padding: 0 16px;
     border-radius: 999px;
     font-size: 12px;
     font-weight: 700;
@@ -74,6 +74,7 @@ body, button, input, select, textarea {
     transition: all 0.18s ease;
     white-space: nowrap;
     font-family: inherit;
+    box-sizing: border-box;
 }
 .inv-btn-ghost {
     background: rgba(255,255,255,0.92);
@@ -501,6 +502,8 @@ body, button, input, select, textarea {
     padding-bottom: 0.75rem;
     margin-bottom: 1rem;
     flex-shrink: 0;
+    flex-wrap: wrap;
+    gap: 12px;
 }
 .report-title-text {
     font-size: 1.25rem;
@@ -510,6 +513,66 @@ body, button, input, select, textarea {
 }
 .report-subtitle-text {
     display: none !important;
+}
+
+/* Inline Filter Controls Above Table (Height: 34px) */
+.rep-inline-filters {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+.rep-filter-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.rep-filter-label {
+    font-size: 11px;
+    font-weight: 800;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    user-select: none;
+}
+.rep-filter-control {
+    height: 34px;
+    min-height: 34px;
+    padding: 0 12px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #334155;
+    background: rgba(255, 255, 255, 0.95);
+    border: 1px solid rgba(203, 213, 225, 0.9);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+    outline: none;
+    box-sizing: border-box;
+    font-family: inherit;
+    transition: all 0.2s ease;
+}
+.rep-filter-control:focus {
+    border-color: #0f172a;
+    box-shadow: 0 0 0 3px rgba(15, 23, 42, 0.08);
+}
+.rep-filter-select {
+    padding: 0 14px;
+    cursor: pointer;
+}
+.rep-inline-filters .c-select-trigger {
+    height: 34px !important;
+    min-height: 34px !important;
+    border-radius: 999px !important;
+    padding: 0 14px !important;
+    font-size: 12px !important;
+    font-weight: 700 !important;
+    color: #334155 !important;
+    background: rgba(255, 255, 255, 0.95) !important;
+    border: 1px solid rgba(203, 213, 225, 0.9) !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04) !important;
+}
+.rep-inline-filters .curtiss-searchable-select {
+    min-width: 140px;
 }
 
 #reportContentArea {
@@ -589,21 +652,28 @@ body, button, input, select, textarea {
     background: #f8fafc;
     color: #64748b;
     font-weight: 800;
-    font-size: 0.72rem;
+    font-size: 10px;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.07em;
     text-align: left;
-    padding: 0.65rem 0.85rem;
+    padding: 10px 14px;
     border-bottom: 2px solid #cbd5e1;
     box-shadow: 0 1px 2px rgba(0,0,0,0.03);
     white-space: nowrap;
 }
+.financial-table tbody tr:not(.section-header):not(.total-row) {
+    height: 48px;
+    min-height: 48px;
+}
 .financial-table td {
-    padding: 0.65rem 0.85rem;
+    height: 48px;
+    padding: 0 14px;
+    font-size: 12.5px;
     border-bottom: 1px solid #f1f5f9;
     color: #1e293b;
     font-weight: 500;
     vertical-align: middle;
+    box-sizing: border-box;
 }
 .financial-table .col-fit,
 .financial-table th.col-fit,
@@ -615,7 +685,7 @@ body, button, input, select, textarea {
     white-space: nowrap;
 }
 .financial-table tbody tr:nth-child(even) {
-    background-color: rgba(248, 250, 252, 0.75);
+    background-color: rgba(248, 250, 252, 0.57);
 }
 .financial-table tbody tr:nth-child(odd) {
     background-color: #ffffff;
@@ -628,9 +698,11 @@ body, button, input, select, textarea {
     background: #f1f5f9;
     font-weight: 800;
     color: #0f172a;
-    font-size: 0.8rem;
+    font-size: 11px;
     letter-spacing: 0.04em;
     text-transform: uppercase;
+    height: 36px;
+    padding: 0 14px;
 }
 .financial-table tfoot td, .financial-table tr.total-row td {
     position: sticky;
@@ -642,6 +714,9 @@ body, button, input, select, textarea {
     box-shadow: 0 -2px 4px rgba(0,0,0,0.03);
     font-weight: 800;
     color: #0f172a;
+    height: 48px;
+    padding: 0 14px;
+    font-size: 13px;
 }
 
 .financial-table th.amount-num,
@@ -657,11 +732,15 @@ body, button, input, select, textarea {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    padding: 0.25rem 0.75rem;
-    border-radius: 9999px;
-    font-size: 0.72rem;
-    font-weight: 800;
+    height: 28px;
+    min-height: 28px;
+    line-height: 26px;
+    padding: 0 12px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
     letter-spacing: 0.03em;
+    box-sizing: border-box;
 }
 .status-balanced { background: #dcfce7; color: #15803d; }
 .status-unbalanced { background: #fee2e2; color: #b91c1c; }
@@ -1014,7 +1093,7 @@ body, button, input, select, textarea {
     <div style="display: flex; justify-content: space-between; align-items: flex-end;">
         <div>
             <div class="inv-title" id="pageHeaderTitle">Central Reports & Financial Statements</div>
-            <div class="inv-subtitle" id="pageHeaderSubtitle">Single Source of Truth Business Intelligence & General Ledger Financial Statements</div>
+            <div class="inv-subtitle" id="pageHeaderSubtitle" style="display: none;"></div>
         </div>
         <div id="hubSearchWrapper" style="display: flex; align-items: center; gap: 8px;">
             <div style="position: relative; width: 280px;">
@@ -1079,19 +1158,12 @@ body, button, input, select, textarea {
                     <span class="rep-cat-name">Suppliers & Payables</span>
                     <span class="rep-cat-count" id="count-suppliers">3</span>
                 </button>
-                <button type="button" class="rep-cat-btn" data-cat="customers" onclick="selectReportCategory('customers', this)">
-                    <span class="rep-cat-icon">
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><polyline points="17 11 19 13 23 9"/></svg>
-                    </span>
-                    <span class="rep-cat-name">Customers & Receivables</span>
-                    <span class="rep-cat-count" id="count-customers">1</span>
-                </button>
                 <button type="button" class="rep-cat-btn" data-cat="payments" onclick="selectReportCategory('payments', this)">
                     <span class="rep-cat-icon">
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
                     </span>
                     <span class="rep-cat-name">Payments & Collections</span>
-                    <span class="rep-cat-count" id="count-payments">3</span>
+                    <span class="rep-cat-count" id="count-payments">2</span>
                 </button>
                 <button type="button" class="rep-cat-btn" data-cat="banking" onclick="selectReportCategory('banking', this)">
                     <span class="rep-cat-icon">
@@ -1369,35 +1441,6 @@ body, button, input, select, textarea {
                         </div>
                     </div>
 
-                    <!-- 16. Customer AR Receivables -->
-                    <div class="report-row-item" tabindex="0" role="button" data-category="customers" data-search="customer outstanding ar receivables aging credit limits overdue balances collections" onclick="openReport('customer_outstanding', event)">
-                        <div class="report-row-icon">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><polyline points="17 11 19 13 23 9"/></svg>
-                        </div>
-                        <div class="report-row-info">
-                            <div class="report-row-title">Customer AR Receivables</div>
-                            <div class="report-row-desc">Accounts receivable aging ledger, credit limits, overdue accounts, and outstanding customer balances.</div>
-                        </div>
-                        <div class="report-row-meta">
-                            <span class="report-cat-badge">Customers & Receivables</span>
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="report-row-arrow"><polyline points="9 18 15 12 9 6"/></svg>
-                        </div>
-                    </div>
-
-                    <!-- 17. Customer Cheques Register -->
-                    <div class="report-row-item" tabindex="0" role="button" data-category="payments" data-search="customer cheques register in-hand banked cleared returned dishonoured deposits" onclick="openReport('customer_cheques', event)">
-                        <div class="report-row-icon">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-                        </div>
-                        <div class="report-row-info">
-                            <div class="report-row-title">Customer Cheques Register</div>
-                            <div class="report-row-desc">Cheque clearing status tracking in-hand, banked, cleared, and returned/dishonoured cheques from customers.</div>
-                        </div>
-                        <div class="report-row-meta">
-                            <span class="report-cat-badge">Payments & Collections</span>
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="report-row-arrow"><polyline points="9 18 15 12 9 6"/></svg>
-                        </div>
-                    </div>
 
                     <!-- 18. Supplier Cheques Register -->
                     <div class="report-row-item" tabindex="0" role="button" data-category="payments" data-search="supplier cheques register issued post-dated cleared voided vendor payment obligations" onclick="openReport('supplier_cheques', event)">
@@ -1603,87 +1646,58 @@ body, button, input, select, textarea {
 
         <div class="report-view-container">
             <div class="report-header-action btn-no-print">
-                <div>
+                <div style="display: flex; align-items: center; gap: 10px;">
                     <div class="report-title-text" id="reportTitleText">Executive KPI Dashboard</div>
                     <div id="reportSubtitleText" style="display: none;"></div>
                 </div>
 
-                <div style="display: flex; align-items: center; gap: 8px;">
-                    <span id="activeFilterBadge" style="display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 9999px; background: rgba(15,23,42,0.05); color: #475569; font-size: 0.75rem; font-weight: 700;">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-                        <span id="badgePeriodText">This Month</span>
-                    </span>
+                <!-- Inline Filter Controls Above Table (Height: 34px) -->
+                <div class="rep-inline-filters" id="reportInlineFilters">
+                    <div class="rep-filter-item" id="filter_branch_wrapper">
+                        <span class="rep-filter-label">Branch:</span>
+                        <select id="filter_branch" onchange="applyInlineFilters()" class="rep-filter-control rep-filter-select" style="min-width: 140px;">
+                            <?php 
+                            $curBranchScope = $selectedBranch ?? 'all';
+                            if ($canViewAllBranches): ?>
+                                <option value="all" <?= ($curBranchScope === 'all') ? 'selected' : '' ?>>All Branches</option>
+                            <?php endif; ?>
+                            <?php foreach ($branches as $b): ?>
+                                <option value="<?= $b['id'] ?>" <?= ((string)$b['id'] === (string)$curBranchScope) ? 'selected' : '' ?>><?= htmlspecialchars($b['name']) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+
+                    <div class="rep-filter-item">
+                        <span class="rep-filter-label">Range:</span>
+                        <select id="quick_range_select" onchange="setQuickDateRange(this.value)" class="rep-filter-control rep-filter-select" style="min-width: 120px;">
+                            <option value="this_month" selected>This Month</option>
+                            <option value="today">Today</option>
+                            <option value="this_week">This Week</option>
+                            <option value="this_year">This Year</option>
+                            <option value="custom">Custom Range</option>
+                        </select>
+                    </div>
+
+                    <div class="rep-filter-item">
+                        <span class="rep-filter-label">From:</span>
+                        <input type="date" id="filter_date_from" value="<?= $defaultDateFrom ?>" onchange="onManualDateChange()" class="rep-filter-control">
+                    </div>
+
+                    <div class="rep-filter-item">
+                        <span class="rep-filter-label">To:</span>
+                        <input type="date" id="filter_date_to" value="<?= $defaultDateTo ?>" onchange="onManualDateChange()" class="rep-filter-control">
+                    </div>
+
+                    <button type="button" class="inv-btn inv-btn-ghost" onclick="resetFilters()" title="Reset to default dates" style="height: 34px; min-height: 34px; padding: 0 12px; border-radius: 999px; font-size: 12px; font-weight: 700; color: #64748b; background: rgba(255,255,255,0.95); border: 1px solid rgba(203,213,225,0.9); box-shadow: 0 2px 8px rgba(0,0,0,0.04);">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+                        Reset
+                    </button>
                 </div>
             </div>
 
             <div id="reportContentArea">
                 <!-- Dynamic Content Rendered Here -->
             </div>
-        </div>
-    </div>
-</div>
-
-<!-- Top-Right Glass Filter Modal -->
-<div id="filterModal" class="inv-modal" style="display: none;">
-    <div class="inv-modal-overlay" onclick="closeFilterModal()"></div>
-    <div class="inv-modal-content" style="max-width: 520px; border-radius: 20px;">
-        <div class="inv-modal-header">
-            <div style="display: flex; align-items: center; gap: 10px;">
-                <div style="width: 38px; height: 38px; border-radius: 12px; background: rgba(15,23,42,0.06); display: flex; align-items: center; justify-content: center; color: #0f172a;">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
-                </div>
-                <div>
-                    <h3 style="margin: 0; font-size: 1.1rem; font-weight: 800; color: #0f172a;">Filter Business Reports</h3>
-                    <p style="margin: 2px 0 0 0; font-size: 0.78rem; color: #64748b;">Set branch and date scope for reports</p>
-                </div>
-            </div>
-            <button type="button" class="inv-modal-close" onclick="closeFilterModal()">&times;</button>
-        </div>
-        <div class="inv-modal-body" style="padding: 1.25rem;">
-            <form id="filterForm" onsubmit="event.preventDefault(); applyFiltersFromModal();">
-                <div style="display: grid; grid-template-columns: 1fr; gap: 1rem;">
-                    <div class="inv-field">
-                        <label class="inv-label">Branch Scope</label>
-                        <select id="filter_branch" class="inv-select curtiss-select-enhance">
-                            <?php 
-                            $curBranchScope = $selectedBranch ?? 'all';
-                            if ($canViewAllBranches): ?>
-                                <option value="all" <?= ($curBranchScope === 'all') ? 'selected' : '' ?>>All Branches (Consolidated)</option>
-                            <?php endif; ?>
-                            <?php foreach ($branches as $b): ?>
-                                <option value="<?= $b['id'] ?>" <?= ((string)$b['id'] === (string)$curBranchScope) ? 'selected' : '' ?>><?= htmlspecialchars($b['name']) ?> (<?= htmlspecialchars($b['code']) ?>)</option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;" id="filter_date_group">
-                        <div class="inv-field">
-                            <label class="inv-label">Date From</label>
-                            <input type="date" id="filter_date_from" class="inv-input" value="<?= $defaultDateFrom ?>">
-                        </div>
-                        <div class="inv-field">
-                            <label class="inv-label">Date To</label>
-                            <input type="date" id="filter_date_to" class="inv-input" value="<?= $defaultDateTo ?>">
-                        </div>
-                    </div>
-
-                    <div class="inv-field" id="filter_quick_range_group">
-                        <label class="inv-label">Quick Range Shortcut</label>
-                        <select id="quick_range_select" class="inv-select" onchange="setQuickDateRange(this.value)">
-                            <option value="custom">Custom Range</option>
-                            <option value="today">Today</option>
-                            <option value="this_week">This Week</option>
-                            <option value="this_month" selected>This Month</option>
-                            <option value="this_year">This Year</option>
-                        </select>
-                    </div>
-                </div>
-
-                <div style="display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1.5rem;">
-                    <button type="button" class="inv-btn inv-btn-ghost" onclick="resetFilters()">Reset Defaults</button>
-                    <button type="submit" class="inv-btn inv-btn-primary">Apply Filters</button>
-                </div>
-            </form>
         </div>
     </div>
 </div>
@@ -1840,11 +1854,22 @@ body, button, input, select, textarea {
 
     function filterReportTableRealtime(query) {
         const q = String(query || '').toLowerCase().trim();
+        const cleanQ = q.replace(/,/g, '').replace(/\blkr\b|\brs\.?\b/g, '').trim();
         const rows = document.querySelectorAll('#reportContentArea table.financial-table tbody tr');
         rows.forEach(tr => {
             if (tr.classList.contains('section-header') || tr.classList.contains('total-row')) return;
-            const text = tr.textContent.toLowerCase();
-            if (!q || text.includes(q)) {
+            
+            let cellText = '';
+            tr.querySelectorAll('td:not(.col-actions):not(.col-action)').forEach(td => {
+                let clone = td.cloneNode(true);
+                clone.querySelectorAll('button, a.btn, .action-btn, svg').forEach(el => el.remove());
+                cellText += ' ' + clone.textContent;
+            });
+            const text = cellText.toLowerCase();
+            const cleanText = text.replace(/,/g, '').replace(/\blkr\b|\brs\.?\b/g, '');
+
+            const matches = !q || text.includes(q) || (cleanQ.length > 0 && cleanText.includes(cleanQ));
+            if (matches) {
                 tr.style.display = '';
             } else {
                 tr.style.display = 'none';
@@ -1852,16 +1877,20 @@ body, button, input, select, textarea {
         });
     }
 
+    let reportSearchDebounce = null;
     function registerBottomSearch() {
         if (window.CurtissNav && window.CurtissNav.enablePageSearch) {
             window.CurtissNav.enablePageSearch({
                 placeholder: 'Search reports...',
                 onSearch: function(query) {
-                    if (currentReportType === 'center') {
-                        filterReportsHub(query);
-                    } else {
-                        filterReportTableRealtime(query);
-                    }
+                    clearTimeout(reportSearchDebounce);
+                    reportSearchDebounce = setTimeout(() => {
+                        if (currentReportType === 'center') {
+                            filterReportsHub(query);
+                        } else {
+                            filterReportTableRealtime(query);
+                        }
+                    }, 300);
                 }
             });
         } else {
@@ -1871,7 +1900,10 @@ body, button, input, select, textarea {
 
     document.addEventListener('DOMContentLoaded', () => {
         if (typeof CurtissSearchableSelect !== 'undefined') {
-            CurtissSearchableSelect.attach(document.getElementById('filter_branch'));
+            const filterBranch = document.getElementById('filter_branch');
+            if (filterBranch) CurtissSearchableSelect.attach(filterBranch);
+            const quickRange = document.getElementById('quick_range_select');
+            if (quickRange) CurtissSearchableSelect.attach(quickRange);
         }
 
         const topBackBtn = document.getElementById('top-back-btn');
@@ -2040,7 +2072,6 @@ body, button, input, select, textarea {
         setElementDisplay('dedicatedReportContainer', 'none');
         setElementDisplay('hubSearchWrapper', 'none');
         setElementDisplay('btnBackToHub', 'none');
-        setElementDisplay('btnFilterTrigger', 'none');
         setElementDisplay('btnColumnTrigger', 'none');
         setElementDisplay('btnExportTrigger', 'none');
         setElementDisplay('btnPrintTrigger', 'none');
@@ -2069,7 +2100,6 @@ body, button, input, select, textarea {
         setElementDisplay('dedicatedReportContainer', 'block');
         setElementDisplay('hubSearchWrapper', 'none');
         setElementDisplay('btnBackToHub', 'inline-flex');
-        setElementDisplay('btnFilterTrigger', 'inline-flex');
         setElementDisplay('btnColumnTrigger', 'inline-flex');
         setElementDisplay('btnExportTrigger', 'inline-flex');
         setElementDisplay('btnPrintTrigger', 'inline-flex');
@@ -2147,7 +2177,7 @@ body, button, input, select, textarea {
             'sales_by_product', 'sales_history', 'stock_valuation', 
             'supplier_outstanding', 'trial_balance', 'sales_by_category', 
             'cashier_performance', 'damaged_stock', 'in_transit_stock', 
-            'customer_cheques', 'returns_adjustments', 'supplier_returns', 'stock_adjustments', 'sales_by_branch', 
+            'returns_adjustments', 'supplier_returns', 'stock_adjustments', 'sales_by_branch', 
             'sales_by_brand', 'sales_by_customer', 'grn_register',
             'expired_stock', 'near_expiry', 'batch_expiry_audit', 'expired_writeoff_history', 'supplier_expiry_performance'
         ];
@@ -2169,51 +2199,85 @@ body, button, input, select, textarea {
         triggerPaperPrint();
     }
 
-    function applyFiltersFromModal() {
-        closeFilterModal();
+    function formatDateLocal(d) {
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    }
+
+    function applyInlineFilters() {
         updateFilterActiveBadge();
         loadActiveReport();
     }
 
+    function onManualDateChange() {
+        const quickSelect = document.getElementById('quick_range_select');
+        if (quickSelect) {
+            quickSelect.value = 'custom';
+            if (quickSelect._curtissSelect) {
+                quickSelect._curtissSelect.setValue('custom');
+            }
+        }
+        applyInlineFilters();
+    }
+
+    function applyFiltersFromModal() {
+        if (typeof closeFilterModal === 'function') closeFilterModal();
+        applyInlineFilters();
+    }
+
     function updateFilterActiveBadge() {
-        const branchVal = document.getElementById('filter_branch').value;
-        const dateFrom = document.getElementById('filter_date_from').value;
-        const dateTo = document.getElementById('filter_date_to').value;
+        const branchEl = document.getElementById('filter_branch');
+        const fromEl = document.getElementById('filter_date_from');
+        const toEl = document.getElementById('filter_date_to');
+        if (!branchEl || !fromEl || !toEl) return;
+
+        const branchVal = branchEl.value;
+        const dateFrom = fromEl.value;
+        const dateTo = toEl.value;
         const defaultFrom = '<?= $defaultDateFrom ?>';
         const defaultTo = '<?= $defaultDateTo ?>';
 
         const isFiltered = (branchVal !== 'all' && branchVal !== '') || dateFrom !== defaultFrom || dateTo !== defaultTo;
-        document.getElementById('filterActiveDot').style.display = isFiltered ? 'block' : 'none';
+        const dot = document.getElementById('filterActiveDot');
+        if (dot) dot.style.display = isFiltered ? 'block' : 'none';
 
-        const periodLabel = document.getElementById('quick_range_select').options[document.getElementById('quick_range_select').selectedIndex].text;
-        document.getElementById('badgePeriodText').innerText = periodLabel;
+        const quickSelect = document.getElementById('quick_range_select');
+        const badgeText = document.getElementById('badgePeriodText');
+        if (quickSelect && badgeText && quickSelect.selectedIndex >= 0) {
+            badgeText.innerText = quickSelect.options[quickSelect.selectedIndex].text;
+        }
     }
 
     function setQuickDateRange(type) {
+        if (type === 'custom') return;
         const today = new Date();
         const dateFrom = document.getElementById('filter_date_from');
         const dateTo = document.getElementById('filter_date_to');
-
-        const formatDate = (d) => d.toISOString().split('T')[0];
+        if (!dateFrom || !dateTo) return;
 
         if (type === 'today') {
-            dateFrom.value = formatDate(today);
-            dateTo.value = formatDate(today);
+            dateFrom.value = formatDateLocal(today);
+            dateTo.value = formatDateLocal(today);
         } else if (type === 'this_week') {
             const day = today.getDay();
             const diffToMon = today.getDate() - day + (day === 0 ? -6 : 1);
-            const mon = new Date(today.setDate(diffToMon));
-            dateFrom.value = formatDate(mon);
-            dateTo.value = formatDate(new Date());
+            const mon = new Date(today);
+            mon.setDate(diffToMon);
+            dateFrom.value = formatDateLocal(mon);
+            dateTo.value = formatDateLocal(new Date());
         } else if (type === 'this_month') {
             const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
-            dateFrom.value = formatDate(firstDay);
-            dateTo.value = formatDate(new Date());
+            dateFrom.value = formatDateLocal(firstDay);
+            dateTo.value = formatDateLocal(new Date());
         } else if (type === 'this_year') {
             const firstDay = new Date(today.getFullYear(), 0, 1);
-            dateFrom.value = formatDate(firstDay);
-            dateTo.value = formatDate(new Date());
+            dateFrom.value = formatDateLocal(firstDay);
+            dateTo.value = formatDateLocal(new Date());
         }
+
+        applyInlineFilters();
     }
 
     let currentBankFilter = 'all';
@@ -2225,16 +2289,31 @@ body, button, input, select, textarea {
 
     function resetFilters() {
         const defaultBranchScope = '<?= $selectedBranch ?? 'all' ?>';
-        document.getElementById('filter_branch').value = defaultBranchScope;
-        if (document.getElementById('filter_branch')._curtissSelect) {
-            document.getElementById('filter_branch')._curtissSelect.setValue(defaultBranchScope);
+        const branchEl = document.getElementById('filter_branch');
+        if (branchEl) {
+            branchEl.value = defaultBranchScope;
+            if (branchEl._curtissSelect) {
+                branchEl._curtissSelect.setValue(defaultBranchScope);
+            }
         }
-        document.getElementById('filter_date_from').value = '<?= $defaultDateFrom ?>';
-        document.getElementById('filter_date_to').value = '<?= $defaultDateTo ?>';
-        document.getElementById('quick_range_select').value = 'this_month';
+        const fromEl = document.getElementById('filter_date_from');
+        const toEl = document.getElementById('filter_date_to');
+        const quickSelect = document.getElementById('quick_range_select');
+
+        if (fromEl) fromEl.value = '<?= $defaultDateFrom ?>';
+        if (toEl) toEl.value = '<?= $defaultDateTo ?>';
+        if (quickSelect) {
+            quickSelect.value = 'this_month';
+            if (quickSelect._curtissSelect) {
+                quickSelect._curtissSelect.setValue('this_month');
+            }
+        }
+
         currentBankFilter = 'all';
         updateFilterActiveBadge();
-        closeFilterModal();
+        if (typeof closeFilterModal === 'function') {
+            closeFilterModal();
+        }
         loadActiveReport();
     }
 
@@ -2441,6 +2520,42 @@ body, button, input, select, textarea {
         return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     }
 
+    let agingSortDir = {};
+    function sortAgingTable(tableId, colIdx, isNumeric) {
+        const table = document.getElementById(tableId);
+        if (!table) return;
+        const tbody = table.querySelector('tbody');
+        if (!tbody) return;
+        const rows = Array.from(tbody.querySelectorAll('tr'));
+        if (rows.length <= 1) return;
+
+        const key = tableId + '_' + colIdx;
+        const currentDir = agingSortDir[key] === 'asc' ? 'desc' : 'asc';
+        agingSortDir[key] = currentDir;
+
+        // Reset other sort icons
+        table.querySelectorAll('th .sort-icon').forEach(icon => { icon.innerText = ''; });
+        const th = table.querySelectorAll('thead th')[colIdx];
+        if (th) {
+            const icon = th.querySelector('.sort-icon');
+            if (icon) icon.innerText = currentDir === 'asc' ? ' ▲' : ' ▼';
+        }
+
+        rows.sort((a, b) => {
+            const cellA = a.children[colIdx] ? a.children[colIdx].innerText.trim() : '';
+            const cellB = b.children[colIdx] ? b.children[colIdx].innerText.trim() : '';
+            if (isNumeric) {
+                const numA = parseFloat(cellA.replace(/[^0-9.-]/g, '')) || 0;
+                const numB = parseFloat(cellB.replace(/[^0-9.-]/g, '')) || 0;
+                return currentDir === 'asc' ? numA - numB : numB - numA;
+            } else {
+                return currentDir === 'asc' ? cellA.localeCompare(cellB) : cellB.localeCompare(cellA);
+            }
+        });
+
+        rows.forEach(r => tbody.appendChild(r));
+    }
+
     function renderReportView(type, data) {
         const titleEl = document.getElementById('reportTitleText');
         const subTitleEl = document.getElementById('reportSubtitleText');
@@ -2628,7 +2743,9 @@ body, button, input, select, textarea {
 
             let rowsHtml = data.map(r => `
                 <tr>
-                    <td class="col-fit"><strong>${escapeHtml(r.invoice_no)}</strong></td>
+                    <td class="col-fit">
+                        <strong>${escapeHtml(r.invoice_no)}</strong>
+                    </td>
                     <td class="col-fit">${escapeHtml(r.sale_date)}</td>
                     <td class="col-text-nowrap">${escapeHtml(r.branch_name)}</td>
                     <td>${escapeHtml(r.customer_name)}</td>
@@ -2683,40 +2800,78 @@ body, button, input, select, textarea {
                     <div class="kpi-card"><div class="kpi-title">Total GRN Count</div><div class="kpi-value">${data.grn_count}</div></div>
                     <div class="kpi-card"><div class="kpi-title">Total GRN Amount</div><div class="kpi-value">${formatCurrency(data.total_grn_amount)}</div></div>
                     <div class="kpi-card"><div class="kpi-title">Total Payments Paid</div><div class="kpi-value">${formatCurrency(data.total_payments_paid)}</div></div>
+                    <div class="kpi-card"><div class="kpi-title">Total Returns</div><div class="kpi-value">${formatCurrency(data.total_returns || 0)}</div></div>
+                    <div class="kpi-card"><div class="kpi-title">Outstanding Due</div><div class="kpi-value" style="color: #dc2626;">${formatCurrency(data.outstanding_due || 0)}</div></div>
                 </div>
             `;
         } else if (type === 'supplier_outstanding') {
-            setTitle('Supplier Outstanding Payables Aging', 'Active supplier credit balances & accounts payable aging');
+            setTitle('Supplier Outstanding Payables Aging', 'Accounts payable aging schedule across Current, 1-30, 31-60, and 60+ day aging buckets');
+
+            const totCurrent = data.reduce((sum, r) => sum + (parseFloat(r.current_amount) || 0), 0);
+            const tot1_30 = data.reduce((sum, r) => sum + (parseFloat(r.days_1_30) || 0), 0);
+            const tot31_60 = data.reduce((sum, r) => sum + (parseFloat(r.days_31_60) || 0), 0);
+            const tot60Plus = data.reduce((sum, r) => sum + (parseFloat(r.days_60_plus) || 0), 0);
+            const totPayable = data.reduce((sum, r) => sum + (parseFloat(r.total_payable || r.outstanding_balance) || 0), 0);
+
+            const summaryHtml = `
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-bottom: 14px;">
+                    <div class="kpi-card-metric" style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px 16px;">
+                        <div style="font-size: 11px; font-weight: 800; color: #64748b; text-transform: uppercase;">Current (0 Days)</div>
+                        <div style="font-size: 18px; font-weight: 800; color: #0f172a; margin-top: 4px; font-family: monospace;">Rs. ${formatCurrency(totCurrent)}</div>
+                    </div>
+                    <div class="kpi-card-metric" style="background: #fffbeb; border: 1px solid #fde68a; border-radius: 10px; padding: 12px 16px;">
+                        <div style="font-size: 11px; font-weight: 800; color: #b45309; text-transform: uppercase;">1 - 30 Days</div>
+                        <div style="font-size: 18px; font-weight: 800; color: #d97706; margin-top: 4px; font-family: monospace;">Rs. ${formatCurrency(tot1_30)}</div>
+                    </div>
+                    <div class="kpi-card-metric" style="background: #fff7ed; border: 1px solid #fed7aa; border-radius: 10px; padding: 12px 16px;">
+                        <div style="font-size: 11px; font-weight: 800; color: #c2410c; text-transform: uppercase;">31 - 60 Days</div>
+                        <div style="font-size: 18px; font-weight: 800; color: #ea580c; margin-top: 4px; font-family: monospace;">Rs. ${formatCurrency(tot31_60)}</div>
+                    </div>
+                    <div class="kpi-card-metric" style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 10px; padding: 12px 16px;">
+                        <div style="font-size: 11px; font-weight: 800; color: #b91c1c; text-transform: uppercase;">60+ Days (Overdue)</div>
+                        <div style="font-size: 18px; font-weight: 800; color: #dc2626; margin-top: 4px; font-family: monospace;">Rs. ${formatCurrency(tot60Plus)}</div>
+                    </div>
+                    <div class="kpi-card-metric" style="background: #fdf2f8; border: 1px solid #fbcfe8; border-radius: 10px; padding: 12px 16px;">
+                        <div style="font-size: 11px; font-weight: 800; color: #9d174d; text-transform: uppercase;">Total AP Payable</div>
+                        <div style="font-size: 18px; font-weight: 800; color: #be185d; margin-top: 4px; font-family: monospace;">Rs. ${formatCurrency(totPayable)}</div>
+                    </div>
+                </div>
+            `;
 
             let rowsHtml = data.map(r => `
                 <tr>
-                    <td><strong>${escapeHtml(r.supplier_name)}</strong></td>
-                    <td class="col-fit">${escapeHtml(r.phone) || '-'}</td>
-                    <td class="amount-num">${formatCurrency(r.total_grn_amount)}</td>
-                    <td class="amount-num">${formatCurrency(r.total_paid)}</td>
-                    <td class="amount-num" style="color: #dc2626;">${formatCurrency(r.outstanding_balance)}</td>
+                    <td><strong style="color: #2563eb;">${escapeHtml(r.supplier_name)}</strong> ${r.phone ? `<span style="font-size:11px; color:#64748b; font-weight:normal; margin-left:6px;">(${escapeHtml(r.phone)})</span>` : ''}</td>
+                    <td class="amount-num" style="${(r.current_amount || 0) > 0 ? 'font-weight:700; color:#0f172a;' : 'color:#94a3b8;'}">Rs. ${formatCurrency(r.current_amount || 0)}</td>
+                    <td class="amount-num" style="${(r.days_1_30 || 0) > 0 ? 'font-weight:700; color:#d97706;' : 'color:#94a3b8;'}">Rs. ${formatCurrency(r.days_1_30 || 0)}</td>
+                    <td class="amount-num" style="${(r.days_31_60 || 0) > 0 ? 'font-weight:700; color:#ea580c;' : 'color:#94a3b8;'}">Rs. ${formatCurrency(r.days_31_60 || 0)}</td>
+                    <td class="amount-num" style="${(r.days_60_plus || 0) > 0 ? 'font-weight:700; color:#dc2626;' : 'color:#94a3b8;'}">Rs. ${formatCurrency(r.days_60_plus || 0)}</td>
+                    <td class="amount-num" style="font-weight:800; color:#dc2626;">Rs. ${formatCurrency(r.total_payable || r.outstanding_balance || 0)}</td>
                 </tr>
             `).join('');
 
-            const totBal = data.reduce((sum, r) => sum + r.outstanding_balance, 0);
-
             contentArea.innerHTML = `
+                ${summaryHtml}
                 <div class="inv-table-panel">
-                    <table class="financial-table">
+                    <table class="financial-table" id="supplierAgingTable">
                         <thead>
                             <tr>
-                                <th>Supplier Name</th>
-                                <th class="col-fit">Phone</th>
-                                <th class="amount-num">Total Purchases</th>
-                                <th class="amount-num">Total Paid</th>
-                                <th class="amount-num">Outstanding Balance</th>
+                                <th onclick="sortAgingTable('supplierAgingTable', 0, false)" style="cursor:pointer;" title="Sort by Supplier">SUPPLIER <span class="sort-icon"></span></th>
+                                <th class="amount-num" onclick="sortAgingTable('supplierAgingTable', 1, true)" style="cursor:pointer;" title="Sort by Current">CURRENT <span class="sort-icon"></span></th>
+                                <th class="amount-num" onclick="sortAgingTable('supplierAgingTable', 2, true)" style="cursor:pointer;" title="Sort by 1 - 30 Days">1 - 30 DAYS <span class="sort-icon"></span></th>
+                                <th class="amount-num" onclick="sortAgingTable('supplierAgingTable', 3, true)" style="cursor:pointer;" title="Sort by 31 - 60 Days">31 - 60 DAYS <span class="sort-icon"></span></th>
+                                <th class="amount-num" onclick="sortAgingTable('supplierAgingTable', 4, true)" style="cursor:pointer;" title="Sort by 60+ Days">60+ DAYS <span class="sort-icon"></span></th>
+                                <th class="amount-num" onclick="sortAgingTable('supplierAgingTable', 5, true)" style="cursor:pointer;" title="Sort by Total Payable">TOTAL PAYABLE <span class="sort-icon"></span></th>
                             </tr>
                         </thead>
-                        <tbody>${rowsHtml || '<tr><td colspan="5" style="text-align:center; padding: 2rem; color: #94a3b8;">No supplier balances found.</td></tr>'}</tbody>
+                        <tbody>${rowsHtml || '<tr><td colspan="6" style="text-align:center; padding: 2rem; color: #94a3b8;">No outstanding supplier payables found.</td></tr>'}</tbody>
                         <tfoot>
                             <tr class="total-row">
-                                <td colspan="4">TOTAL OUTSTANDING PAYABLES</td>
-                                <td class="amount-num" style="color: #dc2626;">${formatCurrency(totBal)}</td>
+                                <td>TOTAL OUTSTANDING PAYABLES</td>
+                                <td class="amount-num">Rs. ${formatCurrency(totCurrent)}</td>
+                                <td class="amount-num">Rs. ${formatCurrency(tot1_30)}</td>
+                                <td class="amount-num">Rs. ${formatCurrency(tot31_60)}</td>
+                                <td class="amount-num">Rs. ${formatCurrency(tot60Plus)}</td>
+                                <td class="amount-num" style="font-weight: 900; color: #dc2626;">Rs. ${formatCurrency(totPayable)}</td>
                             </tr>
                         </tfoot>
                     </table>
@@ -2798,7 +2953,7 @@ body, button, input, select, textarea {
             setTitle('Business Day & Cashier Log', 'Business day opening float, total sales collected, drawer cash deposits, closing cash & over/short variances');
 
             let rowsHtml = (data.items || []).map(r => `
-                <tr>
+                <tr style="cursor: pointer;" onclick="window.open('day_closing_receipt.php?id=${r.day_id}&autoprint=1', '_blank', 'width=420,height=650')" title="Click row to view / print Day End Report">
                     <td class="col-fit"><strong>#${r.day_id}</strong></td>
                     <td class="col-text-nowrap">${escapeHtml(r.branch_name)}</td>
                     <td class="col-text-nowrap">${escapeHtml(r.opened_by)}</td>
@@ -2809,6 +2964,12 @@ body, button, input, select, textarea {
                     <td class="amount-num">${formatCurrency(r.total_deposits)}</td>
                     <td class="amount-num">${formatCurrency(r.closing_cash)}</td>
                     <td class="col-fit"><span class="status-pill ${r.status === 'open' ? 'status-balanced' : 'status-unbalanced'}">${escapeHtml(r.status).toUpperCase()}</span></td>
+                    <td class="col-center" onclick="event.stopPropagation();">
+                        <button type="button" class="inv-btn" style="height: 28px; padding: 0 12px; font-size: 11px; font-weight: 700; background: #0f172a; color: #ffffff; border: none; border-radius: 999px; cursor: pointer; display: inline-flex; align-items: center; gap: 5px;" onclick="window.open('day_closing_receipt.php?id=${r.day_id}&autoprint=1', '_blank', 'width=420,height=650')">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+                            <span>${r.status === 'open' ? 'Live Report' : 'Reprint'}</span>
+                        </button>
+                    </td>
                 </tr>
             `).join('');
 
@@ -2827,9 +2988,10 @@ body, button, input, select, textarea {
                                 <th class="amount-num">Total Deposits</th>
                                 <th class="amount-num">Closing Cash</th>
                                 <th class="col-fit">Status</th>
+                                <th class="col-center" style="width: 110px;">Day Report</th>
                             </tr>
                         </thead>
-                        <tbody>${rowsHtml || '<tr><td colspan="10" style="text-align:center; padding: 2rem; color: #94a3b8;">No business day records found.</td></tr>'}</tbody>
+                        <tbody>${rowsHtml || '<tr><td colspan="11" style="text-align:center; padding: 2rem; color: #94a3b8;">No business day records found.</td></tr>'}</tbody>
                     </table>
                 </div>
             `;
@@ -2965,39 +3127,6 @@ body, button, input, select, textarea {
                             </tr>
                         </thead>
                         <tbody>${rowsHtml || '<tr><td colspan="12" style="text-align:center; padding: 2rem; color: #94a3b8;">No stock adjustment records found for selected period and branch.</td></tr>'}</tbody>
-                    </table>
-                </div>
-            `;
-        } else if (type === 'customer_outstanding') {
-            setTitle('Customer Accounts Receivable Aging', 'Registered customer credit balances & outstanding accounts receivable');
-
-            let rowsHtml = (data.customers || []).map(r => `
-                <tr>
-                    <td class="col-fit"><strong>${escapeHtml(r.customer_code)}</strong></td>
-                    <td>${escapeHtml(r.customer_name)}</td>
-                    <td class="col-fit">${escapeHtml(r.phone || '-')}</td>
-                    <td class="amount-num" style="color: #dc2626;">${formatCurrency(r.outstanding_balance)}</td>
-                </tr>
-            `).join('');
-
-            contentArea.innerHTML = `
-                <div class="inv-table-panel">
-                    <table class="financial-table">
-                        <thead>
-                            <tr>
-                                <th class="col-fit">Customer Code</th>
-                                <th>Customer Name</th>
-                                <th class="col-fit">Phone</th>
-                                <th class="amount-num">Outstanding AR Balance</th>
-                            </tr>
-                        </thead>
-                        <tbody>${rowsHtml || '<tr><td colspan="4" style="text-align:center; padding: 2rem; color: #94a3b8;">No customer credit balances found.</td></tr>'}</tbody>
-                        <tfoot>
-                            <tr class="total-row">
-                                <td colspan="3">TOTAL OUTSTANDING RECEIVABLES</td>
-                                <td class="amount-num" style="color: #dc2626;">${formatCurrency(data.total_outstanding)}</td>
-                            </tr>
-                        </tfoot>
                     </table>
                 </div>
             `;
@@ -3206,39 +3335,6 @@ body, button, input, select, textarea {
             if (bSelect && typeof CurtissSearchableSelect !== 'undefined') {
                 CurtissSearchableSelect.attach(bSelect);
             }
-        } else if (type === 'customer_cheques') {
-            setTitle('Customer Cheques Register', 'Received customer cheques, issuing banks, due dates, and status');
-
-            let rowsHtml = (data.items || []).map(r => `
-                <tr>
-                    <td class="col-fit"><strong>${escapeHtml(r.cheque_number)}</strong></td>
-                    <td>${escapeHtml(r.customer_name)}</td>
-                    <td class="col-fit">${escapeHtml(r.bank_name)}</td>
-                    <td class="col-fit">${escapeHtml(r.cheque_date)}</td>
-                    <td class="amount-num">${formatCurrency(r.amount)}</td>
-                    <td class="col-text-nowrap">${escapeHtml(r.branch_name)}</td>
-                    <td class="col-fit"><span class="status-pill status-balanced">${escapeHtml(r.status).toUpperCase()}</span></td>
-                </tr>
-            `).join('');
-
-            contentArea.innerHTML = `
-                <div class="inv-table-panel">
-                    <table class="financial-table">
-                        <thead>
-                            <tr>
-                                <th class="col-fit">Cheque #</th>
-                                <th>Customer Name</th>
-                                <th class="col-fit">Bank</th>
-                                <th class="col-fit">Cheque Date</th>
-                                <th class="amount-num">Amount</th>
-                                <th>Branch</th>
-                                <th class="col-fit">Status</th>
-                            </tr>
-                        </thead>
-                        <tbody>${rowsHtml || '<tr><td colspan="7" style="text-align:center; padding: 2rem; color: #94a3b8;">No customer cheques found.</td></tr>'}</tbody>
-                    </table>
-                </div>
-            `;
         } else if (type === 'supplier_cheques') {
             setTitle('Supplier Cheques Register', 'Issued supplier payment cheques, due dates, and bank clearance status');
 
@@ -3465,45 +3561,75 @@ body, button, input, select, textarea {
                 </div>
             `;
         } else if (type === 'near_expiry') {
-            setTitle('Near-Expiry Stock Alert Report', 'Batches expiring within threshold window requiring markdown promotions or supplier return');
+            setTitle('Near-Expiry Stock Alert Report', 'Batches categorized by 3 expiry windows (0–30 days Red, 30–60 days Yellow, 60+ days Green) with nearest expiry on top');
 
             let rowsHtml = (data.items || []).map(r => {
-                let badgeStyle = r.urgency_level === 'danger'
-                    ? 'background: #fee2e2; color: #b91c1c;'
-                    : (r.urgency_level === 'warning' ? 'background: #fef3c7; color: #b45309;' : 'background: #e0f2fe; color: #0369a1;');
+                let colorTag = r.color_tag || (r.days_until_expiry <= 30 ? 'red' : (r.days_until_expiry <= 60 ? 'yellow' : 'green'));
+                let badgeStyle = '';
+                let borderIndicator = '';
+                let timeColor = '';
+                let tierLabel = '';
+
+                if (colorTag === 'red' || r.days_until_expiry <= 30) {
+                    badgeStyle = 'background: #fee2e2; color: #b91c1c; border: 1px solid #fca5a5;';
+                    borderIndicator = 'border-left: 4px solid #dc2626;';
+                    timeColor = '#dc2626';
+                    tierLabel = '0–30 Days (Critical)';
+                } else if (colorTag === 'yellow' || r.days_until_expiry <= 60) {
+                    badgeStyle = 'background: #fef3c7; color: #b45309; border: 1px solid #fde68a;';
+                    borderIndicator = 'border-left: 4px solid #d97706;';
+                    timeColor = '#d97706';
+                    tierLabel = '30–60 Days (Warning)';
+                } else {
+                    badgeStyle = 'background: #dcfce7; color: #15803d; border: 1px solid #86efac;';
+                    borderIndicator = 'border-left: 4px solid #16a34a;';
+                    timeColor = '#16a34a';
+                    tierLabel = '60+ Days (Safe)';
+                }
+
+                let daysLabel = r.days_until_expiry < 0
+                    ? `<span style="color: #dc2626; font-weight: 800;">Expired (${Math.abs(r.days_until_expiry)}d ago)</span>`
+                    : `<span style="color: ${timeColor}; font-weight: 800;">${r.days_until_expiry}d left</span>`;
+
                 return `
-                    <tr>
+                    <tr style="${borderIndicator}">
                         <td class="col-fit"><strong>${escapeHtml(r.lot_number)}</strong></td>
                         <td class="col-fit">${escapeHtml(r.sku)}</td>
-                        <td>${escapeHtml(r.product_name)}</td>
+                        <td><strong>${escapeHtml(r.product_name)}</strong></td>
                         <td class="col-fit">${escapeHtml(r.batch_number) || '-'}</td>
-                        <td class="col-fit" style="font-weight: 700;">${escapeHtml(r.expiry_date)}</td>
-                        <td class="amount-num" style="font-weight: 800;">${r.days_until_expiry}d left</td>
-                        <td class="col-fit"><span class="status-pill" style="${badgeStyle}; font-size: 10px; text-transform: uppercase;">${escapeHtml(r.urgency_level)}</span></td>
-                        <td class="amount-num">${r.current_quantity}</td>
+                        <td class="col-fit" style="font-weight: 700; color: ${timeColor}; font-family: monospace;">${escapeHtml(r.expiry_date)}</td>
+                        <td class="amount-num">${daysLabel}</td>
+                        <td class="col-fit"><span class="status-pill" style="${badgeStyle}; font-size: 10px; font-weight: 800; text-transform: uppercase;">${escapeHtml(tierLabel)}</span></td>
+                        <td class="amount-num" style="font-weight: 800;">${r.current_quantity}</td>
                         <td class="amount-num">${formatCurrency(r.unit_cost)}</td>
-                        <td class="amount-num" style="color: #d97706; font-weight: 800;">${formatCurrency(r.total_cost)}</td>
+                        <td class="amount-num" style="color: ${timeColor}; font-weight: 800;">${formatCurrency(r.total_cost)}</td>
                         <td class="col-fit">${escapeHtml(r.branch_name)}</td>
                     </tr>
                 `;
             }).join('');
 
+            const s = data.summary || {};
             contentArea.innerHTML = `
-                <div class="kpi-grid">
-                    <div class="kpi-card">
-                        <div class="kpi-title">Expiring Batches</div>
-                        <div class="kpi-value" style="color: #ea580c;">${data.summary ? data.summary.total_items : 0}</div>
-                        <div class="kpi-sub">Within ${data.summary ? data.summary.window_days : 30} Days</div>
+                <div class="kpi-grid" style="grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));">
+                    <div class="kpi-card" style="border-left: 4px solid #dc2626;">
+                        <div class="kpi-title" style="color: #dc2626; font-weight: 800;">🔴 0–30 Days (Critical)</div>
+                        <div class="kpi-value" style="color: #dc2626;">${s.count_red !== undefined ? s.count_red : (s.total_items || 0)} <span style="font-size: 13px; font-weight: 600; color: #64748b;">batches</span></div>
+                        <div class="kpi-sub" style="color: #b91c1c; font-weight: 700;">LKR ${formatCurrency(s.val_red || 0)}</div>
                     </div>
-                    <div class="kpi-card">
-                        <div class="kpi-title">At-Risk Quantity</div>
-                        <div class="kpi-value">${data.summary ? data.summary.total_qty : 0}</div>
-                        <div class="kpi-sub">Stock Units Pending FEFO Sale</div>
+                    <div class="kpi-card" style="border-left: 4px solid #d97706;">
+                        <div class="kpi-title" style="color: #d97706; font-weight: 800;">🟡 30–60 Days (Warning)</div>
+                        <div class="kpi-value" style="color: #d97706;">${s.count_yellow !== undefined ? s.count_yellow : 0} <span style="font-size: 13px; font-weight: 600; color: #64748b;">batches</span></div>
+                        <div class="kpi-sub" style="color: #b45309; font-weight: 700;">LKR ${formatCurrency(s.val_yellow || 0)}</div>
                     </div>
-                    <div class="kpi-card">
-                        <div class="kpi-title">At-Risk Valuation</div>
-                        <div class="kpi-value" style="color: #ea580c;">${formatCurrency(data.summary ? data.summary.total_at_risk_value : 0)}</div>
-                        <div class="kpi-sub">Potential Financial Exposure</div>
+                    <div class="kpi-card" style="border-left: 4px solid #16a34a;">
+                        <div class="kpi-title" style="color: #16a34a; font-weight: 800;">🟢 Others (> 60 Days Safe)</div>
+                        <div class="kpi-value" style="color: #16a34a;">${s.count_green !== undefined ? s.count_green : 0} <span style="font-size: 13px; font-weight: 600; color: #64748b;">batches</span></div>
+                        <div class="kpi-sub" style="color: #15803d; font-weight: 700;">LKR ${formatCurrency(s.val_green || 0)}</div>
+                    </div>
+                    <div class="kpi-card" style="border-left: 4px solid #475569;">
+                        <div class="kpi-title">Total At-Risk Exposure</div>
+                        <div class="kpi-value" style="color: #0f172a;">${formatCurrency(s.total_qty || 0)} <span style="font-size: 13px; font-weight: 600; color: #64748b;">units</span></div>
+                        <div class="kpi-sub" style="font-weight: 700;">Total Val: LKR ${formatCurrency(s.total_at_risk_value || 0)}</div>
                     </div>
                 </div>
 
@@ -3517,7 +3643,7 @@ body, button, input, select, textarea {
                                 <th class="col-fit">Batch #</th>
                                 <th class="col-fit">Expiry Date</th>
                                 <th class="amount-num">Time Left</th>
-                                <th class="col-fit">Urgency</th>
+                                <th class="col-fit">Expiry Tier</th>
                                 <th class="amount-num">Qty</th>
                                 <th class="amount-num">Unit Cost</th>
                                 <th class="amount-num">At-Risk Valuation</th>
@@ -3528,9 +3654,9 @@ body, button, input, select, textarea {
                         <tfoot>
                             <tr class="total-row">
                                 <td colspan="7">TOTAL AT-RISK INVENTORY VALUATION</td>
-                                <td class="amount-num">${data.summary ? data.summary.total_qty : 0}</td>
+                                <td class="amount-num">${s.total_qty || 0}</td>
                                 <td class="amount-num"></td>
-                                <td class="amount-num" style="color: #ea580c;">${formatCurrency(data.summary ? data.summary.total_at_risk_value : 0)}</td>
+                                <td class="amount-num" style="color: #ea580c;">${formatCurrency(s.total_at_risk_value || 0)}</td>
                                 <td class="col-fit"></td>
                             </tr>
                         </tfoot>
@@ -3540,22 +3666,38 @@ body, button, input, select, textarea {
         } else if (type === 'batch_expiry_audit') {
             setTitle('Batch & Expiry Master Audit Trail', 'Complete lifecycle tracking across all inventory lots, batches, and sources');
 
-            let rowsHtml = (data.items || []).map(r => `
-                <tr>
+            let rowsHtml = (data.items || []).map(r => {
+                let badgeStyle = '';
+                let borderIndicator = '';
+                if (r.color_tag === 'red') {
+                    badgeStyle = 'background: #fee2e2; color: #b91c1c; border: 1px solid #fca5a5;';
+                    borderIndicator = 'border-left: 4px solid #dc2626;';
+                } else if (r.color_tag === 'yellow') {
+                    badgeStyle = 'background: #fef3c7; color: #b45309; border: 1px solid #fde68a;';
+                    borderIndicator = 'border-left: 4px solid #d97706;';
+                } else if (r.color_tag === 'green') {
+                    badgeStyle = 'background: #dcfce7; color: #15803d; border: 1px solid #86efac;';
+                    borderIndicator = 'border-left: 4px solid #16a34a;';
+                } else {
+                    badgeStyle = 'background: #f1f5f9; color: #64748b; border: 1px solid #e2e8f0;';
+                }
+                return `
+                <tr style="${borderIndicator}">
                     <td class="col-fit"><strong>${escapeHtml(r.lot_number)}</strong></td>
                     <td class="col-fit">${escapeHtml(r.sku)}</td>
-                    <td>${escapeHtml(r.product_name)}</td>
+                    <td><strong>${escapeHtml(r.product_name)}</strong></td>
                     <td class="col-fit">${escapeHtml(r.batch_number) || '-'}</td>
-                    <td class="col-fit">${escapeHtml(r.expiry_date) || '<span style="color:#94a3b8;">None</span>'}</td>
-                    <td class="col-fit"><span class="status-pill status-${r.status_class}">${escapeHtml(r.status_label)}</span></td>
-                    <td class="amount-num">${r.current_quantity}</td>
+                    <td class="col-fit" style="font-family: monospace; font-weight: 700;">${escapeHtml(r.expiry_date) || '<span style="color:#94a3b8;">None</span>'}</td>
+                    <td class="col-fit"><span class="status-pill" style="${badgeStyle}; font-weight: 800; font-size: 10.5px;">${escapeHtml(r.status_label)}</span></td>
+                    <td class="amount-num" style="font-weight: 800;">${r.current_quantity}</td>
                     <td class="amount-num">${formatCurrency(r.unit_cost)}</td>
-                    <td class="amount-num">${formatCurrency(r.total_valuation)}</td>
+                    <td class="amount-num" style="font-weight: 800;">${formatCurrency(r.total_valuation)}</td>
                     <td class="col-fit"><span style="text-transform: capitalize; font-weight: 600;">${escapeHtml(r.source_type || '-')}</span></td>
                     <td class="col-fit">${escapeHtml((r.created_at || '').substring(0, 10))}</td>
                     <td class="col-fit">${escapeHtml(r.branch_name)}</td>
                 </tr>
-            `).join('');
+            `;
+            }).join('');
 
             contentArea.innerHTML = `
                 <div class="kpi-grid">

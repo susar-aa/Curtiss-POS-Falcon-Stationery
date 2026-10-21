@@ -406,7 +406,7 @@ $hasActiveFilters = !empty($filters['status']) || !empty($filters['date_preset']
                     </tr>
                     <?php else: ?>
                     <?php foreach ($sales as $idx => $s): ?>
-                    <tr onclick="viewSaleDetails(<?= (int)$s['id'] ?>)" style="cursor: pointer;" title="Click row to view full receipt breakdown">
+                    <tr class="sales-row" onclick="viewSaleDetails(<?= (int)$s['id'] ?>)" style="cursor: pointer;" title="Click row to view full receipt breakdown">
                         <td class="col-center" style="color: #64748b; font-size: 0.76rem; font-weight: 700;">
                             <?= ($page - 1) * $limit + $idx + 1 ?>
                         </td>
@@ -479,6 +479,15 @@ $hasActiveFilters = !empty($filters['status']) || !empty($filters['date_preset']
                         </td>
                     </tr>
                     <?php endforeach; ?>
+                    <tr id="noSearchResultsRow" style="display: none;">
+                        <td colspan="12" style="text-align: center; padding: 48px 16px; color: #94a3b8;">
+                            <div style="display: flex; flex-direction: column; align-items: center; gap: 8px;">
+                                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" stroke-width="1.8"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                                <span style="font-size: 0.88rem; font-weight: 700; color: #64748b;">No matching sales transactions found.</span>
+                                <span style="font-size: 0.75rem; color: #94a3b8;">Try refining your search term or pressing Enter for full database lookup.</span>
+                            </div>
+                        </td>
+                    </tr>
                     <?php endif; ?>
                 </tbody>
             </table>
@@ -616,13 +625,31 @@ document.addEventListener('DOMContentLoaded', () => {
         if (el) CurtissSearchableSelect.attach(el);
     });
 
-    // Realtime search integration via floating bottom navigation bar
-    if (window.CurtissNav && typeof window.CurtissNav.enablePageSearch === 'function') {
-        window.CurtissNav.enablePageSearch({
-            tableSelector: '#salesTable',
-            inputPlaceholder: 'Search sales by invoice, customer, cashier, amount...'
-        });
+    // Register Real-time Search Hook on Floating Bottom Nav Bar
+    function registerBottomSearch() {
+        if (window.CurtissNav && typeof window.CurtissNav.enablePageSearch === 'function') {
+            window.CurtissNav.enablePageSearch({
+                placeholder: 'Search invoice, customer, cashier, amount, payment...',
+                initialValue: <?= json_encode($filters['search'] ?? '') ?>,
+                onSearch: function(query) {
+                    filterSalesTableRealtime(query);
+                },
+                onEnter: function(query) {
+                    const url = new URL(window.location.href);
+                    if (query && query.trim()) {
+                        url.searchParams.set('search', query.trim());
+                    } else {
+                        url.searchParams.delete('search');
+                    }
+                    url.searchParams.set('page', '1');
+                    window.location.href = url.toString();
+                }
+            });
+        } else {
+            setTimeout(registerBottomSearch, 40);
+        }
     }
+    registerBottomSearch();
 
     // Keyboard Esc closes drawer
     document.addEventListener('keydown', (e) => {
@@ -631,6 +658,32 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 });
+
+function filterSalesTableRealtime(query) {
+    const q = (query || '').toLowerCase().trim();
+    const rows = document.querySelectorAll('#salesTableBody tr.sales-row');
+    let visibleCount = 0;
+
+    rows.forEach(tr => {
+        // Exclude action column buttons/text so typing 'print' does not match every row
+        const dataCells = Array.from(tr.querySelectorAll('td:not(.col-right:last-child)'));
+        const rowText = dataCells.map(td => td.textContent).join(' ').toLowerCase();
+
+        const match = !q || rowText.includes(q);
+
+        if (match) {
+            tr.style.display = '';
+            visibleCount++;
+        } else {
+            tr.style.display = 'none';
+        }
+    });
+
+    const noRow = document.getElementById('noSearchResultsRow');
+    if (noRow) {
+        noRow.style.display = (visibleCount === 0 && rows.length > 0 && q) ? '' : 'none';
+    }
+}
 
 function applySalesFilters() {
     const preset = document.getElementById('filterDatePreset').value;

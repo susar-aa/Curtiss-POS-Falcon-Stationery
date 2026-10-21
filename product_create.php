@@ -22,6 +22,7 @@ $data = [
     'barcode'             => '',
     'brand_id'            => '',
     'category_id'         => '',
+    'description'         => '',
     'name'                => '',
     'supplier_id'         => '',
     'cost'                => '',
@@ -32,13 +33,20 @@ $data = [
 ];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $barcode = trim($_POST['barcode'] ?? '');
+    $sku = trim($_POST['sku'] ?? '');
+    if ($sku === '') {
+        $sku = $barcode;
+    }
     $data = [
-        'sku'                 => trim($_POST['sku'] ?? ''),
-        'barcode'             => trim($_POST['barcode'] ?? ''),
+        'barcode'             => $barcode,
+        'sku'                 => $sku,
         'brand_id'            => (int)($_POST['brand_id'] ?? 0),
         'category_id'         => (int)($_POST['category_id'] ?? 0),
+        'description'         => trim($_POST['description'] ?? ''),
         'name'                => trim($_POST['name'] ?? ''),
         'supplier_id'         => (int)($_POST['supplier_id'] ?? 0),
+        'supplier_ids'        => $_POST['supplier_ids'] ?? [],
         'cost'                => (float)($_POST['cost'] ?? 0),
         'selling_price'       => (float)($_POST['selling_price'] ?? 0),
         'opening_stock'       => (float)($_POST['opening_stock'] ?? 0),

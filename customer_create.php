@@ -20,20 +20,27 @@ $formData = [
     'whatsapp'     => '',
     'address'      => '',
     'card_barcode'              => '',
-    'credit_limit'              => '0.00',
+    'credit_limit'              => null,
+    'has_credit_limit'          => 0,
     'status'                    => 'active',
     'is_loyalty'                => 0,
     'loyalty_discount_override' => ''
 ];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $hasCreditLimit = !empty($_POST['has_credit_limit']);
+    $creditLimit = ($hasCreditLimit && isset($_POST['credit_limit']) && $_POST['credit_limit'] !== '')
+        ? (float)$_POST['credit_limit']
+        : null;
+
     $formData = [
         'name'                      => $_POST['name'] ?? '',
         'phone'                     => $_POST['phone'] ?? '',
         'whatsapp'                  => $_POST['whatsapp'] ?? '',
         'address'                   => $_POST['address'] ?? '',
         'card_barcode'              => $_POST['card_barcode'] ?? '',
-        'credit_limit'              => $_POST['credit_limit'] ?? '0.00',
+        'credit_limit'              => $creditLimit,
+        'has_credit_limit'          => $hasCreditLimit ? 1 : 0,
         'status'                    => $_POST['status'] ?? 'active',
         'is_loyalty'                => isset($_POST['is_loyalty']) ? 1 : 0,
         'loyalty_discount_override' => $_POST['loyalty_discount_override'] ?? ''

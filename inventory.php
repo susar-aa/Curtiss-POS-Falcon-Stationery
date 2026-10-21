@@ -25,7 +25,9 @@ $errorMsg = null;
 
 // POST Action to Add Opening Stock Lot (Restricted for Special User)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'add_lot') {
-    if (!Auth::hasRole(ROLE_SUPER_ADMIN, ROLE_ADMIN, ROLE_MANAGER) || Auth::isSpecialUser()) {
+    if (!Auth::validateCsrfToken($_POST['csrf_token'] ?? null)) {
+        $errorMsg = 'Invalid or expired session security token. Please refresh and try again.';
+    } elseif (!Auth::hasRole(ROLE_SUPER_ADMIN, ROLE_ADMIN, ROLE_MANAGER) || Auth::isSpecialUser()) {
         $errorMsg = 'Unauthorized action. Special User is strictly view-only.';
     } else {
         $productId = (int)($_POST['product_id'] ?? 0);
@@ -123,7 +125,12 @@ if (Auth::isSpecialUser()) {
 
 $brands = Brand::all(false);
 $categories = Category::all(false);
-$products = Product::getList([], 1, 1000)['items'];
+$products = Database::fetchAll("
+    SELECT id, name, barcode, sku, cost, selling_price 
+    FROM products 
+    WHERE deleted_at IS NULL AND status = 'active' 
+    ORDER BY name ASC
+");
 
 View::render('inventory/index', [
     'inventory'        => $result['items'],

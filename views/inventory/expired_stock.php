@@ -117,7 +117,7 @@
 .col-right { text-align: right !important; }
 .col-center { text-align: center !important; }
 
-/* Status Badges */
+/* Status Badges - 3 Tier Expiry Visualization (Red: 0-30d, Yellow: 30-60d, Green: >60d) */
 .badge-expired {
     display: inline-flex;
     align-items: center;
@@ -136,9 +136,9 @@
     gap: 4px;
     padding: 3px 10px;
     border-radius: 999px;
-    background: #fef3c7;
-    color: #b45309;
-    border: 1px solid #fde68a;
+    background: #fee2e2;
+    color: #b91c1c;
+    border: 1px solid #fca5a5;
     font-weight: 800;
     font-size: 11px;
 }
@@ -148,9 +148,9 @@
     gap: 4px;
     padding: 3px 10px;
     border-radius: 999px;
-    background: #eff6ff;
-    color: #1d4ed8;
-    border: 1px solid #bfdbfe;
+    background: #fef3c7;
+    color: #b45309;
+    border: 1px solid #fde68a;
     font-weight: 800;
     font-size: 11px;
 }
@@ -160,9 +160,9 @@
     gap: 4px;
     padding: 3px 10px;
     border-radius: 999px;
-    background: #f0fdf4;
+    background: #dcfce7;
     color: #15803d;
-    border: 1px solid #bbf7d0;
+    border: 1px solid #86efac;
     font-weight: 800;
     font-size: 11px;
 }
@@ -230,11 +230,11 @@
             <div style="display: flex; align-items: center; gap: 6px;">
                 <span style="font-size: 11px; font-weight: 800; color: #64748b; text-transform: uppercase;">Filter:</span>
                 <select id="filterTypeSelect" onchange="applyFilters()" style="height: 34px; min-height: 34px; padding: 0 14px; border-radius: 999px; font-size: 12px; font-weight: 700; color: #334155; background: #ffffff; border: 1px solid #cbd5e1;">
-                    <option value="all" <?= ($filters['filter_type'] === 'all') ? 'selected' : '' ?>>All Expiring Batches</option>
+                    <option value="all" <?= ($filters['filter_type'] === 'all') ? 'selected' : '' ?>>All Expiring Batches (Nearest First)</option>
+                    <option value="near_30" <?= in_array($filters['filter_type'], ['near_30', 'red'], true) ? 'selected' : '' ?>>🔴 0–30 Days (Critical & Expired)</option>
+                    <option value="near_60" <?= in_array($filters['filter_type'], ['near_60', 'yellow'], true) ? 'selected' : '' ?>>🟡 30–60 Days (Warning)</option>
+                    <option value="near_90" <?= in_array($filters['filter_type'], ['near_90', 'safe', 'green', 'others'], true) ? 'selected' : '' ?>>🟢 Others (>60 Days Safe)</option>
                     <option value="expired" <?= ($filters['filter_type'] === 'expired') ? 'selected' : '' ?>>⚠️ Expired Only</option>
-                    <option value="near_30" <?= ($filters['filter_type'] === 'near_30') ? 'selected' : '' ?>>Expiring in 30 Days</option>
-                    <option value="near_60" <?= ($filters['filter_type'] === 'near_60') ? 'selected' : '' ?>>Expiring in 60 Days</option>
-                    <option value="near_90" <?= ($filters['filter_type'] === 'near_90') ? 'selected' : '' ?>>Expiring in 90 Days</option>
                 </select>
             </div>
 
@@ -260,44 +260,50 @@
         </div>
     </div>
 
-    <!-- KPI Summary Bar -->
+    <!-- KPI Summary Bar (3 Color Tiers: Red 0-30d, Yellow 30-60d, Green >60d) -->
     <div class="exp-kpi-bar">
         <div class="exp-kpi-card" style="border-left: 4px solid #dc2626;">
             <div>
-                <div class="exp-kpi-val" style="color: #dc2626;"><?= number_format($summary['expired_lots_count']) ?> Batches</div>
-                <div class="exp-kpi-lbl">Currently Expired (In Stock)</div>
+                <div class="exp-kpi-val" style="color: #dc2626;"><?= number_format($summary['red_lots_count'] ?? ($summary['expired_lots_count'] + $summary['near_30_lots_count'])) ?> Batches</div>
+                <div class="exp-kpi-lbl" style="color: #b91c1c; font-weight: 700;">🔴 0–30 Days & Expired</div>
             </div>
             <div style="text-align: right;">
-                <div style="font-size: 0.88rem; font-weight: 800; color: #991b1b;"><?= number_format($summary['expired_units_count'], 2) ?> units</div>
+                <div style="font-size: 0.88rem; font-weight: 800; color: #991b1b;"><?= number_format($summary['red_units_count'] ?? ($summary['expired_units_count'] + $summary['near_30_units_count']), 2) ?> units</div>
+                <div style="font-size: 0.72rem; color: #64748b;">LKR <?= number_format($summary['red_cost_valuation'] ?? ($summary['expired_cost_valuation'] + $summary['near_30_cost_valuation']), 2) ?></div>
+            </div>
+        </div>
+
+        <div class="exp-kpi-card" style="border-left: 4px solid #d97706;">
+            <div>
+                <div class="exp-kpi-val" style="color: #d97706;"><?= number_format($summary['yellow_lots_count'] ?? $summary['near_60_lots_count']) ?> Batches</div>
+                <div class="exp-kpi-lbl" style="color: #b45309; font-weight: 700;">🟡 30–60 Days (Warning)</div>
+            </div>
+            <div style="text-align: right;">
+                <div style="font-size: 0.88rem; font-weight: 800; color: #92400e;"><?= number_format($summary['yellow_units_count'] ?? ($summary['near_60_units_count'] ?? 0), 2) ?> units</div>
+                <div style="font-size: 0.72rem; color: #64748b;">LKR <?= number_format($summary['yellow_cost_valuation'] ?? ($summary['near_60_cost_valuation'] ?? 0), 2) ?></div>
+            </div>
+        </div>
+
+        <div class="exp-kpi-card" style="border-left: 4px solid #16a34a;">
+            <div>
+                <div class="exp-kpi-val" style="color: #16a34a;"><?= number_format($summary['green_lots_count'] ?? $summary['near_90_lots_count']) ?> Batches</div>
+                <div class="exp-kpi-lbl" style="color: #15803d; font-weight: 700;">🟢 Others (> 60 Days Safe)</div>
+            </div>
+            <div style="text-align: right;">
+                <div style="font-size: 0.88rem; font-weight: 800; color: #166534;"><?= number_format($summary['green_units_count'] ?? 0, 2) ?> units</div>
+                <div style="font-size: 0.72rem; color: #64748b;">LKR <?= number_format($summary['green_cost_valuation'] ?? 0, 2) ?></div>
+            </div>
+        </div>
+
+        <div class="exp-kpi-card" style="border-left: 4px solid #475569;">
+            <div>
+                <div class="exp-kpi-val" style="color: #0f172a;"><?= number_format($summary['expired_lots_count']) ?> Batches</div>
+                <div class="exp-kpi-lbl">⚠️ Expired (Write-Off Needed)</div>
+            </div>
+            <div style="text-align: right;">
+                <div style="font-size: 0.88rem; font-weight: 800; color: #dc2626;"><?= number_format($summary['expired_units_count'], 2) ?> units</div>
                 <div style="font-size: 0.72rem; color: #64748b;">LKR <?= number_format($summary['expired_cost_valuation'], 2) ?></div>
             </div>
-        </div>
-
-        <div class="exp-kpi-card" style="border-left: 4px solid #f59e0b;">
-            <div>
-                <div class="exp-kpi-val" style="color: #b45309;"><?= number_format($summary['near_30_lots_count']) ?> Batches</div>
-                <div class="exp-kpi-lbl">Expiring Soon (&lt; 30 Days)</div>
-            </div>
-            <div style="text-align: right;">
-                <div style="font-size: 0.88rem; font-weight: 800; color: #92400e;"><?= number_format($summary['near_30_units_count'], 2) ?> units</div>
-                <div style="font-size: 0.72rem; color: #64748b;">LKR <?= number_format($summary['near_30_cost_valuation'], 2) ?></div>
-            </div>
-        </div>
-
-        <div class="exp-kpi-card" style="border-left: 4px solid #3b82f6;">
-            <div>
-                <div class="exp-kpi-val" style="color: #1d4ed8;"><?= number_format($summary['near_60_lots_count']) ?> Batches</div>
-                <div class="exp-kpi-lbl">Expiring in 31 - 60 Days</div>
-            </div>
-            <div style="font-size: 0.76rem; color: #64748b; font-weight: 600;">Monitor For FEFO</div>
-        </div>
-
-        <div class="exp-kpi-card" style="border-left: 4px solid #10b981;">
-            <div>
-                <div class="exp-kpi-val" style="color: #047857;"><?= number_format($summary['near_90_lots_count']) ?> Batches</div>
-                <div class="exp-kpi-lbl">Expiring in 61 - 90 Days</div>
-            </div>
-            <div style="font-size: 0.76rem; color: #64748b; font-weight: 600;">Adequate Shelf Life</div>
         </div>
     </div>
 
@@ -347,8 +353,24 @@
                         <?php foreach ($items as $it): 
                             $isExpired = ($it['days_remaining'] < 0);
                             $days = abs($it['days_remaining']);
+                            $daysRemaining = (int)$it['days_remaining'];
+
+                            // 3-Color mapping:
+                            // 0-30 days & expired: Red (#dc2626)
+                            // 30-60 days: Yellow (#d97706)
+                            // >60 days: Green (#16a34a)
+                            if ($daysRemaining <= 30) {
+                                $tierColor = '#dc2626';
+                                $borderStyle = 'border-left: 4px solid #dc2626;';
+                            } elseif ($daysRemaining <= 60) {
+                                $tierColor = '#d97706';
+                                $borderStyle = 'border-left: 4px solid #d97706;';
+                            } else {
+                                $tierColor = '#16a34a';
+                                $borderStyle = 'border-left: 4px solid #16a34a;';
+                            }
                         ?>
-                            <tr>
+                            <tr style="<?= $borderStyle ?>">
                                 <td class="col-center" onclick="event.stopPropagation();">
                                     <input type="checkbox" class="lot-check" value="<?= $it['lot_id'] ?>" onchange="updateSelectedCount()" style="cursor: pointer;">
                                 </td>
@@ -363,7 +385,7 @@
                                     <?php endif; ?>
                                 </td>
                                 <td>
-                                    <span style="font-weight: 800; font-family: monospace; color: <?= $isExpired ? '#dc2626' : '#b45309' ?>; font-size: 12px;">
+                                    <span style="font-weight: 800; font-family: monospace; color: <?= $tierColor ?>; font-size: 12px;">
                                         <?= View::escape($it['expiry_date']) ?>
                                     </span>
                                 </td>
@@ -373,18 +395,20 @@
                                             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
                                             Expired (<?= $days ?>d ago)
                                         </span>
-                                    <?php elseif ($it['days_remaining'] <= 30): ?>
+                                    <?php elseif ($daysRemaining <= 30): ?>
                                         <span class="badge-near-30">
                                             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                                            Expires in <?= $days ?> days
+                                            0–30 Days (<?= $days ?>d left)
                                         </span>
-                                    <?php elseif ($it['days_remaining'] <= 60): ?>
+                                    <?php elseif ($daysRemaining <= 60): ?>
                                         <span class="badge-near-60">
-                                            <?= $days ?> days left
+                                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                                            30–60 Days (<?= $days ?>d left)
                                         </span>
                                     <?php else: ?>
                                         <span class="badge-safe">
-                                            <?= $days ?> days left
+                                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                                            60+ Days (<?= $days ?>d left)
                                         </span>
                                     <?php endif; ?>
                                 </td>
@@ -394,7 +418,7 @@
                                 <td class="col-right" style="font-family: monospace;">
                                     <?= number_format((float)$it['cost'], 2) ?>
                                 </td>
-                                <td class="col-right" style="font-weight: 800; font-family: monospace; color: <?= $isExpired ? '#dc2626' : '#1e293b' ?>;">
+                                <td class="col-right" style="font-weight: 800; font-family: monospace; color: <?= $tierColor ?>;">
                                     <?= number_format((float)$it['total_cost_value'], 2) ?>
                                 </td>
                                 <td class="col-right" onclick="event.stopPropagation();">

@@ -11,6 +11,7 @@ $canManage = Auth::hasPermission('employees.manage') || Auth::hasRole(ROLE_SUPER
 $canViewSalary = Auth::hasPermission('payroll.view') || Auth::hasPermission('employees.manage') || Auth::hasRole(ROLE_SUPER_ADMIN, ROLE_ADMIN, ROLE_ACCOUNTANT);
 ?>
 
+<meta name="csrf-token" content="<?= htmlspecialchars(class_exists('Csrf') ? Csrf::token() : (class_exists('Auth') ? Auth::generateCsrfToken() : '')) ?>">
 <link rel="stylesheet" href="assets/css/curtiss_select.css">
 <script src="assets/js/curtiss_select.js"></script>
 
@@ -433,7 +434,7 @@ $canViewSalary = Auth::hasPermission('payroll.view') || Auth::hasPermission('emp
                         <th style="width: 14%;">Assigned Branch</th>
                         <th style="width: 13%;">Phone / WhatsApp</th>
                         <?php if ($canViewSalary): ?>
-                        <th class="col-right" style="width: 12%;">Basic Salary</th>
+                        <th class="col-right" style="width: 12%;">Basic Salary (LKR)</th>
                         <?php endif; ?>
                         <th class="col-center" style="width: 10%;">Status</th>
                         <th class="col-right" style="width: 11%;">Actions</th>
@@ -815,14 +816,31 @@ document.addEventListener('DOMContentLoaded', () => {
         if (statusSel) CurtissSearchableSelect.attach(statusSel);
     }
 
-    // Connect CurtissNav bottom floating search
-    if (typeof CurtissNav !== 'undefined' && CurtissNav.enablePageSearch) {
-        CurtissNav.enablePageSearch((term) => {
-            currentSearchTerm = term;
-            currentEmpPage = 1;
-            loadEmployees();
-        });
+    function getCsrfToken() {
+        return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
     }
+    window.getCsrfToken = getCsrfToken;
+
+    // Connect CurtissNav bottom floating search
+    let searchDebounceTimer = null;
+    function registerEmpSearch() {
+        if (typeof CurtissNav !== 'undefined' && CurtissNav.enablePageSearch) {
+            CurtissNav.enablePageSearch({
+                placeholder: 'Search employees by code, name, phone, WA, NIC, role, branch, salary...',
+                onSearch: (term) => {
+                    clearTimeout(searchDebounceTimer);
+                    searchDebounceTimer = setTimeout(() => {
+                        currentSearchTerm = term;
+                        currentEmpPage = 1;
+                        loadEmployees();
+                    }, 300);
+                }
+            });
+        } else {
+            setTimeout(registerEmpSearch, 50);
+        }
+    }
+    registerEmpSearch();
 
     // Setup Enter key auto-advancement in modal form
     const form = document.getElementById('empForm');
@@ -986,6 +1004,7 @@ async function toggleEmployeeStatus(id) {
     try {
         const formData = new FormData();
         formData.append('id', id);
+        formData.append('csrf_token', getCsrfToken());
         const res = await fetch('employee_api.php?action=toggle_status', {
             method: 'POST',
             body: formData
@@ -1008,6 +1027,7 @@ async function deleteEmployee(id) {
     try {
         const formData = new FormData();
         formData.append('id', id);
+        formData.append('csrf_token', getCsrfToken());
         const res = await fetch('employee_api.php?action=delete', {
             method: 'POST',
             body: formData
@@ -1027,6 +1047,7 @@ async function restoreEmployee(id) {
     try {
         const formData = new FormData();
         formData.append('id', id);
+        formData.append('csrf_token', getCsrfToken());
         const res = await fetch('employee_api.php?action=restore', {
             method: 'POST',
             body: formData
@@ -1099,6 +1120,7 @@ async function handleEmployeeSubmit(event) {
     try {
         const form = document.getElementById('empForm');
         const formData = new FormData(form);
+        formData.append('csrf_token', getCsrfToken());
         const empId = document.getElementById('formEmpId').value;
         const action = empId ? 'update' : 'create';
 
@@ -1320,9 +1342,13 @@ async function loadDrawerSalesPerformance(empId) {
         const json = await res.json();
         if (json.success && json.performance) {
             const p = json.performance;
-            document.getElementById('d-sales-total').innerText = `LKR ${parseFloat(p.total_sales).toLocaleString('en-US', {minimumFractionDigits: 2})}`;
-            document.getElementById('d-sales-count').innerText = p.total_invoices;
-            document.getElementById('d-sales-avg').innerText = `LKR ${parseFloat(p.average_invoice_value).toFixed(2)}`;
+            const totalSales = parseFloat(p.total_sales ?? p.total_sales_volume ?? 0) || 0;
+            const invoices = parseInt(p.total_invoices ?? 0, 10) || 0;
+            const avgBill = parseFloat(p.average_invoice_value ?? (invoices > 0 ? totalSales / invoices : 0)) || 0;
+
+            document.getElementById('d-sales-total').innerText = `LKR ${totalSales.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+            document.getElementById('d-sales-count').innerText = invoices;
+            document.getElementById('d-sales-avg').innerText = `LKR ${avgBill.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
 
             if (!p.recent_sales || p.recent_sales.length === 0) {
                 listElem.innerHTML = '<div style="text-align:center; padding:1.5rem; color:#94a3b8;">No recorded sales for this employee yet.</div>';

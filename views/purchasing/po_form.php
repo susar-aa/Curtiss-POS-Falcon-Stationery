@@ -20,6 +20,11 @@
 </div>
 
 <style>
+/* Hide bottom floating dock on full-screen procurement entry panels */
+#curtiss-dock {
+    display: none !important;
+}
+
 /* ── Reset & Fixed Viewport ── */
 .po-panel-root {
     width: 100%;

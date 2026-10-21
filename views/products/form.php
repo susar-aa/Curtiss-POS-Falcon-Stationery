@@ -113,6 +113,13 @@ $formAction = $isEdit ? 'product_edit?id=' . (int)$product['id'] : 'product_crea
     margin-bottom: 18px;
 }
 
+.grid-5-col {
+    display: grid;
+    grid-template-columns: 1fr 0.8fr 1fr 1fr 1fr;
+    gap: 20px;
+    margin-bottom: 18px;
+}
+
 /* Glassmorphism Modal Styles */
 .curtiss-modal-backdrop {
     display: none;
@@ -144,6 +151,9 @@ $formAction = $isEdit ? 'product_edit?id=' . (int)$product['id'] : 'product_crea
 }
 
 @media (max-width: 1024px) {
+    .grid-5-col {
+        grid-template-columns: repeat(2, 1fr);
+    }
     .grid-4-col {
         grid-template-columns: repeat(2, 1fr);
     }
@@ -245,20 +255,25 @@ $formAction = $isEdit ? 'product_edit?id=' . (int)$product['id'] : 'product_crea
                 Product Identification & Categorization
             </div>
 
-            <!-- Row 1: Barcode, SKU, Brand -->
-            <div class="grid-3-col">
+            <!-- Row 1: SKU & Barcode -->
+            <div class="grid-2-col">
                 <div>
-                    <label class="f-label" for="barcode">1. Barcode <span style="color: #ef4444;">*</span></label>
-                    <input type="text" name="barcode" id="barcode" class="f-input" value="<?= View::escape($product['barcode'] ?? '') ?>" placeholder="e.g. 893450001001" required autofocus>
+                    <label class="f-label" for="sku">1. SKU (Item Code)</label>
+                    <input type="text" name="sku" id="sku" class="f-input" value="<?= View::escape($product['sku'] ?? '') ?>" placeholder="e.g. FAL-PEN-001 (or leave blank to use barcode)" autofocus>
+                    <span class="f-subtext">Unique item identifier / SKU. If left blank, barcode will be used.</span>
                 </div>
 
                 <div>
-                    <label class="f-label" for="sku">SKU / Product Code</label>
-                    <input type="text" name="sku" id="sku" class="f-input" value="<?= View::escape($product['sku'] ?? $product['barcode'] ?? '') ?>" placeholder="e.g. SKU001">
+                    <label class="f-label" for="barcode">2. Barcode <span style="color: #ef4444;">*</span></label>
+                    <input type="text" name="barcode" id="barcode" class="f-input" value="<?= View::escape($product['barcode'] ?? '') ?>" placeholder="e.g. 893450001001" required>
+                    <span class="f-subtext">Scannable barcode for POS and stock operations.</span>
                 </div>
+            </div>
 
+            <!-- Row 2: Brand & Category -->
+            <div class="grid-2-col">
                 <div>
-                    <label class="f-label" for="brand_id">2. Brand <span style="color: #ef4444;">*</span></label>
+                    <label class="f-label" for="brand_id">3. Brand <span style="color: #ef4444;">*</span></label>
                     <select name="brand_id" id="brand_id" class="f-input curtiss-select-enhance" data-create-type="brand" required>
                         <option value="">-- Select Brand --</option>
                         <?php foreach ($brands as $b): ?>
@@ -268,12 +283,9 @@ $formAction = $isEdit ? 'product_edit?id=' . (int)$product['id'] : 'product_crea
                         <?php endforeach; ?>
                     </select>
                 </div>
-            </div>
 
-            <!-- Row 2: Category, Supplier -->
-            <div class="grid-2-col">
                 <div>
-                    <label class="f-label" for="category_id">3. Category <span style="color: #ef4444;">*</span></label>
+                    <label class="f-label" for="category_id">4. Category <span style="color: #ef4444;">*</span></label>
                     <select name="category_id" id="category_id" class="f-input curtiss-select-enhance" data-create-type="category" required>
                         <option value="">-- Select Category --</option>
                         <?php foreach ($categories as $c): ?>
@@ -283,25 +295,61 @@ $formAction = $isEdit ? 'product_edit?id=' . (int)$product['id'] : 'product_crea
                         <?php endforeach; ?>
                     </select>
                 </div>
-
-                <div>
-                    <label class="f-label" for="supplier_id">5. Supplier <span style="color: #ef4444;">*</span></label>
-                    <select name="supplier_id" id="supplier_id" class="f-input curtiss-select-enhance" data-create-type="supplier" required>
-                        <option value="">-- Select Supplier --</option>
-                        <?php foreach ($suppliers as $s): ?>
-                            <option value="<?= $s['id'] ?>" <?= ((int)($product['supplier_id'] ?? 0) === (int)$s['id']) ? 'selected' : '' ?>>
-                                <?= View::escape($s['name']) ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
             </div>
 
-            <!-- Row 3: Product Name (Full Width Across Grid) -->
+            <!-- Row 3: Suppliers -->
+            <div style="margin-bottom: 18px;">
+                <?php
+                $initSupplierIds = !empty($product['supplier_ids']) ? (array)$product['supplier_ids'] : (!empty($product['supplier_id']) ? [(int)$product['supplier_id']] : []);
+                $primarySupplierId = (int)($product['supplier_id'] ?? ($initSupplierIds[0] ?? 0));
+                ?>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                    <label class="f-label" style="margin: 0;">5. Suppliers <span style="color: #ef4444;">*</span></label>
+                    <span style="font-size: 11px; color: #64748b; font-weight: 600;">Multiple suppliers supported</span>
+                </div>
+
+                <!-- Hidden inputs container for form submission -->
+                <input type="hidden" name="supplier_id" id="primary_supplier_id" value="<?= $primarySupplierId ?>">
+                <div id="supplier_hidden_inputs">
+                    <?php foreach ($initSupplierIds as $sid): ?>
+                        <input type="hidden" name="supplier_ids[]" value="<?= (int)$sid ?>" id="hidden_supp_<?= (int)$sid ?>">
+                    <?php endforeach; ?>
+                </div>
+
+                <!-- Selected Supplier Badges Display -->
+                <div id="selected_suppliers_container" style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; min-height: 26px;">
+                    <!-- Rendered by JS -->
+                </div>
+
+                <!-- Searchable Picker Combobox -->
+                <select id="multi_supplier_picker" class="f-input curtiss-select-enhance" data-create-type="supplier" onchange="handleSupplierPickerChange(this.value)">
+                    <option value="">+ Add / Select Supplier...</option>
+                    <?php foreach ($suppliers as $s): ?>
+                        <option value="<?= $s['id'] ?>" data-name="<?= View::escape($s['name']) ?>">
+                            <?= View::escape($s['name']) ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+                <span class="f-subtext">Click any badge to set as Primary Supplier. Click &times; to remove.</span>
+            </div>
+
+            <!-- Row 4: Description -->
+            <div style="margin-bottom: 16px;">
+                <label class="f-label" for="description">6. Description</label>
+                <input type="text" name="description" id="description" class="f-input" autocomplete="off" value="<?= View::escape($product['description'] ?? '') ?>" placeholder="e.g. Blue Ballpoint Pen 0.5mm Pack of 10">
+                <span class="f-subtext">Automatically appends to the Product Name.</span>
+            </div>
+
+            <!-- Row 4: Auto-Generated Product Name Display (Clean Read-Only Display) -->
             <div style="margin-bottom: 24px;">
-                <label class="f-label" for="name">4. Product Name <span style="color: #ef4444;">*</span></label>
-                <input type="text" name="name" id="name" class="f-input" data-cursor-end="true" autocomplete="off" value="<?= View::escape($product['name'] ?? '') ?>" placeholder="e.g. Atlas Ball Pen Blue 0.5mm" required>
-                <span class="f-subtext">Auto-starts with Brand + Category when selected. Fully editable.</span>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                    <label class="f-label" style="margin: 0;">Auto-Generated Product Name <span style="color: #ef4444;">*</span></label>
+                    <span style="font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; background: #e0f2fe; color: #0369a1; padding: 2px 8px; border-radius: 999px;">Auto: (Brand) (Category) (Description)</span>
+                </div>
+                <div id="name_display" style="min-height: 42px; display: flex; align-items: center; padding: 8px 14px; background: #f8fafc; border: 1.5px solid #cbd5e1; border-radius: 8px; font-size: 14px; font-weight: 700; color: #0f172a; letter-spacing: -0.01em; box-sizing: border-box;">
+                    <span id="name_preview_text"><?= !empty($product['name']) ? View::escape($product['name']) : '<span style="color: #94a3b8; font-weight: 500; font-style: italic;">Select Brand, Category and enter Description to generate product name...</span>' ?></span>
+                </div>
+                <input type="hidden" name="name" id="name" value="<?= View::escape($product['name'] ?? '') ?>" required>
             </div>
 
             <!-- SECTION 2: PRICING & INVENTORY -->
@@ -310,7 +358,7 @@ $formAction = $isEdit ? 'product_edit?id=' . (int)$product['id'] : 'product_crea
                 Pricing & Inventory
             </div>
 
-            <!-- Row 4: Cost, Selling Price, Opening Stock, Low Stock Threshold -->
+            <!-- Row 4: Cost, Margin %, Selling Price, Opening Stock, Low Stock Threshold -->
             <?php
             $displayCost = '';
             if (isset($product['cost']) && $product['cost'] !== '' && (float)$product['cost'] > 0) {
@@ -326,6 +374,11 @@ $formAction = $isEdit ? 'product_edit?id=' . (int)$product['id'] : 'product_crea
                 $displayPrice = $product['selling_price'];
             }
 
+            $displayMargin = '';
+            if ((float)$displayCost > 0 && (float)$displayPrice > 0) {
+                $displayMargin = number_format((((float)$displayPrice - (float)$displayCost) / (float)$displayCost) * 100, 2, '.', '');
+            }
+
             $displayOpeningStock = '';
             if (isset($product['opening_stock']) && $product['opening_stock'] !== '' && (float)$product['opening_stock'] > 0) {
                 $displayOpeningStock = $product['opening_stock'];
@@ -333,15 +386,21 @@ $formAction = $isEdit ? 'product_edit?id=' . (int)$product['id'] : 'product_crea
                 $displayOpeningStock = $product['opening_stock'];
             }
             ?>
-            <div class="grid-4-col" style="margin-bottom: 24px;">
+            <div class="grid-5-col" style="margin-bottom: 24px;">
                 <div>
                     <label class="f-label" for="cost">6. Cost Price (LKR) <span style="color: #ef4444;">*</span></label>
-                    <input type="number" step="0.01" min="0" name="cost" id="cost" class="f-input" value="<?= View::escape($displayCost) ?>" required>
+                    <input type="number" step="0.01" min="0" name="cost" id="cost" class="f-input" value="<?= View::escape($displayCost) ?>" required oninput="calcProductMarginFromCost()">
+                </div>
+
+                <div>
+                    <label class="f-label" for="margin_pct">Margin (%)</label>
+                    <input type="number" step="0.01" id="margin_pct" class="f-input" placeholder="e.g. 25.0" value="<?= View::escape($displayMargin) ?>" oninput="calcProductPriceFromMargin()">
+                    <span class="f-subtext">Auto-sets Selling Price</span>
                 </div>
 
                 <div>
                     <label class="f-label" for="selling_price">7. Selling Price (LKR) <span style="color: #ef4444;">*</span></label>
-                    <input type="number" step="0.01" min="0" name="selling_price" id="selling_price" class="f-input" value="<?= View::escape($displayPrice) ?>" required>
+                    <input type="number" step="0.01" min="0" name="selling_price" id="selling_price" class="f-input" value="<?= View::escape($displayPrice) ?>" required oninput="calcProductMarginFromPrice()">
                 </div>
 
                 <div>
@@ -381,18 +440,17 @@ $formAction = $isEdit ? 'product_edit?id=' . (int)$product['id'] : 'product_crea
                 </label>
             </div>
 
-            <!-- Opening Stock Expiry & Batch Inputs (Visible when has_expiry is ON during Creation) -->
-            <?php if (!$isEdit): ?>
+            <!-- Stock Expiry & Batch Inputs (Visible when has_expiry is ON) -->
             <div id="expiry_opening_section" style="display: <?= (!empty($product['has_expiry'])) ? 'block' : 'none' ?>; margin-bottom: 24px; padding: 16px 20px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 12px;">
                 <div style="font-size: 0.88rem; font-weight: 700; color: #1e40af; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-                    Opening Stock Expiry Date & Batch
+                    <?= $isEdit ? 'Stock Expiry Date & Batch' : 'Opening Stock Expiry Date & Batch' ?>
                 </div>
                 <div class="grid-2-col">
                     <div>
                         <label class="f-label" for="expiry_date">Expiry Date <span id="expiry_req_star" style="color: #ef4444;">*</span></label>
-                        <input type="date" name="expiry_date" id="expiry_date" class="f-input" min="<?= date('Y-m-d') ?>" value="<?= View::escape($product['expiry_date'] ?? '') ?>">
-                        <span class="f-subtext">Mandatory when opening stock quantity is greater than zero</span>
+                        <input type="date" name="expiry_date" id="expiry_date" class="f-input" <?= (empty($product['expiry_date'])) ? 'min="' . date('Y-m-d') . '"' : '' ?> value="<?= View::escape($product['expiry_date'] ?? '') ?>">
+                        <span class="f-subtext"><?= $isEdit ? 'Mandatory when existing stock quantity is greater than zero' : 'Mandatory when opening stock quantity is greater than zero' ?></span>
                     </div>
                     <div>
                         <label class="f-label" for="batch_number">Batch Reference (Optional)</label>
@@ -401,7 +459,6 @@ $formAction = $isEdit ? 'product_edit?id=' . (int)$product['id'] : 'product_crea
                     </div>
                 </div>
             </div>
-            <?php endif; ?>
 
             <!-- Bottom Action Buttons Footer -->
             <div style="display: flex; align-items: center; justify-content: flex-end; gap: 14px; margin-top: 20px; padding-top: 20px; border-top: 1px solid #f1f5f9;">
@@ -453,22 +510,196 @@ $formAction = $isEdit ? 'product_edit?id=' . (int)$product['id'] : 'product_crea
     </div>
 </div>
 
-<!-- Searchable Select & Auto-Generation Script -->
+<!-- Searchable Select, Multi-Supplier & Auto-Generation Script -->
 <script>
+// Multi-Supplier State
+const suppliersDirectory = <?= json_encode(array_map(fn($s) => ['id' => (int)$s['id'], 'name' => $s['name']], $suppliers)) ?>;
+let selectedSuppliers = <?= json_encode(array_values(array_map(function($sid) use ($suppliers, $primarySupplierId) {
+    $sMatch = array_filter($suppliers, fn($s) => (int)$s['id'] === (int)$sid);
+    $sObj = !empty($sMatch) ? reset($sMatch) : null;
+    return [
+        'id' => (int)$sid,
+        'name' => $sObj['name'] ?? "Supplier #$sid",
+        'is_primary' => ((int)$sid === (int)$primarySupplierId)
+    ];
+}, $initSupplierIds))) ?>;
+
+function renderSupplierPills() {
+    const container = document.getElementById('selected_suppliers_container');
+    const hiddenWrap = document.getElementById('supplier_hidden_inputs');
+    const primaryInput = document.getElementById('primary_supplier_id');
+    if (!container || !hiddenWrap) return;
+
+    container.innerHTML = '';
+    hiddenWrap.innerHTML = '';
+
+    if (selectedSuppliers.length === 0) {
+        container.innerHTML = '<span style="font-size: 11px; color: #94a3b8; font-style: italic; line-height: 26px;">No suppliers selected yet (select at least one below)</span>';
+        if (primaryInput) primaryInput.value = '';
+        return;
+    }
+
+    let primaryExists = selectedSuppliers.some(s => s.is_primary);
+    if (!primaryExists && selectedSuppliers.length > 0) {
+        selectedSuppliers[0].is_primary = true;
+    }
+
+    const primaryObj = selectedSuppliers.find(s => s.is_primary) || selectedSuppliers[0];
+    if (primaryInput) primaryInput.value = primaryObj.id;
+
+    selectedSuppliers.forEach(s => {
+        // Hidden input for submission
+        const inEl = document.createElement('input');
+        inEl.type = 'hidden';
+        inEl.name = 'supplier_ids[]';
+        inEl.value = s.id;
+        hiddenWrap.appendChild(inEl);
+
+        // Visual Pill Badge
+        const pill = document.createElement('div');
+        pill.className = 'supplier-pill' + (s.is_primary ? ' is-primary' : '');
+        pill.style.cssText = `
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 3px 10px;
+            border-radius: 999px;
+            font-size: 11.5px;
+            font-weight: 700;
+            background: ${s.is_primary ? '#0f172a' : '#f1f5f9'};
+            color: ${s.is_primary ? '#ffffff' : '#334155'};
+            border: 1px solid ${s.is_primary ? '#0f172a' : '#cbd5e1'};
+            cursor: pointer;
+            transition: all 0.15s ease;
+        `;
+        pill.title = s.is_primary ? 'Primary Supplier' : 'Click to set as Primary Supplier';
+        pill.onclick = () => setPrimarySupplier(s.id);
+
+        pill.innerHTML = `
+            <span>${escapeHtml(s.name)}</span>
+            ${s.is_primary ? '<span style="background: #2563eb; color: #fff; font-size: 9px; padding: 1px 5px; border-radius: 999px; text-transform: uppercase;">Primary</span>' : ''}
+            <span onclick="event.stopPropagation(); removeSupplier(${s.id})" style="color: ${s.is_primary ? '#94a3b8' : '#64748b'}; font-size: 14px; font-weight: 800; cursor: pointer; padding-left: 2px;" title="Remove supplier">&times;</span>
+        `;
+        container.appendChild(pill);
+    });
+}
+
+function handleSupplierPickerChange(val) {
+    const suppId = parseInt(val);
+    if (!suppId) return;
+
+    const suppObj = suppliersDirectory.find(s => s.id === suppId);
+    const suppName = suppObj ? suppObj.name : `Supplier #${suppId}`;
+    addSupplier(suppId, suppName);
+}
+
+function addSupplier(suppId, suppName) {
+    const id = parseInt(suppId);
+    if (!id) return;
+    if (selectedSuppliers.some(s => s.id === id)) {
+        const picker = document.getElementById('multi_supplier_picker');
+        if (picker) {
+            picker.value = '';
+            if (picker._curtissSelect) picker._curtissSelect.refreshOptions();
+        }
+        return;
+    }
+
+    const isFirst = selectedSuppliers.length === 0;
+    selectedSuppliers.push({
+        id: id,
+        name: suppName,
+        is_primary: isFirst
+    });
+
+    renderSupplierPills();
+
+    const picker = document.getElementById('multi_supplier_picker');
+    if (picker) {
+        picker.value = '';
+        if (picker._curtissSelect) {
+            picker._curtissSelect.refreshOptions();
+        }
+    }
+}
+
+function removeSupplier(suppId) {
+    const id = parseInt(suppId);
+    const wasPrimary = selectedSuppliers.some(s => s.id === id && s.is_primary);
+    selectedSuppliers = selectedSuppliers.filter(s => s.id !== id);
+    if (wasPrimary && selectedSuppliers.length > 0) {
+        selectedSuppliers[0].is_primary = true;
+    }
+    renderSupplierPills();
+}
+
+function setPrimarySupplier(suppId) {
+    const id = parseInt(suppId);
+    selectedSuppliers.forEach(s => {
+        s.is_primary = (s.id === id);
+    });
+    renderSupplierPills();
+}
+
+// Margin & Selling Price Auto-Calculations
+function calcProductMarginFromCost() {
+    const costInput = document.getElementById('cost');
+    const marginInput = document.getElementById('margin_pct');
+    const priceInput = document.getElementById('selling_price');
+    const cost = parseFloat(costInput?.value || 0);
+    const margin = parseFloat(marginInput?.value || 0);
+    const price = parseFloat(priceInput?.value || 0);
+
+    if (margin > 0 && cost > 0) {
+        priceInput.value = (cost * (1 + margin / 100)).toFixed(2);
+    } else if (cost > 0 && price > 0) {
+        marginInput.value = (((price - cost) / cost) * 100).toFixed(2);
+    }
+}
+
+function calcProductPriceFromMargin() {
+    const costInput = document.getElementById('cost');
+    const marginInput = document.getElementById('margin_pct');
+    const priceInput = document.getElementById('selling_price');
+    const cost = parseFloat(costInput?.value || 0);
+    const margin = parseFloat(marginInput?.value || 0);
+
+    if (cost > 0) {
+        priceInput.value = (cost * (1 + margin / 100)).toFixed(2);
+    }
+}
+
+function calcProductMarginFromPrice() {
+    const costInput = document.getElementById('cost');
+    const marginInput = document.getElementById('margin_pct');
+    const priceInput = document.getElementById('selling_price');
+    const cost = parseFloat(costInput?.value || 0);
+    const price = parseFloat(priceInput?.value || 0);
+
+    if (cost > 0 && price >= 0) {
+        marginInput.value = (((price - cost) / cost) * 100).toFixed(2);
+    }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
-    // 1. Initialize Searchable Select Components
+    // 1. Initialize Multi-Supplier Pills
+    renderSupplierPills();
+
+    // 2. Initialize Searchable Select Components
     const brandSelectEl = document.getElementById('brand_id');
     const catSelectEl = document.getElementById('category_id');
-    const supSelectEl = document.getElementById('supplier_id');
+    const supPickerEl = document.getElementById('multi_supplier_picker');
 
     if (window.CurtissSearchableSelect) {
         window.CurtissSearchableSelect.attach(brandSelectEl, { placeholder: '-- Select Brand --', searchPlaceholder: 'Search brand...' });
         window.CurtissSearchableSelect.attach(catSelectEl, { placeholder: '-- Select Category --', searchPlaceholder: 'Search category...' });
-        window.CurtissSearchableSelect.attach(supSelectEl, { placeholder: '-- Select Supplier --', searchPlaceholder: 'Search supplier...' });
+        window.CurtissSearchableSelect.attach(supPickerEl, { placeholder: '+ Add / Select Supplier...', searchPlaceholder: 'Search supplier to add...' });
     }
 
-    // 2. Product Name Auto-Generation & Auto-Capitalization Logic
+    // 3. Product Name Auto-Generation: (Brand) (Category) (Description)
     const nameInput = document.getElementById('name');
+    const namePreviewText = document.getElementById('name_preview_text');
+    const descInput = document.getElementById('description');
     if (!brandSelectEl || !catSelectEl || !nameInput) return;
 
     function capitalizeWords(str) {
@@ -477,60 +708,34 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    let previousPrefix = '';
-
     function updateNameAutoPrefix() {
         const selectedBrandOpt = brandSelectEl.options[brandSelectEl.selectedIndex];
         const selectedCatOpt = catSelectEl.options[catSelectEl.selectedIndex];
 
-        const brandName = selectedBrandOpt && selectedBrandOpt.value ? (selectedBrandOpt.getAttribute('data-name') || selectedBrandOpt.text || '') : '';
-        const catName = selectedCatOpt && selectedCatOpt.value ? (selectedCatOpt.getAttribute('data-name') || selectedCatOpt.text || '') : '';
+        const brandName = selectedBrandOpt && selectedBrandOpt.value ? (selectedBrandOpt.getAttribute('data-name') || selectedBrandOpt.text || '').trim() : '';
+        const catName = selectedCatOpt && selectedCatOpt.value ? (selectedCatOpt.getAttribute('data-name') || selectedCatOpt.text || '').trim() : '';
+        const descVal = descInput ? descInput.value.trim() : '';
 
-        let newPrefix = '';
-        if (brandName && catName) {
-            newPrefix = brandName + ' ' + catName;
-        } else if (brandName) {
-            newPrefix = brandName;
-        } else if (catName) {
-            newPrefix = catName;
+        const parts = [];
+        if (brandName) parts.push(brandName);
+        if (catName) parts.push(catName);
+        if (descVal) parts.push(descVal);
+
+        let fullName = parts.join(' ');
+        fullName = capitalizeWords(fullName);
+
+        nameInput.value = fullName;
+        if (namePreviewText) {
+            namePreviewText.innerHTML = fullName 
+                ? escapeHtml(fullName) 
+                : '<span style="color: #94a3b8; font-weight: 500; font-style: italic;">Select Brand, Category and enter Description to generate product name...</span>';
         }
-
-        newPrefix = capitalizeWords(newPrefix).trim();
-
-        const currentNameVal = nameInput.value.trim();
-
-        if (!currentNameVal) {
-            nameInput.value = newPrefix ? (newPrefix + ' ') : '';
-        } else if (previousPrefix && currentNameVal.startsWith(previousPrefix)) {
-            const extraText = currentNameVal.substring(previousPrefix.length).trimStart();
-            nameInput.value = (newPrefix ? (newPrefix + ' ') : '') + extraText;
-        } else if (newPrefix && !currentNameVal.includes(newPrefix)) {
-            if (currentNameVal === previousPrefix || !previousPrefix) {
-                nameInput.value = newPrefix + ' ';
-            }
-        }
-
-        previousPrefix = newPrefix;
     }
 
     brandSelectEl.addEventListener('change', updateNameAutoPrefix);
     catSelectEl.addEventListener('change', updateNameAutoPrefix);
 
-    // Focus without highlighting: place cursor at end after space
-    nameInput.addEventListener('focus', function() {
-        if (this.value && !this.value.endsWith(' ')) {
-            this.value = this.value.trim() + ' ';
-        }
-        const len = this.value.length;
-        setTimeout(() => {
-            if (typeof this.setSelectionRange === 'function') {
-                this.setSelectionRange(len, len);
-            }
-        }, 10);
-    });
-
-    // Automatically capitalize first letter of all words while typing
-    nameInput.addEventListener('input', function() {
+    descInput?.addEventListener('input', function() {
         const selStart = this.selectionStart;
         const selEnd = this.selectionEnd;
         const oldVal = this.value;
@@ -541,6 +746,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.setSelectionRange(selStart, selEnd);
             }
         }
+        updateNameAutoPrefix();
     });
 });
 
@@ -608,7 +814,10 @@ function handleQuickAddSubmit(e) {
             let targetEl = null;
             if (type === 'brand') targetEl = document.getElementById('brand_id');
             else if (type === 'category') targetEl = document.getElementById('category_id');
-            else if (type === 'supplier') targetEl = document.getElementById('supplier_id');
+            else if (type === 'supplier') {
+                targetEl = document.getElementById('multi_supplier_picker');
+                addSupplier(data.id, data.name);
+            }
 
             if (targetEl && targetEl._curtissSelect) {
                 targetEl._curtissSelect.addItem(data.id, data.name, true);
@@ -647,17 +856,23 @@ function checkExpiryRequirement() {
     }
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-    document.querySelectorAll('.curtiss-select-enhance').forEach(el => {
-        if (window.CurtissSearchableSelect) {
-            CurtissSearchableSelect.attach(el);
-        }
+// Utility: HTML Escaper
+function escapeHtml(str) {
+    if (!str) return '';
+    return String(str).replace(/[&<>"']/g, function(m) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m];
     });
-    checkExpiryRequirement();
+}
 
+document.addEventListener('DOMContentLoaded', () => {
     // ── Keyboard Enter & Arrow Key Navigation Loop ──
+    const skuInput = document.getElementById('sku');
+    const barcodeInput = document.getElementById('barcode');
+    const brandSelectEl = document.getElementById('brand_id');
+    const descInput = document.getElementById('description');
     const nameInput = document.getElementById('name');
     const costInput = document.getElementById('cost');
+    const marginInput = document.getElementById('margin_pct');
     const priceInput = document.getElementById('selling_price');
     const openStockInput = document.getElementById('opening_stock');
     const lowStockInput = document.getElementById('low_stock_threshold');
@@ -667,7 +882,26 @@ document.addEventListener('DOMContentLoaded', () => {
     const batchInput = document.getElementById('batch_number');
     const saveBtn = document.getElementById('btnSaveProduct');
 
-    nameInput?.addEventListener('keydown', (e) => {
+    skuInput?.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            barcodeInput?.focus();
+            barcodeInput?.select?.();
+        }
+    });
+
+    barcodeInput?.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            if (brandSelectEl && brandSelectEl._curtissSelect) {
+                brandSelectEl._curtissSelect.toggleMenu();
+            } else if (brandSelectEl) {
+                brandSelectEl.focus();
+            }
+        }
+    });
+
+    descInput?.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') {
             e.preventDefault();
             costInput?.focus();
@@ -676,6 +910,14 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     costInput?.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            marginInput?.focus();
+            marginInput?.select?.();
+        }
+    });
+
+    marginInput?.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') {
             e.preventDefault();
             priceInput?.focus();
@@ -797,5 +1039,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
+    // Initial expiry requirement check on load
+    checkExpiryRequirement();
 });
 </script>

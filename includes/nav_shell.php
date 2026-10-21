@@ -90,6 +90,10 @@ if (Auth::hasPermission('pos.access') || Auth::hasRole(ROLE_SUPER_ADMIN, ROLE_AD
     $salesModules[] = ['label' => 'Sales History', 'url' => 'sales_history', 'scripts' => ['sales_history', 'sales_history.php', 'sales', 'sales.php'], 'desc' => 'Invoice & receipt logs',
         'icon' => navIcon('<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>')];
 }
+if (!$navIsSpecial && Auth::hasRole(ROLE_SUPER_ADMIN, ROLE_ADMIN, ROLE_MANAGER, ROLE_ACCOUNTANT)) {
+    $salesModules[] = ['label' => 'Discounts & Promotions', 'url' => 'discounts', 'scripts' => ['discounts', 'discounts.php'], 'desc' => 'Rules & campaigns',
+        'icon' => navIcon('<line x1="19" y1="5" x2="5" y2="19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/>')];
+}
 if (!$navIsSpecial && (Auth::hasPermission('returns.view') || Auth::hasPermission('returns.create'))) {
     $salesModules[] = ['label' => 'Sales Returns', 'url' => 'returns', 'scripts' => ['returns', 'returns.php'], 'desc' => 'Returns & exchanges',
         'icon' => navIcon('<polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>')];
@@ -111,10 +115,6 @@ if (Auth::hasRole(ROLE_SUPER_ADMIN, ROLE_ADMIN, ROLE_MANAGER, ROLE_ACCOUNTANT, R
     if (Auth::hasPermission('customers.pay')) {
         $custModules[] = ['label' => 'Collections', 'url' => 'customer_payments', 'scripts' => ['customer_payments', 'customer_payments.php'], 'desc' => 'Credit payments',
             'icon' => navIcon('<line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>')];
-    }
-    if (Auth::hasPermission('vouchers.view')) {
-        $custModules[] = ['label' => 'Gift Vouchers', 'url' => 'vouchers', 'scripts' => ['vouchers', 'vouchers.php'], 'desc' => 'Voucher management',
-            'icon' => navIcon('<path d="M20 12V8H4v4a2 2 0 1 0 0 4v4h16v-4a2 2 0 1 0 0-4z"/><path d="M12 12v.01"/>')];
     }
     $categories[] = ['label' => 'Customers', 'icon' => navIcon('<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>'), 'modules' => $custModules];
 }
@@ -147,7 +147,9 @@ $prodModules = [];
 if (Auth::hasRole(ROLE_SUPER_ADMIN, ROLE_ADMIN, ROLE_MANAGER, ROLE_ACCOUNTANT, ROLE_CASHIER, ROLE_SPECIAL_USER)) {
     $prodModules[] = ['label' => 'Product Master', 'url' => 'products', 'scripts' => ['products', 'products.php', 'product_create', 'product_create.php', 'product_edit', 'product_edit.php'], 'desc' => 'Product catalogue',
         'icon' => navIcon('<circle cx="12" cy="12" r="10"/>') ];
-    $prodModules[] = ['label' => 'Quick Product Editor', 'url' => 'quick_products', 'scripts' => ['quick_products', 'quick_products.php'], 'desc' => 'Quick inline catalog & stock editor',
+}
+if (Auth::hasRole(ROLE_SUPER_ADMIN, ROLE_ADMIN, ROLE_MANAGER, ROLE_ACCOUNTANT)) {
+    $prodModules[] = ['label' => 'Quick Product Editor', 'url' => 'quick_products', 'scripts' => ['quick_products', 'quick_products.php'], 'desc' => 'Fast inline product & stock editing',
         'icon' => navIcon('<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>') ];
 }
 if (Auth::hasRole(ROLE_SUPER_ADMIN, ROLE_ADMIN, ROLE_MANAGER)) {
@@ -181,8 +183,12 @@ if (Auth::hasRole(ROLE_SUPER_ADMIN, ROLE_ADMIN, ROLE_MANAGER, ROLE_ACCOUNTANT, R
 }
 
 // ── 6. ACCOUNTING & FINANCE
-if (!$navIsSpecial && (Auth::hasPermission('accounting.view') || Auth::hasPermission('view_petty_cash') || Auth::hasPermission('view_bank_accounts'))) {
+if (!$navIsSpecial && (Auth::hasPermission('accounting.view') || Auth::hasPermission('view_petty_cash') || Auth::hasPermission('view_bank_accounts') || Auth::hasPermission('expenses.view'))) {
     $finModules = [];
+    if (Auth::hasPermission('expenses.view')) {
+        $finModules[] = ['label' => 'Expenses', 'url' => 'expenses', 'scripts' => ['expenses', 'expenses.php'], 'desc' => 'Operating expenses & bills',
+            'icon' => navIcon('<line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>')];
+    }
     if (Auth::hasPermission('view_cheques')) {
         $finModules[] = ['label' => 'Cheque Management', 'url' => 'cheque_management', 'scripts' => ['cheque_management', 'cheque_management.php'], 'desc' => 'Cheque lifecycle',
             'icon' => navIcon('<rect x="2" y="6" width="20" height="12" rx="2"/><path d="M12 12h.01"/><path d="M17 9v6"/>')];
@@ -271,8 +277,6 @@ $pageLabelMap = [
     'customers.php'         => 'Customers',
     'customer_payments'     => 'Collections',
     'customer_payments.php' => 'Collections',
-    'vouchers'              => 'Gift Vouchers',
-    'vouchers.php'          => 'Gift Vouchers',
     'purchase_orders'       => 'Purchase Orders',
     'purchase_orders.php'   => 'Purchase Orders',
     'grns'                  => 'GRN',
@@ -315,6 +319,8 @@ $pageLabelMap = [
     'bank_reconciliation.php' => 'Bank Reconciliation',
     'petty_cash'            => 'Petty Cash',
     'petty_cash.php'        => 'Petty Cash',
+    'expenses'              => 'Expense Management',
+    'expenses.php'          => 'Expense Management',
     'journal_entries'       => 'Journal Entries',
     'journal_entries.php'   => 'Journal Entries',
     'chart_of_accounts'     => 'Chart of Accounts',
@@ -337,6 +343,8 @@ $pageLabelMap = [
     'payroll.php'           => 'Payroll Management',
     'salary_advances'       => 'Salary Advances',
     'salary_advances.php'   => 'Salary Advances',
+    'discounts'             => 'Discounts & Promotions',
+    'discounts.php'         => 'Discounts & Promotions',
 ];
 
 // ─── Contextual search mapping ────────────────────────────────────────────────
@@ -346,8 +354,8 @@ $contextMap = [
     'inventory.php'         => ['placeholder' => 'Search products or barcode...', 'targetSelector' => '#searchInput, #productSearch, input[name="search"]'],
     'products'              => ['placeholder' => 'Search products...', 'targetSelector' => '#searchInput, input[name="search"]'],
     'products.php'          => ['placeholder' => 'Search products...', 'targetSelector' => '#searchInput, input[name="search"]'],
-    'quick_products'        => ['placeholder' => 'Search products or barcode...', 'targetSelector' => '#quickSearchInput'],
-    'quick_products.php'    => ['placeholder' => 'Search products or barcode...', 'targetSelector' => '#quickSearchInput'],
+    'quick_products'        => ['placeholder' => 'Search products, barcode, or SKU...', 'targetSelector' => '#qeSearchInput'],
+    'quick_products.php'    => ['placeholder' => 'Search products, barcode, or SKU...', 'targetSelector' => '#qeSearchInput'],
     'customers'             => ['placeholder' => 'Search customers...', 'targetSelector' => '#searchInput, input[name="search"]'],
     'customers.php'         => ['placeholder' => 'Search customers...', 'targetSelector' => '#searchInput, input[name="search"]'],
     'suppliers'             => ['placeholder' => 'Search suppliers...', 'targetSelector' => '#searchInput, input[name="search"]'],
@@ -364,6 +372,8 @@ $contextMap = [
     'cheque_management.php' => ['placeholder' => 'Search cheques...', 'targetSelector' => '#searchInput, input[name="search"]'],
     'bank_accounts'         => ['placeholder' => 'Search accounts...', 'targetSelector' => '#searchInput, input[name="search"]'],
     'bank_accounts.php'     => ['placeholder' => 'Search accounts...', 'targetSelector' => '#searchInput, input[name="search"]'],
+    'expenses'              => ['placeholder' => 'Search expenses...', 'targetSelector' => '#searchInput, input[name="search"]'],
+    'expenses.php'          => ['placeholder' => 'Search expenses...', 'targetSelector' => '#searchInput, input[name="search"]'],
     'journal_entries'       => ['placeholder' => 'Search JE # or description...', 'targetSelector' => '#searchInput, #filterJournalSearch'],
     'journal_entries.php'   => ['placeholder' => 'Search JE # or description...', 'targetSelector' => '#searchInput, #filterJournalSearch'],
     'chart_of_accounts'     => ['placeholder' => 'Search code or account name...', 'targetSelector' => '#searchInput, #filterCoaSearch'],
@@ -376,6 +386,8 @@ $contextMap = [
     'payroll.php'           => ['placeholder' => 'Search payroll...', 'targetSelector' => '#searchInput, input[name="search"]'],
     'salary_advances'       => ['placeholder' => 'Search advances...', 'targetSelector' => '#searchInput, input[name="search"]'],
     'salary_advances.php'   => ['placeholder' => 'Search advances...', 'targetSelector' => '#searchInput, input[name="search"]'],
+    'discounts'             => ['placeholder' => 'Search promotions...', 'targetSelector' => '#searchInput, input[name="search"]'],
+    'discounts.php'         => ['placeholder' => 'Search promotions...', 'targetSelector' => '#searchInput, input[name="search"]'],
 ];
 if (isset($contextMap[$navScript])) {
     $contextualSearch = $contextMap[$navScript];

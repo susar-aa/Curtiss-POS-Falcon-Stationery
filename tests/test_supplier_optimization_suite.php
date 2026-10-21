@@ -202,9 +202,10 @@ try {
     $sRsRes = Supplier::all(false, 'Rs. 25,000.00');
     assertTest("Search by 'Rs. 25,000.00' finds supplier", in_array($supplierId, array_column($sRsRes, 'id')));
 
-    // 8. Reverse Opening Balance
-    echo "\n--- 8. Testing Opening Balance Reversal ---\n";
-    $revRes = SupplierOpeningBalance::reverseOpeningBalance($obId, "Test audit reversal {$testSuffix}", 1, 1);
+    // 8. Reverse Opening Balance with Multi-Branch Isolation Verification
+    echo "\n--- 8. Testing Opening Balance Reversal & Multi-Branch Isolation ---\n";
+    // Call reversal with branch_id = 2, while original OB belongs to branch 1: it must strictly lock journal to branch 1!
+    $revRes = SupplierOpeningBalance::reverseOpeningBalance($obId, "Test audit reversal {$testSuffix}", 1, 2);
     assertTest("Reverse Opening Balance succeeds", $revRes['success']);
 
     $reversedOb = Database::fetchOne("SELECT * FROM supplier_opening_balances WHERE id = :id", [':id' => $obId]);
@@ -214,6 +215,7 @@ try {
     $createdJeIds[] = $revJeId;
     $revJournal = Database::fetchOne("SELECT * FROM journal_entries WHERE id = :id", [':id' => $revJeId]);
     assertTest("Reversal Journal Entry created", $revJournal !== null);
+    assertTest("Reversal Journal branch strictly locked to original OB branch (Branch 1)", (int)$revJournal['branch_id'] === 1);
 
     $revLines = Database::fetchAll("SELECT * FROM journal_lines WHERE journal_entry_id = :id", [':id' => $revJeId]);
     $revDebit = array_sum(array_column($revLines, 'debit'));

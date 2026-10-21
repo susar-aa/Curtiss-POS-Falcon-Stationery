@@ -16,7 +16,7 @@ if (!Auth::hasPermission('accounting.view') || Auth::isSpecialUser()) {
 
 $user = Auth::user();
 $userId = (int)$user['id'];
-$branchId = (int)($_SESSION['branch_id'] ?? 1);
+$branchId = (int)($_SESSION['branch_id'] ?? $_SESSION['active_branch_id'] ?? 1);
 $coaAccounts = Accounting::getCOA(['status' => 'active']);
 $branches = Database::fetchAll("SELECT id, name, code FROM branches WHERE status = 'active' ORDER BY id ASC");
 

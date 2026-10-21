@@ -1,4 +1,4 @@
-g<?php
+<?php
 /**
  * Falcon POS - Quick Product & Stock Editor View
  * Enhanced with 3-Up Thermal Barcode Label Printing (30mm x 15mm / 3 stickers in row)
@@ -613,19 +613,20 @@ g<?php
             <table class="qe-table" id="qeProductTable">
                 <thead>
                     <tr>
-                        <th style="width: 70px;"># ID</th>
-                        <th style="min-width: 240px;">Product Name *</th>
-                        <th style="width: 160px;">Barcode *</th>
-                        <th style="width: 120px; text-align: right;">Cost (LKR)</th>
-                        <th style="width: 130px; text-align: right;">Selling Price (LKR)</th>
-                        <th style="width: 110px; text-align: right;">Stock (Live)</th>
+                        <th style="width: 60px;"># ID</th>
+                        <th style="min-width: 200px;">Product Name *</th>
+                        <th style="width: 130px;">SKU</th>
+                        <th style="width: 140px;">Barcode *</th>
+                        <th style="width: 110px; text-align: right;">Cost (LKR)</th>
+                        <th style="width: 120px; text-align: right;">Selling Price (LKR)</th>
+                        <th style="width: 100px; text-align: right;">Stock (Live)</th>
                         <th style="width: 275px; text-align: center;">Actions &amp; Print</th>
                     </tr>
                 </thead>
                 <tbody id="qeTableBody">
                     <?php if (empty($products)): ?>
                         <tr id="noRowsNotice">
-                            <td colspan="7" style="padding: 3rem; text-align: center; color: #64748b;">
+                            <td colspan="8" style="padding: 3rem; text-align: center; color: #64748b;">
                                 <div style="font-size: 1.1rem; font-weight: 700; color: #1e293b; margin-bottom: 0.25rem;">No products found</div>
                                 <div style="font-size: 0.85rem;">Import products or add new items to get started.</div>
                             </td>
@@ -633,18 +634,21 @@ g<?php
                     <?php else: ?>
                         <?php foreach ($products as $p): ?>
                             <tr id="row_<?= (int)$p['id'] ?>" data-id="<?= (int)$p['id'] ?>" data-sku="<?= View::escape($p['sku'] ?? '') ?>">
-                                <!-- ID / SKU -->
+                                <!-- ID -->
                                 <td>
                                     <span style="font-weight: 800; color: #475569;">#<?= (int)$p['id'] ?></span>
-                                    <?php if (!empty($p['sku']) && $p['sku'] !== $p['barcode']): ?>
-                                        <div style="font-size: 0.7rem; color: #94a3b8; font-family: monospace;" class="field-sku-display"><?= View::escape($p['sku']) ?></div>
-                                    <?php endif; ?>
                                 </td>
 
                                 <!-- Product Name -->
                                 <td>
                                     <input type="text" class="qe-input field-name" value="<?= View::escape($p['name']) ?>" 
                                            data-original="<?= View::escape($p['name']) ?>" oninput="markDirty(<?= (int)$p['id'] ?>)" onkeydown="checkEnter(event, <?= (int)$p['id'] ?>)">
+                                </td>
+
+                                <!-- SKU -->
+                                <td>
+                                    <input type="text" class="qe-input field-sku" style="font-family: monospace;" value="<?= View::escape($p['sku'] ?? '') ?>" 
+                                           data-original="<?= View::escape($p['sku'] ?? '') ?>" placeholder="SKU" oninput="markDirty(<?= (int)$p['id'] ?>)" onkeydown="checkEnter(event, <?= (int)$p['id'] ?>)">
                                 </td>
 
                                 <!-- Barcode -->
@@ -718,6 +722,7 @@ function markDirty(id) {
     if (!row) return;
 
     const name = row.querySelector('.field-name');
+    const sku = row.querySelector('.field-sku');
     const barcode = row.querySelector('.field-barcode');
     const cost = row.querySelector('.field-cost');
     const price = row.querySelector('.field-price');
@@ -725,6 +730,7 @@ function markDirty(id) {
 
     const isChanged = (
         name.value !== name.dataset.original ||
+        (sku && sku.value !== sku.dataset.original) ||
         barcode.value !== barcode.dataset.original ||
         parseFloat(cost.value || 0) !== parseFloat(cost.dataset.original || 0) ||
         parseFloat(price.value || 0) !== parseFloat(price.dataset.original || 0) ||
@@ -766,12 +772,14 @@ function saveProduct(id) {
 
     const btn = document.getElementById('btn_' + id);
     const nameInput = row.querySelector('.field-name');
+    const skuInput = row.querySelector('.field-sku');
     const barcodeInput = row.querySelector('.field-barcode');
     const costInput = row.querySelector('.field-cost');
     const priceInput = row.querySelector('.field-price');
     const stockInput = row.querySelector('.field-stock');
 
     const name = nameInput.value.trim();
+    const sku = skuInput ? skuInput.value.trim() : '';
     const barcode = barcodeInput.value.trim();
     const cost = parseFloat(costInput.value) || 0;
     const price = parseFloat(priceInput.value) || 0;
@@ -797,6 +805,7 @@ function saveProduct(id) {
     formData.append('action', 'update_product');
     formData.append('id', id);
     formData.append('name', name);
+    formData.append('sku', sku);
     formData.append('barcode', barcode);
     formData.append('cost', cost);
     formData.append('selling_price', price);
@@ -815,10 +824,12 @@ function saveProduct(id) {
 
             // Update originals
             nameInput.dataset.original = name;
+            if (skuInput) skuInput.dataset.original = sku;
             barcodeInput.dataset.original = barcode;
             costInput.dataset.original = cost.toFixed(2);
             priceInput.dataset.original = price.toFixed(2);
             stockInput.dataset.original = stock;
+            row.dataset.sku = sku;
 
             row.classList.remove('row-dirty');
             row.classList.add('row-saved');
@@ -905,7 +916,9 @@ function filterClientRows(qLower) {
     rows.forEach(row => {
         const name = row.querySelector('.field-name').value.toLowerCase();
         const barcode = row.querySelector('.field-barcode').value.toLowerCase();
-        if (name.includes(qLower) || barcode.includes(qLower)) {
+        const skuEl = row.querySelector('.field-sku');
+        const sku = skuEl ? skuEl.value.toLowerCase() : '';
+        if (name.includes(qLower) || barcode.includes(qLower) || sku.includes(qLower)) {
             row.style.display = '';
             visibleCount++;
         } else {
@@ -922,7 +935,7 @@ function renderSearchResults(products, query) {
     if (products.length === 0) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="7" style="padding: 3rem; text-align: center; color: #64748b;">
+                <td colspan="8" style="padding: 3rem; text-align: center; color: #64748b;">
                     <div style="font-size: 1.05rem; font-weight: 700; color: #1e293b;">No matching products found</div>
                     <div style="font-size: 0.82rem; margin-top: 4px;">No products match "${escapeHtml(query)}"</div>
                 </td>
@@ -938,11 +951,14 @@ function renderSearchResults(products, query) {
             <tr id="row_${p.id}" data-id="${p.id}" data-sku="${escapeHtml(p.sku || '')}" class="${isDirty ? 'row-dirty' : ''}">
                 <td>
                     <span style="font-weight: 800; color: #475569;">#${p.id}</span>
-                    ${p.sku && p.sku !== p.barcode ? `<div style="font-size: 0.7rem; color: #94a3b8; font-family: monospace;" class="field-sku-display">${escapeHtml(p.sku)}</div>` : ''}
                 </td>
                 <td>
                     <input type="text" class="qe-input field-name" value="${escapeHtml(p.name)}" 
                            data-original="${escapeHtml(p.name)}" oninput="markDirty(${p.id})" onkeydown="checkEnter(event, ${p.id})">
+                </td>
+                <td>
+                    <input type="text" class="qe-input field-sku" style="font-family: monospace;" value="${escapeHtml(p.sku || '')}" 
+                           data-original="${escapeHtml(p.sku || '')}" placeholder="SKU" oninput="markDirty(${p.id})" onkeydown="checkEnter(event, ${p.id})">
                 </td>
                 <td>
                     <input type="text" class="qe-input field-barcode" style="font-family: monospace;" value="${escapeHtml(p.barcode)}" 
@@ -1075,10 +1091,11 @@ function initiateLabelPrint(id, mode = 'barcode') {
 
     const name = row.querySelector('.field-name').value.trim();
     const barcode = row.querySelector('.field-barcode').value.trim();
+    const skuEl = row.querySelector('.field-sku');
+    const sku = (skuEl && skuEl.value.trim()) ? skuEl.value.trim() : (row.dataset.sku || barcode || String(id).padStart(5, '0'));
     const price = parseFloat(row.querySelector('.field-price').value) || 0;
     const qtyInput = row.querySelector('.field-label-qty');
     const qty = Math.max(1, parseInt(qtyInput ? qtyInput.value : 3) || 3);
-    const sku = row.dataset.sku || String(id).padStart(5, '0');
 
     if (mode === 'barcode' && !barcode) {
         showToast('Cannot print barcode label: Product has no barcode!', true);
@@ -1638,12 +1655,14 @@ function generateAutoBarcode() {
 
 function submitAddProduct(keepOpen = false) {
     const nameInput = document.getElementById('add_name');
+    const skuInput = document.getElementById('add_sku');
     const barcodeInput = document.getElementById('add_barcode');
     const costInput = document.getElementById('add_cost');
     const priceInput = document.getElementById('add_selling_price');
     const stockInput = document.getElementById('add_stock');
 
     const name = nameInput.value.trim();
+    const sku = skuInput ? skuInput.value.trim() : '';
     const barcode = barcodeInput.value.trim();
     const cost = parseFloat(costInput.value) || 0;
     const price = parseFloat(priceInput.value) || 0;
@@ -1669,6 +1688,7 @@ function submitAddProduct(keepOpen = false) {
     const formData = new FormData();
     formData.append('action', 'add_product');
     formData.append('name', name);
+    formData.append('sku', sku);
     formData.append('barcode', barcode);
     formData.append('cost', cost);
     formData.append('selling_price', price);
@@ -1691,6 +1711,7 @@ function submitAddProduct(keepOpen = false) {
 
             if (keepOpen) {
                 nameInput.value = '';
+                if (skuInput) skuInput.value = '';
                 barcodeInput.value = '';
                 costInput.value = '0.00';
                 priceInput.value = '0.00';
@@ -1724,6 +1745,10 @@ function prependProductRow(p) {
             <td>
                 <input type="text" class="qe-input field-name" value="${escapeHtml(p.name)}" 
                        data-original="${escapeHtml(p.name)}" oninput="markDirty(${p.id})" onkeydown="checkEnter(event, ${p.id})">
+            </td>
+            <td>
+                <input type="text" class="qe-input field-sku" style="font-family: monospace;" value="${escapeHtml(p.sku || '')}" 
+                       data-original="${escapeHtml(p.sku || '')}" placeholder="SKU" oninput="markDirty(${p.id})" onkeydown="checkEnter(event, ${p.id})">
             </td>
             <td>
                 <input type="text" class="qe-input field-barcode" style="font-family: monospace;" value="${escapeHtml(p.barcode)}" 
@@ -1818,17 +1843,18 @@ document.addEventListener('keydown', function(e) {
                     <input type="text" id="add_name" class="qe-input" placeholder="e.g. Atlas CR Exercise Book 120 Pages" required autofocus>
                 </div>
 
-                <!-- Barcode -->
-                <div style="margin-bottom: 14px;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-                        <label style="font-size: 0.82rem; font-weight: 700; color: #334155;">Barcode *</label>
-                        <span style="font-size: 0.72rem; color: #64748b;">(Also assigned automatically as SKU)</span>
+                <!-- SKU & Barcode in grid -->
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px;">
+                    <div>
+                        <label style="display:block; font-size: 0.82rem; font-weight: 700; color: #334155; margin-bottom: 4px;">SKU <span style="font-size: 0.72rem; color: #64748b; font-weight: 400;">(Optional)</span></label>
+                        <input type="text" id="add_sku" class="qe-input" placeholder="e.g. PEN-BLU-001 (auto if blank)" style="font-family: monospace;">
                     </div>
-                    <div style="display: flex; gap: 8px;">
+                    <div>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                            <label style="font-size: 0.82rem; font-weight: 700; color: #334155;">Barcode *</label>
+                            <button type="button" onclick="generateAutoBarcode()" style="background: none; border: none; font-size: 0.72rem; color: #2563eb; cursor: pointer; font-weight: 700; padding: 0;" title="Auto-generate numeric barcode">⚡ Generate</button>
+                        </div>
                         <input type="text" id="add_barcode" class="qe-input" placeholder="Scan or enter barcode" style="font-family: monospace;" required>
-                        <button type="button" onclick="generateAutoBarcode()" class="btn btn-secondary" style="white-space: nowrap; font-size: 0.8rem; font-weight: 700; padding: 0 12px; border-radius: 7px; border: 1px solid #cbd5e1; background: #f8fafc; cursor: pointer;" title="Auto-generate numeric barcode">
-                            ⚡ Generate
-                        </button>
                     </div>
                 </div>
 

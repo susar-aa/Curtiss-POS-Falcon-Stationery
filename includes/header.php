@@ -40,8 +40,8 @@ if (empty($pageTitleText)) {
         <span class="top-page-title" id="top-page-title-text"><?= View::escape($pageTitleText) ?></span>
     </div>
 
-    <!-- Branch Selector Bubble (only if user has authorized branches) -->
-    <?php if (!empty($userBranches) && count($userBranches) > 0): 
+    <!-- Branch Selector Bubble (only if user has more than 1 branch) -->
+    <?php if (!empty($userBranches) && count($userBranches) > 1): 
         $activeBranchObj = null;
         foreach ($userBranches as $b) {
             if ((int)$b['id'] === (int)$activeBranchId) {

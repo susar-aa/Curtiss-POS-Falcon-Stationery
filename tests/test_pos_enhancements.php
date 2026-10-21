@@ -194,17 +194,13 @@ assertTest("Sale finalized successfully", $finalizeRes['success'] === true);
 $biAfter = Database::fetchOne("SELECT quantity FROM branch_inventory WHERE product_id = :p AND branch_id = :b", [':p' => $testProductId, ':b' => $branchId]);
 assertTest("Branch inventory quantity dropped to 0.00", (float)($biAfter['quantity'] ?? -1) === 0.00);
 
-// Verify product was automatically deactivated in products table
+// Verify product remains active in master products table for multi-branch isolation
 $prodAfter = Database::fetchOne("SELECT status FROM products WHERE id = :p", [':p' => $testProductId]);
-assertTest("Product automatically deactivated to 'inactive' after billing stock to 0", $prodAfter['status'] === 'inactive');
+assertTest("Product master status remains 'active' preserving other branch sales", $prodAfter['status'] === 'active');
 
-// Verify audit log captured PRODUCT_AUTO_DEACTIVATED
-$auditRow = Database::fetchOne("
-    SELECT * FROM audit_logs 
-    WHERE action = 'PRODUCT_AUTO_DEACTIVATED' AND record_id = :p 
-    ORDER BY id DESC LIMIT 1
-", [':p' => (string)$testProductId]);
-assertTest("Audit log recorded PRODUCT_AUTO_DEACTIVATED event", !empty($auditRow));
+// Verify POS search hides product for this branch when out of stock
+$searchAfter = Sale::searchProducts($branchId, $testBarcode);
+assertTest("POS search excludes product in branch with 0 stock", empty($searchAfter));
 
 // --------------------------------------------------------------------------
 // CLEANUP: Isolated Test Data Only (No Truncation)

@@ -9,6 +9,7 @@ require_once __DIR__ . '/Database.php';
 require_once __DIR__ . '/Logger.php';
 require_once __DIR__ . '/Audit.php';
 require_once __DIR__ . '/Accounting.php';
+require_once __DIR__ . '/MaskingHelper.php';
 
 class BusinessDay
 {
@@ -32,6 +33,14 @@ class BusinessDay
             Logger::error("Failed to fetch active business day for branch #{$branchId}: " . $e->getMessage(), $e);
             return null;
         }
+    }
+
+    /**
+     * Alias for getActiveDay
+     */
+    public static function getActiveBusinessDay(int $branchId): ?array
+    {
+        return self::getActiveDay($branchId);
     }
 
     /**
@@ -406,6 +415,7 @@ class BusinessDay
                 'supplier_cash_payments'    => 0.00,
                 'employee_advances'         => 0.00,
                 'salary_payments'           => 0.00,
+                'drawer_expenses'           => 0.00,
                 'manual_cash_out'           => 0.00,
                 'petty_cash_reimbursements' => 0.00,
                 'shortage_adjustments'      => 0.00,
@@ -439,6 +449,10 @@ class BusinessDay
                     $summary['employee_advances'] += $amt;
                 } elseif ($type === 'salary_payment' || $type === 'payroll_payment') {
                     $summary['salary_payments'] += $amt;
+                } elseif ($type === 'expense_payout' || $type === 'expense') {
+                    $summary['drawer_expenses'] += $amt;
+                } elseif ($type === 'expense_reversal') {
+                    $summary['drawer_expenses'] -= $amt;
                 } elseif ($type === 'cash_out') {
                     $summary['manual_cash_out'] += $amt;
                 } elseif ($type === 'petty_cash_reimbursement' || $type === 'petty_cash_expense') {
@@ -464,6 +478,7 @@ class BusinessDay
             $summary['supplier_cash_payments']    = round($summary['supplier_cash_payments'], 2);
             $summary['employee_advances']         = round($summary['employee_advances'], 2);
             $summary['salary_payments']           = round($summary['salary_payments'], 2);
+            $summary['drawer_expenses']           = round($summary['drawer_expenses'], 2);
             $summary['manual_cash_out']           = round($summary['manual_cash_out'], 2);
             $summary['petty_cash_reimbursements'] = round($summary['petty_cash_reimbursements'], 2);
             $summary['shortage_adjustments']      = round($summary['shortage_adjustments'], 2);
@@ -474,6 +489,14 @@ class BusinessDay
 
             $salesSum = self::getDaySalesSummary($businessDayId);
             $summary['expected_card_sales'] = round((float)($salesSum['card_sales'] ?? 0.00), 2);
+
+            if (MaskingHelper::isSpecialUser()) {
+                foreach ($summary as $k => $val) {
+                    if (is_numeric($val)) {
+                        $summary[$k] = MaskingHelper::maskValue((float)$val);
+                    }
+                }
+            }
 
             return [
                 'success'      => true,
@@ -557,6 +580,9 @@ class BusinessDay
                 $denomJson = is_array($cashDenominations) ? json_encode($cashDenominations) : (string)$cashDenominations;
             }
 
+            $splitTransfers = $options['split_transfers'] ?? [];
+            $splitJson = !empty($splitTransfers) ? (is_string($splitTransfers) ? $splitTransfers : json_encode($splitTransfers)) : null;
+
             // 1. Update business_days record status to closed
             $stmtClose = $db->prepare("
                 UPDATE business_days SET
@@ -571,7 +597,8 @@ class BusinessDay
                     closed_by = :closed_by,
                     closed_at = CURRENT_TIMESTAMP,
                     notes = :notes,
-                    cash_denominations = :cash_denominations
+                    cash_denominations = :cash_denominations,
+                    split_transfers = :split_transfers
                 WHERE id = :id
             ");
 
@@ -586,6 +613,7 @@ class BusinessDay
                 ':closed_by'              => $userId,
                 ':notes'                  => trim($notes ?? '') ?: null,
                 ':cash_denominations'     => $denomJson,
+                ':split_transfers'        => $splitJson,
                 ':id'                     => $businessDayId
             ]);
 
@@ -654,6 +682,131 @@ class BusinessDay
                 ], $lines);
             }
 
+            // Accounting: Cash Transfer from Drawer (1012) to Selected Split Accounts or Main Safe (1010)
+            if ($cashToDeposit > 0.00) {
+                $mainSafeAccId = Accounting::getAccountIdByCode(Accounting::CODE_CASH_IN_HAND);
+                $drawerAccId   = Accounting::getAccountIdByCode(Accounting::CODE_CASH_DRAWER) ?: $mainSafeAccId;
+                
+                $parsedSplits = [];
+                if (!empty($splitTransfers)) {
+                    $parsedSplits = is_string($splitTransfers) ? json_decode($splitTransfers, true) : $splitTransfers;
+                }
+
+                if (!empty($parsedSplits) && is_array($parsedSplits)) {
+                    $journalLines = [];
+                    $totalSplitAllocated = 0.00;
+
+                    // Cr Cash Drawer (1012) for the full surplus cash
+                    $journalLines[] = [
+                        'account_id' => $drawerAccId,
+                        'debit'      => 0.00,
+                        'credit'     => $cashToDeposit,
+                        'memo'       => "Day End Cash Drawer Transfer (Split Deposit)"
+                    ];
+
+                    require_once __DIR__ . '/Banking.php';
+
+                    foreach ($parsedSplits as $st) {
+                        $stAmount = round((float)($st['amount'] ?? 0), 2);
+                        if ($stAmount <= 0) continue;
+                        $totalSplitAllocated += $stAmount;
+                        $stType = $st['type'] ?? 'safe';
+                        $destAccId = null;
+                        $memo = trim($st['notes'] ?? '');
+
+                        if ($stType === 'safe' || $stType === 'cash') {
+                            if (!empty($st['account_id'])) {
+                                $destAccId = (int)$st['account_id'];
+                                $targetAcc = Database::fetchOne("SELECT account_code, account_name FROM chart_of_accounts WHERE id = :id", [':id' => $destAccId]);
+                                $accLabel = $targetAcc ? "{$targetAcc['account_name']} ({$targetAcc['account_code']})" : "Safe Account";
+                                $memo = $memo ?: "Day End Transfer to {$accLabel}";
+                            } else {
+                                $destAccId = Accounting::getAccountIdByCode(Accounting::CODE_CASH_IN_HAND);
+                                $memo = $memo ?: "Day End Transfer to Main Safe (1010)";
+                            }
+                        } elseif ($stType === 'petty_cash') {
+                            $destAccId = Accounting::getAccountIdByCode(Accounting::CODE_PETTY_CASH);
+                            $memo = $memo ?: "Day End Transfer to Petty Cash Account (1015)";
+                        } elseif ($stType === 'bank') {
+                            $bankAccId = (int)($st['bank_account_id'] ?? 0);
+                            $bankAcc = Database::fetchOne("SELECT * FROM bank_accounts WHERE id = :id AND deleted_at IS NULL", [':id' => $bankAccId]);
+                            if ($bankAcc) {
+                                $destAccId = !empty($bankAcc['chart_account_id']) ? (int)$bankAcc['chart_account_id'] : Accounting::getAccountIdByCode(Accounting::CODE_BANK);
+                                $memo = $memo ?: "Day End Deposit to {$bankAcc['bank_name']} ({$bankAcc['account_number']})";
+
+                                // Insert into bank_deposits for bank reconciliation & register
+                                $depNo = Banking::generateNumber('DEP', 'bank_deposits');
+                                $stmtBDep = $db->prepare("
+                                    INSERT INTO bank_deposits (
+                                        deposit_no, branch_id, bank_account_id, deposit_date, amount,
+                                        source_type, business_day_id, reference_no, notes, created_by
+                                    ) VALUES (
+                                        :dep_no, :branch_id, :bank_id, CURRENT_DATE, :amount,
+                                        'closed_day', :bday_id, :ref_no, :notes, :user_id
+                                    )
+                                ");
+                                $stmtBDep->execute([
+                                    ':dep_no'    => $depNo,
+                                    ':branch_id' => (int)$bday['branch_id'],
+                                    ':bank_id'   => $bankAccId,
+                                    ':amount'    => $stAmount,
+                                    ':bday_id'   => $businessDayId,
+                                    ':ref_no'    => $depNo,
+                                    ':notes'     => $memo,
+                                    ':user_id'   => $userId
+                                ]);
+                            } else {
+                                $destAccId = Accounting::getAccountIdByCode(Accounting::CODE_BANK);
+                                $memo = $memo ?: "Day End Deposit to Bank Account";
+                            }
+                        }
+
+                        if ($destAccId) {
+                            $journalLines[] = [
+                                'account_id' => $destAccId,
+                                'debit'      => $stAmount,
+                                'credit'     => 0.00,
+                                'memo'       => $memo
+                            ];
+                        }
+                    }
+
+                    if (abs($totalSplitAllocated - $cashToDeposit) > 0.01) {
+                        $db->rollBack();
+                        return [
+                            'success' => false,
+                            'message' => "Split transfer allocation total (LKR " . number_format($totalSplitAllocated, 2) . ") does not equal surplus cash to transfer (LKR " . number_format($cashToDeposit, 2) . ")."
+                        ];
+                    }
+
+                    Accounting::postJournalEntry([
+                        'branch_id'   => (int)$bday['branch_id'],
+                        'entry_date'  => date('Y-m-d'),
+                        'source_type' => 'manual',
+                        'source_id'   => $businessDayId,
+                        'description' => "Day Closing Cash Drawer Split Transfer (Date: {$bday['business_date']})",
+                        'created_by'  => $userId
+                    ], $journalLines);
+
+                } else {
+                    // Fallback to single account (Main Safe 1010)
+                    if ($mainSafeAccId && $drawerAccId && $mainSafeAccId !== $drawerAccId) {
+                        $lines = [
+                            ['account_id' => $mainSafeAccId, 'debit' => $cashToDeposit, 'credit' => 0.00, 'memo' => "Day End Safe Deposit from Cash Drawer"],
+                            ['account_id' => $drawerAccId,   'debit' => 0.00, 'credit' => $cashToDeposit, 'memo' => "Day End Cash Transfer to Main Safe"]
+                        ];
+                        Accounting::postJournalEntry([
+                            'branch_id'   => (int)$bday['branch_id'],
+                            'entry_date'  => date('Y-m-d'),
+                            'source_type' => 'manual',
+                            'source_id'   => $businessDayId,
+                            'description' => "Day Closing Cash Drawer Deposit to Main Safe (Date: {$bday['business_date']})",
+                            'created_by'  => $userId
+                        ], $lines);
+                    }
+                }
+            }
+
             $db->commit();
 
             Audit::log('BUSINESS_DAY_CLOSED', 'cash_drawer', (string)$businessDayId, null, [
@@ -690,43 +843,137 @@ class BusinessDay
     }
 
     /**
-     * Get Closed Business Days Log with Pagination
+     * Get Closed Business Days Log with Pagination, Multi-Column Search & Presentation Masking
      */
-    public static function getClosedDaysList(int $branchId, int $page = 1, int $limit = 15): array
+    public static function getClosedDaysList(int $branchId, int $page = 1, int $limit = 25, array $filters = []): array
     {
         try {
-            $countRow = Database::fetchOne("
-                SELECT COUNT(*) AS total FROM business_days WHERE branch_id = :branch_id AND status = 'closed'
-            ", [':branch_id' => $branchId]);
+            $allowedLimits = [25, 50, 75, 100, 500];
+            if (!in_array($limit, $allowedLimits, true)) {
+                $limit = 25;
+            }
+            $page = max(1, $page);
 
-            $totalItems = (int)($countRow['total'] ?? 0);
-            $offset = ($page - 1) * $limit;
+            $where = ["bd.status = 'closed'"];
+            $params = [];
 
-            $items = Database::fetchAll("
-                SELECT 
-                    bd.*,
-                    u1.username AS opener_name,
-                    u2.username AS closer_name
+            if (empty($filters['all_branches'])) {
+                $where[] = "bd.branch_id = :branch_id";
+                $params[':branch_id'] = $branchId;
+            }
+
+            if (!empty($filters['date_from'])) {
+                $where[] = "bd.business_date >= :date_from";
+                $params[':date_from'] = $filters['date_from'];
+            }
+            if (!empty($filters['date_to'])) {
+                $where[] = "bd.business_date <= :date_to";
+                $params[':date_to'] = $filters['date_to'];
+            }
+
+            if (!empty($filters['search'])) {
+                $search = trim($filters['search']);
+                $cleanNum = preg_replace('/[^0-9.]/', '', $search);
+                $cleanInv = ltrim($search, '#');
+                $like = '%' . $search . '%';
+                $likeInv = '%' . $cleanInv . '%';
+                $likeNum = !empty($cleanNum) ? '%' . $cleanNum . '%' : '';
+
+                $where[] = "(
+                    bd.id LIKE :s1
+                    OR bd.id LIKE :s2
+                    OR bd.business_date LIKE :s3
+                    OR u1.username LIKE :s4
+                    OR u1.full_name LIKE :s5
+                    OR u2.username LIKE :s6
+                    OR u2.full_name LIKE :s7
+                    OR bd.notes LIKE :s8
+                    OR CAST(bd.opening_cash AS CHAR) LIKE :s9
+                    OR CONCAT('LKR ', FORMAT(bd.opening_cash, 2)) LIKE :s10
+                    OR FORMAT(bd.opening_cash, 2) LIKE :s11
+                    OR CAST(bd.expected_cash AS CHAR) LIKE :s12
+                    OR FORMAT(bd.expected_cash, 2) LIKE :s13
+                    OR CAST(bd.actual_cash AS CHAR) LIKE :s14
+                    OR FORMAT(bd.actual_cash, 2) LIKE :s15
+                    OR CAST(bd.cash_to_deposit AS CHAR) LIKE :s16
+                    OR FORMAT(bd.cash_to_deposit, 2) LIKE :s17
+                    OR CAST(bd.shortage_amount AS CHAR) LIKE :s18
+                    OR CAST(bd.overage_amount AS CHAR) LIKE :s19
+                )";
+                $params[':s1']  = $like;
+                $params[':s2']  = $likeInv;
+                $params[':s3']  = $like;
+                $params[':s4']  = $like;
+                $params[':s5']  = $like;
+                $params[':s6']  = $like;
+                $params[':s7']  = $like;
+                $params[':s8']  = $like;
+                $params[':s9']  = $likeNum ?: $like;
+                $params[':s10'] = $like;
+                $params[':s11'] = $like;
+                $params[':s12'] = $likeNum ?: $like;
+                $params[':s13'] = $like;
+                $params[':s14'] = $likeNum ?: $like;
+                $params[':s15'] = $like;
+                $params[':s16'] = $likeNum ?: $like;
+                $params[':s17'] = $like;
+                $params[':s18'] = $likeNum ?: $like;
+                $params[':s19'] = $likeNum ?: $like;
+            }
+
+            $whereSql = implode(' AND ', $where);
+
+            $countSql = "
+                SELECT COUNT(*) AS total
                 FROM business_days bd
                 JOIN users u1 ON bd.opened_by = u1.id
                 LEFT JOIN users u2 ON bd.closed_by = u2.id
-                WHERE bd.branch_id = :branch_id AND bd.status = 'closed'
+                WHERE {$whereSql}
+            ";
+            $countRow = Database::fetchOne($countSql, $params);
+            $totalItems = (int)($countRow['total'] ?? 0);
+            $offset = ($page - 1) * $limit;
+
+            $itemsSql = "
+                SELECT 
+                    bd.*,
+                    u1.username AS opener_name,
+                    u1.full_name AS opener_full_name,
+                    u2.username AS closer_name,
+                    u2.full_name AS closer_full_name
+                FROM business_days bd
+                JOIN users u1 ON bd.opened_by = u1.id
+                LEFT JOIN users u2 ON bd.closed_by = u2.id
+                WHERE {$whereSql}
                 ORDER BY bd.id DESC
-                LIMIT $limit OFFSET $offset
-            ", [':branch_id' => $branchId]);
+                LIMIT {$limit} OFFSET {$offset}
+            ";
+            $items = Database::fetchAll($itemsSql, $params);
+
+            if (MaskingHelper::isSpecialUser()) {
+                foreach ($items as &$item) {
+                    foreach (['opening_cash', 'expected_cash', 'actual_cash', 'retained_cash', 'cash_to_deposit', 'shortage_amount', 'overage_amount'] as $field) {
+                        if (isset($item[$field])) {
+                            $item[$field] = MaskingHelper::maskValue((float)$item[$field]);
+                        }
+                    }
+                }
+                unset($item);
+            }
 
             return [
                 'items'      => $items,
                 'totalItems' => $totalItems,
                 'page'       => $page,
                 'limit'      => $limit,
-                'totalPages' => max(1, ceil($totalItems / $limit))
+                'totalPages' => max(1, (int)ceil($totalItems / $limit))
             ];
         } catch (Throwable $e) {
             Logger::error("Failed to fetch closed days list: " . $e->getMessage(), $e);
             return ['items' => [], 'totalItems' => 0, 'page' => 1, 'limit' => $limit, 'totalPages' => 1];
         }
     }
+
 
     /**
      * Get detailed Movement History for a Business Day
@@ -772,28 +1019,25 @@ class BusinessDay
 
             $branchId = (int)$bday['branch_id'];
             $openedAt = $bday['opened_at'];
-            $closedAt = !empty($bday['closed_at']) ? $bday['closed_at'] : date('Y-m-d 23:59:59', strtotime('+1 day'));
-            $bDate    = $bday['business_date'];
+            $closedAt = !empty($bday['closed_at']) ? $bday['closed_at'] : date('Y-m-d H:i:s');
 
             // Query sales totals
             $salesRow = Database::fetchOne("
                 SELECT 
                     COUNT(*) AS sales_count,
                     COALESCE(SUM(subtotal), 0.00) AS gross_sales,
-                    COALESCE(SUM(discount_amount), 0.00) AS total_discount,
+                    COALESCE(SUM(promo_discount_amount), 0.00) AS promo_discount,
+                    COALESCE(SUM(discount_amount), 0.00) AS manual_discount,
+                    (COALESCE(SUM(promo_discount_amount), 0.00) + COALESCE(SUM(discount_amount), 0.00)) AS total_discount,
                     COALESCE(SUM(total_amount), 0.00) AS net_sales
                 FROM sales
                 WHERE branch_id = :branch_id 
                   AND status = 'completed'
-                  AND (
-                      (created_at >= :opened_at AND created_at <= :closed_at)
-                      OR DATE(created_at) = :bdate
-                  )
+                  AND (created_at >= :opened_at AND created_at <= :closed_at)
             ", [
                 ':branch_id' => $branchId,
                 ':opened_at' => $openedAt,
-                ':closed_at' => $closedAt,
-                ':bdate'     => $bDate
+                ':closed_at' => $closedAt
             ]);
 
             // Query payment methods breakdown
@@ -803,16 +1047,12 @@ class BusinessDay
                 JOIN sales s ON p.sale_id = s.id
                 WHERE s.branch_id = :branch_id 
                   AND s.status = 'completed'
-                  AND (
-                      (s.created_at >= :opened_at AND s.created_at <= :closed_at)
-                      OR DATE(s.created_at) = :bdate
-                  )
+                  AND (s.created_at >= :opened_at AND s.created_at <= :closed_at)
                 GROUP BY p.payment_method
             ", [
                 ':branch_id' => $branchId,
                 ':opened_at' => $openedAt,
-                ':closed_at' => $closedAt,
-                ':bdate'     => $bDate
+                ':closed_at' => $closedAt
             ]);
 
             $cashSales   = 0.00;
@@ -844,15 +1084,11 @@ class BusinessDay
                 INNER JOIN sales s ON si.sale_id = s.id
                 WHERE s.branch_id = :branch_id 
                   AND s.status = 'completed'
-                  AND (
-                      (s.created_at >= :opened_at AND s.created_at <= :closed_at)
-                      OR DATE(s.created_at) = :bdate
-                  )
+                  AND (s.created_at >= :opened_at AND s.created_at <= :closed_at)
             ", [
                 ':branch_id' => $branchId,
                 ':opened_at' => $openedAt,
-                ':closed_at' => $closedAt,
-                ':bdate'     => $bDate
+                ':closed_at' => $closedAt
             ]);
 
             $netSales = round((float)($salesRow['net_sales'] ?? 0), 2);
@@ -864,6 +1100,8 @@ class BusinessDay
                 'total_sales_count' => (int)($salesRow['sales_count'] ?? 0),
                 'total_items_sold'  => (float)($cogsRow['total_items_sold'] ?? 0),
                 'gross_sales'       => round((float)($salesRow['gross_sales'] ?? 0), 2),
+                'promo_discount'    => round((float)($salesRow['promo_discount'] ?? 0), 2),
+                'manual_discount'   => round((float)($salesRow['manual_discount'] ?? 0), 2),
                 'total_discount'    => round((float)($salesRow['total_discount'] ?? 0), 2),
                 'net_sales'         => $netSales,
                 'total_cogs'        => $totalCogs,
@@ -916,8 +1154,7 @@ class BusinessDay
 
             $branchId = (int)$bday['branch_id'];
             $openedAt = $bday['opened_at'];
-            $closedAt = !empty($bday['closed_at']) ? $bday['closed_at'] : date('Y-m-d 23:59:59', strtotime('+1 day'));
-            $bDate    = $bday['business_date'];
+            $closedAt = !empty($bday['closed_at']) ? $bday['closed_at'] : date('Y-m-d H:i:s');
 
             // 1. Sales & COGS & Gross Profit
             $salesSummary = self::getDaySalesSummary($businessDayId);
@@ -934,7 +1171,6 @@ class BusinessDay
                   AND ccl.amount_paid > 0
                   AND (
                       (ccl.created_at >= :opened_at AND ccl.created_at <= :closed_at)
-                      OR DATE(ccl.created_at) = :bdate
                       OR ccl.id IN (
                           SELECT source_id FROM cash_drawer_movements 
                           WHERE business_day_id = :bday_id_cc AND movement_type = 'customer_collection' AND source_type = 'customer_credit_ledger'
@@ -945,7 +1181,6 @@ class BusinessDay
                 ':branch_id'   => $branchId,
                 ':opened_at'   => $openedAt,
                 ':closed_at'   => $closedAt,
-                ':bdate'       => $bDate,
                 ':bday_id_cc'  => $businessDayId
             ]);
 
@@ -964,7 +1199,6 @@ class BusinessDay
                 WHERE sp.branch_id = :branch_id
                   AND (
                       (sp.created_at >= :opened_at AND sp.created_at <= :closed_at)
-                      OR sp.payment_date = :bdate
                       OR sp.id IN (
                           SELECT source_id FROM cash_drawer_movements 
                           WHERE business_day_id = :bday_id_sp AND movement_type = 'supplier_payment'
@@ -975,7 +1209,6 @@ class BusinessDay
                 ':branch_id'  => $branchId,
                 ':opened_at'  => $openedAt,
                 ':closed_at'  => $closedAt,
-                ':bdate'      => $bDate,
                 ':bday_id_sp' => $businessDayId
             ]);
 
@@ -1003,7 +1236,6 @@ class BusinessDay
                   AND ea.status != 'cancelled'
                   AND (
                       (ea.created_at >= :opened_at AND ea.created_at <= :closed_at)
-                      OR ea.disbursement_date = :bdate
                       OR ea.id IN (
                           SELECT source_id FROM cash_drawer_movements 
                           WHERE business_day_id = :bday_id_ea AND movement_type = 'employee_advance'
@@ -1014,7 +1246,6 @@ class BusinessDay
                 ':branch_id'  => $branchId,
                 ':opened_at'  => $openedAt,
                 ':closed_at'  => $closedAt,
-                ':bdate'      => $bDate,
                 ':bday_id_ea' => $businessDayId
             ]);
 
@@ -1043,7 +1274,6 @@ class BusinessDay
                   AND pcv.status = 'posted'
                   AND (
                       (pcv.created_at >= :opened_at AND pcv.created_at <= :closed_at)
-                      OR pcv.voucher_date = :bdate
                       OR pcv.id IN (
                           SELECT source_id FROM cash_drawer_movements 
                           WHERE business_day_id = :bday_id_pc AND movement_type IN ('petty_cash_reimbursement', 'petty_cash_expense')
@@ -1054,7 +1284,6 @@ class BusinessDay
                 ':branch_id'  => $branchId,
                 ':opened_at'  => $openedAt,
                 ':closed_at'  => $closedAt,
-                ':bdate'      => $bDate,
                 ':bday_id_pc' => $businessDayId
             ]);
 
@@ -1076,7 +1305,6 @@ class BusinessDay
                 WHERE pp.branch_id = :branch_id
                   AND (
                       (pp.created_at >= :opened_at AND pp.created_at <= :closed_at)
-                      OR pp.payment_date = :bdate
                       OR pp.id IN (
                           SELECT source_id FROM cash_drawer_movements 
                           WHERE business_day_id = :bday_id_pp AND movement_type = 'salary_payment'
@@ -1087,7 +1315,6 @@ class BusinessDay
                 ':branch_id'  => $branchId,
                 ':opened_at'  => $openedAt,
                 ':closed_at'  => $closedAt,
-                ':bdate'      => $bDate,
                 ':bday_id_pp' => $businessDayId
             ]);
 
@@ -1115,7 +1342,6 @@ class BusinessDay
                 WHERE r.branch_id = :branch_id
                   AND (
                       (r.created_at >= :opened_at AND r.created_at <= :closed_at)
-                      OR DATE(r.created_at) = :bdate
                       OR r.id IN (
                           SELECT source_id FROM cash_drawer_movements 
                           WHERE business_day_id = :bday_id_rf AND movement_type = 'cash_refund'
@@ -1126,7 +1352,6 @@ class BusinessDay
                 ':branch_id'  => $branchId,
                 ':opened_at'  => $openedAt,
                 ':closed_at'  => $closedAt,
-                ':bdate'      => $bDate,
                 ':bday_id_rf' => $businessDayId
             ]);
 
@@ -1160,11 +1385,69 @@ class BusinessDay
                 }
             }
 
+            // 8b. Centralized Business Expenses
+            $businessExpenses = Database::fetchAll("
+                SELECT 
+                    e.id, e.expense_no, e.amount, e.paid_amount, e.expense_date, e.payment_method, e.payee, e.description,
+                    e.reference_no, e.invoice_ref, e.created_at, e.status,
+                    COALESCE(ec.name, 'General Expense') AS category_name,
+                    coa.account_code, coa.account_name
+                FROM expenses e
+                LEFT JOIN expense_categories ec ON e.category_id = ec.id
+                LEFT JOIN chart_of_accounts coa ON e.account_id = coa.id
+                WHERE e.branch_id = :branch_id
+                  AND e.status != 'reversed'
+                  AND e.deleted_at IS NULL
+                  AND (
+                      (e.created_at >= :opened_at AND e.created_at <= :closed_at)
+                      OR e.business_day_id = :bday_id_exp
+                      OR e.id IN (
+                          SELECT source_id FROM cash_drawer_movements
+                          WHERE business_day_id = :bday_id_exp_cdm AND source_type = 'expense'
+                      )
+                  )
+                ORDER BY e.id ASC
+            ", [
+                ':branch_id'       => $branchId,
+                ':opened_at'       => $openedAt,
+                ':closed_at'       => $closedAt,
+                ':bday_id_exp'     => $businessDayId,
+                ':bday_id_exp_cdm' => $businessDayId
+            ]);
+
+            $totalBusinessExpenses = 0.00;
+            $cashDrawerExpenses    = 0.00;
+            $cashInHandExpenses    = 0.00;
+            $pettyCashModExpenses  = 0.00;
+            $bankExpenses          = 0.00;
+            $unpaidExpenses        = 0.00;
+            $categoryBreakdown     = [];
+
+            foreach ($businessExpenses as $be) {
+                $bAmt = (float)$be['amount'];
+                $totalBusinessExpenses += $bAmt;
+                $pm = $be['payment_method'];
+                if ($pm === 'cash_drawer') {
+                    $cashDrawerExpenses += $bAmt;
+                } elseif ($pm === 'cash_in_hand') {
+                    $cashInHandExpenses += $bAmt;
+                } elseif ($pm === 'petty_cash') {
+                    $pettyCashModExpenses += $bAmt;
+                } elseif ($pm === 'bank') {
+                    $bankExpenses += $bAmt;
+                } elseif ($pm === 'unpaid') {
+                    $unpaidExpenses += ($bAmt - (float)$be['paid_amount']);
+                }
+
+                $cName = $be['category_name'];
+                $categoryBreakdown[$cName] = ($categoryBreakdown[$cName] ?? 0.00) + $bAmt;
+            }
+
             // 9. Drawer summary for reconciliation
             $drawerSum = self::getDrawerSummary($businessDayId);
             $summaryData = $drawerSum['summary'] ?? [];
 
-            return [
+            $res = [
                 'success'               => true,
                 'business_day'          => $bday,
                 'sales_summary'         => $salesSummary,
@@ -1188,6 +1471,16 @@ class BusinessDay
                     'total' => round($totalPettyCashExpenses, 2),
                     'items' => $pettyCashVouchers
                 ],
+                'general_expenses'      => [
+                    'total'              => round($totalBusinessExpenses, 2),
+                    'cash_drawer'        => round($cashDrawerExpenses, 2),
+                    'cash_in_hand'       => round($cashInHandExpenses, 2),
+                    'petty_cash'         => round($pettyCashModExpenses, 2),
+                    'bank'               => round($bankExpenses, 2),
+                    'unpaid'             => round($unpaidExpenses, 2),
+                    'category_breakdown' => $categoryBreakdown,
+                    'items'              => $businessExpenses
+                ],
                 'payroll_payments'      => [
                     'total'       => round($totalPayrollPayments, 2),
                     'cash_amount' => round($cashPayrollPayments, 2),
@@ -1206,6 +1499,27 @@ class BusinessDay
                 ],
                 'drawer_summary'        => $summaryData
             ];
+
+            if (MaskingHelper::isSpecialUser()) {
+                if (isset($res['sales_summary']) && is_array($res['sales_summary'])) {
+                    foreach ($res['sales_summary'] as $sk => $sval) {
+                        if (is_numeric($sval)) {
+                            $res['sales_summary'][$sk] = MaskingHelper::maskValue((float)$sval);
+                        }
+                    }
+                }
+                foreach (['customer_collections', 'supplier_payments', 'employee_advances', 'petty_cash_expenses', 'general_expenses', 'payroll_payments', 'refunds', 'manual_movements'] as $sec) {
+                    if (isset($res[$sec]) && is_array($res[$sec])) {
+                        foreach ($res[$sec] as $rk => $rval) {
+                            if (is_numeric($rval)) {
+                                $res[$sec][$rk] = MaskingHelper::maskValue((float)$rval);
+                            }
+                        }
+                    }
+                }
+            }
+
+            return $res;
         } catch (Throwable $e) {
             Logger::error("Failed to get comprehensive summary for BDay #{$businessDayId}: " . $e->getMessage(), $e);
             return ['success' => false, 'message' => $e->getMessage()];

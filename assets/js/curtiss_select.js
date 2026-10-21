@@ -253,6 +253,12 @@ window.CurtissSearchableSelect = class CurtissSearchableSelect {
         }
     }
 
+    setValue(val) {
+        this.selectEl.value = val;
+        this.refreshOptions();
+        this.updateSelectedDisplay();
+    }
+
     focusNextField() {
         const form = this.selectEl.closest('form');
         if (!form) return;
@@ -510,6 +516,13 @@ window.CurtissSearchableSelect = class CurtissSearchableSelect {
         const instance = new CurtissSearchableSelect(selectEl, options);
         selectEl._curtissSelect = instance;
         return instance;
+    }
+
+    static sync(selectEl) {
+        if (!selectEl) return;
+        if (selectEl._curtissSelect && typeof selectEl._curtissSelect.refreshOptions === 'function') {
+            selectEl._curtissSelect.refreshOptions();
+        }
     }
 };
 

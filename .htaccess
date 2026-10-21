@@ -11,8 +11,19 @@
     RewriteCond %{REQUEST_URI} ^(.+)\.php$ [NC]
     RewriteRule ^ %1 [R=301,L]
 
+    # Disable directory listing
+    Options -Indexes
+
     # 2. Rewrite /reports/{type} to reports.php?type={type}
     RewriteRule ^reports/([a-zA-Z0-9_-]+)/?$ reports.php?type=$1 [L,QSA]
+
+    # Explicit route for POS terminal & sub-resources
+    RewriteRule ^pos/(assets/.*)$ $1 [L,QSA]
+    RewriteRule ^pos/pos_api(\.php)?$ pos_api.php [L,QSA]
+    RewriteRule ^pos/pos_style\.css$ assets/css/pos_style.css [L,QSA]
+    RewriteRule ^pos/offline_pos\.js$ assets/js/offline_pos.js [L,QSA]
+    RewriteRule ^pos/qrcode\.min\.js$ assets/js/qrcode.min.js [L,QSA]
+    RewriteRule ^pos/?$ pos.php [L,QSA]
 
     # 3. Rewrite clean URLs internally to the corresponding .php file if it exists
     RewriteCond %{REQUEST_FILENAME} !-f

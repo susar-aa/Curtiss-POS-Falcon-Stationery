@@ -5,6 +5,7 @@
 
 require_once __DIR__ . '/config/config.php';
 require_once __DIR__ . '/core/Customer.php';
+require_once __DIR__ . '/core/Accounting.php';
 require_once __DIR__ . '/core/MaskingHelper.php';
 
 Auth::requireAuth();
@@ -48,14 +49,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'delet
     }
 }
 
+// Restore action handler (Restricted for Special User)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'restore') {
+    if (!Auth::hasPermission('customers.delete') || Auth::isSpecialUser()) {
+        $errorMsg = 'You do not have permission to restore customers.';
+    } else {
+        $id = (int)($_POST['id'] ?? 0);
+        $res = Customer::restore($id);
+        if ($res['success']) {
+            $successMsg = $res['message'];
+        } else {
+            $errorMsg = $res['message'];
+        }
+    }
+}
+
 $search = trim($_GET['search'] ?? '');
 $status = trim($_GET['status'] ?? '');
+$view = trim($_GET['view'] ?? '');
+$allowedLimits = [25, 50, 75, 100, 500];
+$limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 25;
+if (!in_array($limit, $allowedLimits, true)) {
+    $limit = 25;
+}
 $page = max(1, (int)($_GET['page'] ?? 1));
-$limit = 15;
 
 $customerData = Customer::all([
     'search' => $search,
-    'status' => $status
+    'status' => $status,
+    'view'   => $view
 ], $page, $limit);
 
 $stats = Customer::getSummaryStats();
@@ -76,19 +98,23 @@ if (Auth::isSpecialUser()) {
 
 $canPay = Auth::hasPermission('customers.pay') && !Auth::isSpecialUser();
 
-// Fetch active bank accounts for customer collection bank transfer options
+// Fetch active bank accounts and all cash accounts for customer collection payment options
 $bankAccounts = Database::fetchAll("SELECT * FROM bank_accounts WHERE status = 'active' ORDER BY bank_name ASC");
+$cashAccounts = Accounting::getCashAccounts();
 
 View::render('customers/customer_list', [
     'customers'    => $customerData['items'],
     'totalItems'   => $customerData['totalItems'],
     'page'         => $customerData['page'],
+    'limit'        => $limit,
     'totalPages'   => $customerData['totalPages'],
     'search'       => $search,
     'status'       => $status,
+    'view'         => $view,
     'stats'        => $stats,
     'canPay'       => $canPay,
     'bankAccounts' => $bankAccounts,
+    'cashAccounts' => $cashAccounts,
     'errorMsg'     => $errorMsg,
     'successMsg'   => $successMsg
 ], 'Customers & Credit - Curtiss POS');

@@ -1,9 +1,21 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= htmlspecialchars($businessName) ?> - Modern POS Billing Terminal</title>
+    <?php
+    $protocol = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https') ? 'https://' : 'http://';
+    $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+    $scriptName = $_SERVER['SCRIPT_NAME'] ?? '';
+    $posDir = preg_replace('/\/[^\/]+\.php$/', '', $scriptName);
+    if (!str_ends_with($posDir, '/')) {
+        $posDir .= '/';
+    }
+    $baseUrl = $protocol . $host . $posDir;
+    $companyLogo = $companyLogo ?? Settings::get('company_logo', '');
+    ?>
+    <base href="<?= htmlspecialchars($baseUrl) ?>">
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -29,7 +41,19 @@
             --pos-accent: #0f172a;
         }
 
-        * { box-sizing: border-box; margin: 0; padding: 0; }
+        *, *::before, *::after { 
+            box-sizing: border-box; 
+            margin: 0; 
+            padding: 0; 
+            transition-duration: 0s !important;
+            animation-duration: 0.001s !important;
+        }
+        .fa-spin {
+            animation: fa-spin 1s infinite linear !important;
+        }
+        button, a, input, select, .btn-qty, .btn-pos-pay-hero, .pos-side-btn, .cust-item-card, .lot-card {
+            touch-action: manipulation;
+        }
         body, html { 
             height: 100%; 
             width: 100%; 
@@ -49,100 +73,112 @@
             background-color: #f8fafc;
         }
 
-        /* ── Top Header - Dark Minimal Glass Theme ── */
+        /* ── Top Header - Sleek Obsidian Enterprise Theme ── */
         .pos-header {
-            background: #0f172a;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-            padding: 0.5rem 1.25rem;
+            background: #090d16;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            padding: 0 1.25rem;
             display: flex;
             align-items: center;
             justify-content: space-between;
-            height: 60px;
-            box-shadow: 0 4px 16px rgba(15, 23, 42, 0.12);
+            height: 54px;
+            min-height: 54px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
             z-index: 20;
             color: #ffffff;
         }
 
-        .pos-brand {
+        .header-brand-lockup {
             display: flex;
             align-items: center;
-            gap: 0.75rem;
-            font-family: 'SF Pro Display', sans-serif;
-            font-weight: 800;
-            font-size: 1.25rem;
-            color: #ffffff;
-            letter-spacing: -0.02em;
+            gap: 12px;
         }
 
-        .pos-brand i { 
-            font-size: 1.35rem; 
-            color: #38bdf8;
+        .header-curtiss-logo {
+            height: 24px;
+            width: auto;
+            object-fit: contain;
+            display: block;
+            vertical-align: middle;
+        }
+
+        .header-collab-x {
+            color: #475569;
+            font-size: 0.8rem;
+            font-weight: 800;
+            line-height: 1;
+            user-select: none;
+            opacity: 0.65;
+        }
+
+        .header-company-logo {
+            height: 28px;
+            max-width: 160px;
+            width: auto;
+            object-fit: contain;
+            display: block;
+            vertical-align: middle;
+        }
+
+        .header-company-name {
+            font-family: 'Outfit', -apple-system, sans-serif;
+            font-size: 1.05rem;
+            font-weight: 800;
+            color: #f8fafc;
+            letter-spacing: -0.01em;
         }
 
         .pos-info-bar {
             display: flex;
             align-items: center;
-            gap: 0.75rem;
-            font-size: 0.85rem;
+            gap: 0.65rem;
+            font-size: 0.82rem;
         }
 
-        .badge-branch {
-            background: rgba(255, 255, 255, 0.1);
-            color: #f8fafc;
-            border: 1px solid rgba(255, 255, 255, 0.15);
-            padding: 0.35rem 0.85rem;
-            border-radius: 9999px;
-            font-weight: 700;
-            display: flex;
-            align-items: center;
-            gap: 0.45rem;
-            backdrop-filter: blur(8px);
-        }
-
-        .badge-user {
-            background: rgba(255, 255, 255, 0.1);
-            color: #f8fafc;
-            border: 1px solid rgba(255, 255, 255, 0.15);
-            padding: 0.35rem 0.85rem;
-            border-radius: 9999px;
-            font-weight: 700;
-            display: flex;
-            align-items: center;
-            gap: 0.45rem;
-            backdrop-filter: blur(8px);
+        .header-divider {
+            width: 1px;
+            height: 18px;
+            background: rgba(255, 255, 255, 0.12);
+            margin: 0 2px;
         }
 
         .badge-status-online {
-            background: rgba(34, 197, 94, 0.15);
-            color: #4ade80;
-            border: 1px solid rgba(34, 197, 94, 0.3);
-            padding: 0.35rem 0.85rem;
-            border-radius: 9999px;
+            color: #34d399;
+            font-size: 0.8rem;
             font-weight: 700;
             cursor: pointer;
-            display: flex;
+            display: inline-flex;
             align-items: center;
-            gap: 0.45rem;
+            gap: 0.38rem;
+            padding: 4px 8px;
+            border-radius: 6px;
+            transition: all 0.15s ease;
+            user-select: none;
+        }
+
+        .badge-status-online:hover {
+            color: #6ee7b7;
+            background: rgba(52, 211, 153, 0.08);
         }
 
         .badge-status-offline {
-            background: rgba(239, 68, 68, 0.15);
-            color: #fca5a5;
-            border: 1px solid rgba(239, 68, 68, 0.3);
-            padding: 0.35rem 0.85rem;
-            border-radius: 9999px;
+            color: #f87171;
+            font-size: 0.8rem;
             font-weight: 700;
             cursor: pointer;
-            display: flex;
+            display: inline-flex;
             align-items: center;
-            gap: 0.45rem;
+            gap: 0.38rem;
+            padding: 4px 8px;
+            border-radius: 6px;
+            user-select: none;
         }
 
         .pulse-dot {
             width: 7px;
             height: 7px;
             border-radius: 50%;
-            background-color: #22c55e;
+            background-color: #10b981;
             display: inline-block;
             animation: pulse 1.8s infinite;
         }
@@ -153,26 +189,118 @@
             100% { opacity: 1; transform: scale(1); }
         }
 
-        .btn-header-action {
-            background: rgba(255, 255, 255, 0.1);
-            color: #ffffff;
-            border: 1px solid rgba(255, 255, 255, 0.15);
-            padding: 0.35rem 0.85rem;
-            border-radius: 9999px;
-            cursor: pointer;
-            font-size: 0.82rem;
+        .header-ghost-btn {
+            background: transparent;
+            border: none;
+            color: #94a3b8;
+            font-size: 0.8rem;
             font-weight: 700;
-            display: flex;
+            display: inline-flex;
             align-items: center;
-            gap: 0.45rem;
-            transition: all 0.18s ease;
-            text-decoration: none;
+            gap: 0.4rem;
+            cursor: pointer;
+            padding: 5px 8px;
+            border-radius: 6px;
+            transition: all 0.15s ease;
         }
 
-        .btn-header-action:hover {
-            background: rgba(255, 255, 255, 0.2);
+        .header-ghost-btn:hover {
             color: #ffffff;
-            transform: translateY(-1px);
+            background: rgba(255, 255, 255, 0.06);
+        }
+
+        .header-pending-pill {
+            background: #f59e0b;
+            color: #ffffff;
+            border-radius: 10px;
+            padding: 0.05rem 0.4rem;
+            font-size: 0.7rem;
+            font-weight: 800;
+        }
+
+        .header-returns-btn {
+            background: rgba(244, 63, 94, 0.12);
+            border: 1px solid rgba(244, 63, 94, 0.28);
+            color: #fda4af;
+            font-size: 0.8rem;
+            font-weight: 700;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.45rem;
+            cursor: pointer;
+            padding: 4px 9px;
+            border-radius: 6px;
+            transition: all 0.15s ease;
+        }
+
+        .header-returns-btn:hover {
+            background: rgba(244, 63, 94, 0.22);
+            color: #ffffff;
+            border-color: rgba(244, 63, 94, 0.45);
+        }
+
+        .header-shortcut-key {
+            background: rgba(0, 0, 0, 0.35);
+            border: 1px solid rgba(244, 63, 94, 0.3);
+            color: #fecdd3;
+            font-size: 0.68rem;
+            font-weight: 800;
+            padding: 1px 5px;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+
+        .header-meta-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.45rem;
+            font-size: 0.8rem;
+            color: #94a3b8;
+            font-weight: 600;
+            padding: 4px 6px;
+            border-radius: 6px;
+            user-select: none;
+        }
+
+        .header-meta-item span {
+            color: #e2e8f0;
+            font-weight: 700;
+        }
+
+        .header-meta-item i {
+            color: #64748b;
+            font-size: 0.82rem;
+        }
+
+        .header-clock {
+            font-family: 'JetBrains Mono', 'SF Mono', monospace;
+            font-size: 0.78rem;
+            font-weight: 700;
+            color: #64748b;
+            letter-spacing: 0.02em;
+            padding: 0 4px;
+        }
+
+        .header-exit-btn {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: #cbd5e1;
+            font-size: 0.8rem;
+            font-weight: 700;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            text-decoration: none;
+            padding: 5px 11px;
+            border-radius: 6px;
+            transition: all 0.15s ease;
+        }
+
+        .header-exit-btn:hover {
+            background: #dc2626;
+            border-color: #dc2626;
+            color: #ffffff;
+            box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
         }
 
         /* ── POS Workspace Layout ── */
@@ -183,27 +311,284 @@
             position: relative;
         }
 
+        /* ── POS Quick Action Left Sidebar ── */
+        .pos-sidebar {
+            width: 88px;
+            min-width: 88px;
+            max-width: 88px;
+            background: #ffffff;
+            border-right: 1px solid var(--pos-border);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            padding: 0.75rem 0.5rem;
+            gap: 0.65rem;
+            z-index: 105;
+            flex-shrink: 0;
+            overflow-y: auto;
+            box-shadow: 2px 0 10px rgba(0, 0, 0, 0.02);
+        }
+
+        .pos-sidebar-actions {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.65rem;
+            width: 100%;
+        }
+
+        .pos-side-btn {
+            width: 72px;
+            height: 72px;
+            border-radius: 14px;
+            border: 1.5px solid transparent;
+            background: #ffffff;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            padding: 5px 3px;
+            transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+            text-decoration: none;
+            user-select: none;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+            font-family: inherit;
+            position: relative;
+        }
+
+        .pos-side-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 18px rgba(0, 0, 0, 0.09);
+        }
+
+        .pos-side-btn:active {
+            transform: translateY(0);
+        }
+
+        .pos-side-icon-box {
+            width: 32px;
+            height: 32px;
+            border-radius: 9px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.15rem;
+            transition: all 0.18s ease;
+        }
+
+        .pos-side-label {
+            font-size: 10.5px;
+            font-weight: 800;
+            letter-spacing: -0.01em;
+            text-align: center;
+            line-height: 1.12;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .pos-side-label small {
+            font-size: 8.5px;
+            font-weight: 700;
+            opacity: 0.85;
+            margin-top: 1px;
+            font-family: monospace;
+        }
+
+        /* Side Button 0: Returns & Exchanges (F1) - Emerald Teal Luxury */
+        .btn-side-returns {
+            background: linear-gradient(145deg, #f0fdf4, #dcfce7);
+            border-color: #bbf7d0;
+            color: #166534;
+        }
+        .btn-side-returns .pos-side-icon-box {
+            background: rgba(22, 163, 74, 0.18);
+            color: #16a34a;
+        }
+        .btn-side-returns:hover {
+            background: #bbf7d0;
+            border-color: #16a34a;
+            box-shadow: 0 8px 18px rgba(22, 163, 74, 0.28);
+        }
+
+        /* Side Button 1: Hold Invoice (F6) - Warm Amber Gold */
+        .btn-side-hold {
+            background: linear-gradient(145deg, #fffdf5, #fef3c7);
+            border-color: #fde68a;
+            color: #92400e;
+        }
+        .btn-side-hold .pos-side-icon-box {
+            background: rgba(245, 158, 11, 0.18);
+            color: #d97706;
+        }
+        .btn-side-hold:hover {
+            background: #fde68a;
+            border-color: #f59e0b;
+            box-shadow: 0 8px 18px rgba(245, 158, 11, 0.28);
+        }
+
+        /* Side Button 2: Held List (F7) - Royal Indigo / Purple */
+        .btn-side-held-list {
+            background: linear-gradient(145deg, #faf5ff, #ede9fe);
+            border-color: #ddd6fe;
+            color: #5b21b6;
+        }
+        .btn-side-held-list .pos-side-icon-box {
+            background: rgba(124, 58, 237, 0.18);
+            color: #7c3aed;
+        }
+        .btn-side-held-list:hover {
+            background: #ddd6fe;
+            border-color: #7c3aed;
+            box-shadow: 0 8px 18px rgba(124, 58, 237, 0.28);
+        }
+
+        /* Side Button: Sales History - Ocean Blue Luxury */
+        .btn-side-history {
+            background: linear-gradient(145deg, #f0f9ff, #e0f2fe);
+            border-color: #bae6fd;
+            color: #0369a1;
+        }
+        .btn-side-history .pos-side-icon-box {
+            background: rgba(2, 132, 199, 0.18);
+            color: #0284c7;
+        }
+        .btn-side-history:hover {
+            background: #bae6fd;
+            border-color: #0284c7;
+            box-shadow: 0 8px 18px rgba(2, 132, 199, 0.28);
+        }
+
+        /* Sales History Modal & Table Styles */
+        .hist-preset-btn {
+            height: 32px;
+            padding: 0 14px;
+            border-radius: 999px;
+            border: 1.5px solid #cbd5e1;
+            background: #ffffff;
+            color: #475569;
+            font-size: 0.78rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+        .hist-preset-btn:hover {
+            background: #f1f5f9;
+            border-color: #94a3b8;
+        }
+        .hist-preset-btn.active {
+            background: #0f172a;
+            border-color: #0f172a;
+            color: #ffffff;
+            box-shadow: 0 2px 8px rgba(15, 23, 42, 0.2);
+        }
+        .sales-hist-table tbody tr:nth-child(even) { background: rgba(248, 250, 252, 0.65); }
+        .sales-hist-table tbody tr:nth-child(odd)  { background: #ffffff; }
+        .sales-hist-table tbody tr:hover            { background: #f1f5f9 !important; }
+        .sales-hist-table tbody tr { height: 48px; min-height: 48px; cursor: pointer; }
+        .sales-hist-table tbody td { height: 48px; padding: 0 14px; font-size: 12.5px; color: #1e293b; vertical-align: middle; box-sizing: border-box; }
+        .btn-hist-print {
+            height: 30px;
+            padding: 0 12px;
+            border-radius: 8px;
+            border: 1.5px solid #86efac;
+            background: #f0fdf4;
+            color: #166534;
+            font-size: 0.78rem;
+            font-weight: 800;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            transition: all 0.15s ease;
+        }
+        .btn-hist-print:hover {
+            background: #16a34a;
+            border-color: #16a34a;
+            color: #ffffff;
+            box-shadow: 0 4px 10px rgba(22, 163, 74, 0.25);
+        }
+        .btn-hist-view {
+            height: 30px;
+            padding: 0 12px;
+            border-radius: 8px;
+            border: 1.5px solid #cbd5e1;
+            background: #f8fafc;
+            color: #334155;
+            font-size: 0.78rem;
+            font-weight: 700;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            transition: all 0.15s ease;
+        }
+        .btn-hist-view:hover {
+            background: #0f172a;
+            border-color: #0f172a;
+            color: #ffffff;
+            box-shadow: 0 4px 10px rgba(15, 23, 42, 0.18);
+        }
+
+        /* Side Button 3: Clear Sale (F8) - Cool Sky Slate */
+        .btn-side-clear {
+            background: linear-gradient(145deg, #f0fdfa, #e0f2fe);
+            border-color: #bae6fd;
+            color: #0369a1;
+        }
+        .btn-side-clear .pos-side-icon-box {
+            background: rgba(2, 132, 199, 0.18);
+            color: #0284c7;
+        }
+        .btn-side-clear:hover {
+            background: #bae6fd;
+            border-color: #0284c7;
+            box-shadow: 0 8px 18px rgba(2, 132, 199, 0.28);
+        }
+
+        /* Side Button 4: Cancel Sale (F9) - Coral Crimson */
+        .btn-side-cancel {
+            background: linear-gradient(145deg, #fff1f2, #fee2e2);
+            border-color: #fecaca;
+            color: #9f1239;
+        }
+        .btn-side-cancel .pos-side-icon-box {
+            background: rgba(225, 29, 72, 0.18);
+            color: #e11d48;
+        }
+        .btn-side-cancel:hover {
+            background: #fecaca;
+            border-color: #e11d48;
+            box-shadow: 0 8px 18px rgba(225, 29, 72, 0.28);
+        }
+
         .pos-left {
             flex: 1;
+            min-width: 0;
             display: flex;
             flex-direction: column;
             border-right: 1px solid var(--pos-border);
             background-color: #f8fafc;
-            padding: 0.85rem;
-            gap: 0.85rem;
+            padding: 0.75rem;
+            gap: 0.75rem;
             position: relative;
             z-index: 100;
         }
 
         .pos-right {
-            width: 440px;
+            width: clamp(340px, 28vw, 410px);
+            min-width: 320px;
             background-color: #f8fafc;
             display: flex;
             flex-direction: column;
-            padding: 0.85rem;
-            gap: 0.85rem;
+            padding: 0.75rem;
+            gap: 0.65rem;
             border-left: 1px solid var(--pos-border);
             z-index: 10;
+            overflow-y: auto;
         }
 
         /* ── Search Barcode Input & Dropdown ── */
@@ -245,8 +630,7 @@
             top: calc(100% + 6px);
             left: 0;
             right: 0;
-            background: rgba(255, 255, 255, 0.98);
-            backdrop-filter: blur(16px);
+            background: #ffffff;
             border: 1px solid rgba(226, 232, 240, 0.9);
             border-radius: 16px;
             max-height: 420px;
@@ -263,7 +647,6 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            transition: all 0.15s ease;
         }
 
         .search-item:hover, .search-item.selected {
@@ -276,20 +659,20 @@
             font-weight: 800;
         }
 
-        /* ── Cart Container & Glassmorphism Table ── */
+        /* ── Cart Container & Clean Table ── */
         .cart-container {
             flex: 1;
-            background: rgba(255, 255, 255, 0.94);
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
+            background: #ffffff;
             border-radius: 16px;
             border: 1px solid var(--pos-border);
             overflow-y: auto;
             display: flex;
             flex-direction: column;
-            box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.03);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
             position: relative;
             z-index: 1;
+            -webkit-overflow-scrolling: touch;
+            overscroll-behavior: contain;
         }
 
         .cart-table {
@@ -319,27 +702,35 @@
             vertical-align: middle;
         }
 
-        .cart-table tr:hover { background-color: #f8fafc; }
+        .cart-table tbody tr:nth-child(even) { background: rgba(248, 250, 252, 0.57); }
+        .cart-table tbody tr:nth-child(odd)  { background: #ffffff; }
+        .cart-table tbody tr:hover            { background: #f1f5f9 !important; }
+
+        .held-table tbody tr:nth-child(even), .customer-table tbody tr:nth-child(even), .sales-rep-table tbody tr:nth-child(even) { background: rgba(248, 250, 252, 0.57); }
+        .held-table tbody tr:nth-child(odd), .customer-table tbody tr:nth-child(odd), .sales-rep-table tbody tr:nth-child(odd)  { background: #ffffff; }
+        .held-table tbody tr:hover, .customer-table tbody tr:hover, .sales-rep-table tbody tr:hover            { background: #f1f5f9 !important; }
 
         .qty-controls {
-            display: flex;
+            display: inline-flex;
             align-items: center;
-            gap: 0.35rem;
+            gap: 0.3rem;
         }
 
         .btn-qty {
             background: #f1f5f9;
             color: #0f172a;
-            border: 1px solid #cbd5e1;
+            border: 1.5px solid #cbd5e1;
             width: 28px;
             height: 28px;
-            border-radius: 6px;
-            font-weight: bold;
+            border-radius: 7px;
+            font-weight: 800;
+            font-size: 0.9rem;
             cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
             transition: all 0.15s ease;
+            user-select: none;
         }
 
         .btn-qty:hover { 
@@ -349,25 +740,74 @@
         }
 
         .qty-input {
-            width: 55px;
+            width: 52px;
             background: #ffffff;
-            border: 1px solid var(--pos-border);
-            color: var(--pos-text);
+            border: 1.5px solid #cbd5e1;
+            color: #0f172a;
             text-align: center;
-            padding: 0.25rem;
-            border-radius: 6px;
+            padding: 0.25rem 0.3rem;
+            border-radius: 7px;
             font-weight: 800;
+            font-size: 0.9rem;
+            font-family: 'Outfit', -apple-system, sans-serif;
+            transition: border-color 0.15s ease, box-shadow 0.15s ease;
+        }
+
+        .qty-input:focus {
+            border-color: #0f172a;
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(15, 23, 42, 0.08);
+        }
+
+        .cart-avail-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 0.72rem;
+            font-weight: 700;
+            color: #475569;
+            background: #f1f5f9;
+            border: 1px solid #e2e8f0;
+            padding: 1px 7px;
+            border-radius: 999px;
+            line-height: 1.35;
+            white-space: nowrap;
+            margin-top: 3px;
+        }
+
+        .cart-avail-badge .avail-dot {
+            width: 5px;
+            height: 5px;
+            border-radius: 50%;
+            background: #10b981;
+            display: inline-block;
         }
 
         .price-override-input, .item-discount-input {
-            width: 80px;
+            width: 86px;
             background: #ffffff;
-            border: 1px solid var(--pos-border);
-            color: var(--pos-text);
+            border: 1.5px solid #cbd5e1;
+            color: #0f172a;
+            font-family: 'Outfit', -apple-system, sans-serif;
+            font-weight: 700;
             text-align: right;
-            padding: 0.3rem;
-            border-radius: 6px;
-            font-size: 0.85rem;
+            padding: 0.32rem 0.5rem;
+            border-radius: 7px;
+            font-size: 0.88rem;
+            transition: border-color 0.15s ease, box-shadow 0.15s ease;
+        }
+
+        .price-override-input:focus, .item-discount-input:focus {
+            border-color: #0f172a;
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(15, 23, 42, 0.08);
+        }
+
+        .price-override-input:disabled, .item-discount-input:disabled {
+            background: #f8fafc;
+            border-color: #e2e8f0;
+            color: #64748b;
+            cursor: not-allowed;
         }
 
         .lot-badge {
@@ -396,7 +836,7 @@
             color: #0f172a;
             border: 1px solid #cbd5e1;
             font-size: 0.72rem;
-            padding: 0.15rem 0.5rem;
+            padding: 0.18rem 0.55rem;
             border-radius: 9999px;
             cursor: pointer;
             display: inline-flex;
@@ -412,81 +852,394 @@
             border-color: #0f172a;
         }
 
-        /* ── Right Panel Glassmorphic Cards ── */
-        .customer-card {
-            background: rgba(255, 255, 255, 0.94);
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
-            border: 1px solid var(--pos-border);
-            border-radius: 16px;
-            padding: 0.95rem;
-            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.03);
-            cursor: pointer;
-            transition: all 0.2s ease;
-        }
-        .customer-card:hover {
-            border-color: #cbd5e1;
-            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.06);
-            transform: translateY(-1px);
-        }
-        .btn-customer-change {
-            background: #0f172a;
-            color: #ffffff !important;
-            border: none;
-            padding: 0.35rem 0.85rem;
-            border-radius: 9999px;
-            font-size: 0.76rem;
+        .cart-barcode-pill {
+            background: #f8fafc;
+            color: #64748b;
+            border: 1px solid #e2e8f0;
+            font-size: 0.72rem;
+            font-family: monospace;
+            padding: 0.18rem 0.5rem;
+            border-radius: 6px;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
             font-weight: 700;
+        }
+
+        .cart-row-idx {
+            font-weight: 700;
+            color: #94a3b8;
+            font-size: 0.85rem;
+        }
+
+        .btn-cart-delete {
+            background: #fef2f2;
+            border: 1px solid #fee2e2;
+            color: #ef4444;
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
             cursor: pointer;
             display: inline-flex;
             align-items: center;
-            gap: 0.4rem;
-            box-shadow: 0 2px 6px rgba(15, 23, 42, 0.15);
+            justify-content: center;
+            font-size: 0.88rem;
             transition: all 0.15s ease;
         }
-        .btn-customer-change:hover {
+
+        .btn-cart-delete:hover {
+            background: #ef4444;
+            color: #ffffff;
+            border-color: #ef4444;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 10px rgba(239, 68, 68, 0.25);
+        }
+
+        /* ── Right Panel Dark Luxury Cards System ── */
+        /* 1. TOP: Total Payable Card - Dark Emerald Green Luxury */
+        .pos-payable-hero-card {
+            background: linear-gradient(135deg, #042614 0%, #083c21 50%, #0d4a2b 100%);
+            border: 1.5px solid rgba(52, 211, 153, 0.35);
+            border-radius: 18px;
+            padding: 1rem 1.25rem;
+            box-shadow: 0 14px 30px -8px rgba(4, 38, 20, 0.6), 0 0 0 1px rgba(16, 185, 129, 0.15) inset;
+            color: #ffffff;
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+            position: relative;
+            overflow: hidden;
+        }
+        .pos-payable-hero-card::after {
+            content: '';
+            position: absolute;
+            top: -40%;
+            right: -25%;
+            width: 200px;
+            height: 200px;
+            background: radial-gradient(circle, rgba(52, 211, 153, 0.2) 0%, transparent 70%);
+            pointer-events: none;
+        }
+        .payable-hero-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .payable-hero-badge {
+            font-size: 0.72rem;
+            font-weight: 800;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: #6ee7b7;
+            display: flex;
+            align-items: center;
+            gap: 0.45rem;
+        }
+        .payable-hero-badge i {
+            color: #34d399;
+            font-size: 0.85rem;
+        }
+        .payable-hero-amount {
+            font-family: 'Outfit', 'SF Pro Display', sans-serif;
+            font-size: 2.75rem;
+            font-weight: 900;
+            color: #ffffffff;
+            letter-spacing: -0.025em;
+            line-height: 1.1;
+            text-shadow: 0 4px 25px rgba(52, 211, 153, 0.45);
+            margin: 0.15rem 0;
+            display: flex;
+            align-items: baseline;
+            gap: 0.5rem;
+        }
+        .payable-hero-savings {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.45rem;
+            background: rgba(16, 185, 129, 0.2);
+            border: 1px solid rgba(52, 211, 153, 0.35);
+            color: #a7f3d0;
+            font-size: 0.75rem;
+            font-weight: 800;
+            border-radius: 9999px;
+            padding: 0.2rem 0.65rem;
+            width: fit-content;
+            margin-top: 2px;
+        }
+
+        /* 2. Total Discount Card - Dark Luxury Rose / Ruby Card */
+        .pos-discount-card {
+            background: linear-gradient(135deg, #1f0712 0%, #350c1e 50%, #4d102c 100%);
+            border: 1.5px solid rgba(244, 63, 94, 0.35);
+            border-radius: 18px;
+            padding: 0.9rem 1.25rem;
+            box-shadow: 0 12px 26px -6px rgba(31, 7, 18, 0.55), 0 0 0 1px rgba(244, 63, 94, 0.15) inset;
+            color: #ffffff;
+            display: flex;
+            flex-direction: column;
+            gap: 0.2rem;
+            position: relative;
+            overflow: hidden;
+        }
+        .pos-discount-card::after {
+            content: '';
+            position: absolute;
+            top: -40%;
+            right: -25%;
+            width: 160px;
+            height: 160px;
+            background: radial-gradient(circle, rgba(244, 63, 94, 0.2) 0%, transparent 70%);
+            pointer-events: none;
+        }
+        .discount-card-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .discount-card-badge {
+            font-size: 0.72rem;
+            font-weight: 800;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: #fda4af;
+            display: flex;
+            align-items: center;
+            gap: 0.45rem;
+        }
+        .discount-card-badge i {
+            color: #fb7185;
+            font-size: 0.85rem;
+        }
+        .discount-card-pill {
+            font-size: 0.68rem;
+            color: #fecdd3;
+            font-weight: 900;
+            background: rgba(244, 63, 94, 0.22);
+            border: 1px solid rgba(251, 113, 133, 0.35);
+            padding: 2px 7.5px;
+            border-radius: 999px;
+            letter-spacing: 0.04em;
+        }
+        .discount-card-amount {
+            font-family: 'Outfit', 'SF Pro Display', sans-serif;
+            font-size: 2.15rem;
+            font-weight: 900;
+            color: #fb7185;
+            letter-spacing: -0.02em;
+            line-height: 1.15;
+            text-shadow: 0 2px 18px rgba(244, 63, 94, 0.45);
+            margin: 0.1rem 0 0 0;
+            display: flex;
+            align-items: baseline;
+            gap: 0.5rem;
+        }
+
+        /* 3. Order Breakdown Card - Deep Midnight Luxury */
+        .pos-breakdown-card {
+            background: linear-gradient(135deg, #0b1320 0%, #111d33 100%);
+            border: 1.5px solid rgba(255, 255, 255, 0.09);
+            border-radius: 16px;
+            padding: 0.85rem 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            box-shadow: 0 8px 22px -6px rgba(0, 0, 0, 0.4);
+            color: #f8fafc;
+        }
+        .breakdown-card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            padding-bottom: 0.4rem;
+            margin-bottom: 0.15rem;
+        }
+        .breakdown-card-header .breakdown-title {
+            font-size: 0.72rem;
+            font-weight: 800;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: #94a3b8;
+            display: flex;
+            align-items: center;
+            gap: 0.45rem;
+        }
+        .pos-breakdown-card .summary-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.88rem;
+            color: #cbd5e1;
+        }
+        .pos-breakdown-card .summary-row span:last-child {
+            color: #f8fafc;
+        }
+        .pos-breakdown-card .item-discount-input {
+            background: rgba(15, 23, 42, 0.8);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            color: #ffffff;
+            border-radius: 8px;
+            padding: 0.3rem 0.5rem;
+        }
+        .pos-breakdown-card .item-discount-input:focus {
+            border-color: #38bdf8;
+            box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.2);
+            outline: none;
+        }
+        .pos-breakdown-card .btn-qty {
             background: #1e293b;
+            color: #f8fafc;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+        }
+        .pos-breakdown-card .btn-qty:hover {
+            background: #3b82f6;
+            color: #ffffff;
+            border-color: #3b82f6;
+        }
+
+        /* 3. Customer Selection Card - Dark Blue Luxury */
+        .customer-card-blue {
+            background: linear-gradient(135deg, #071529 0%, #0d2344 100%);
+            border: 1.5px solid rgba(56, 189, 248, 0.28);
+            border-radius: 16px;
+            padding: 0.75rem 0.95rem;
+            box-shadow: 0 8px 22px -6px rgba(7, 21, 41, 0.5);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            color: #ffffff;
+        }
+        .customer-card-blue:hover {
+            border-color: #38bdf8;
+            box-shadow: 0 10px 25px -4px rgba(56, 189, 248, 0.35);
             transform: translateY(-1px);
         }
-        .btn-customer-select {
-            background: #0f172a;
-            color: #ffffff !important;
+        .card-header-clean {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.45rem;
+        }
+        .card-header-clean .card-tag {
+            font-size: 0.7rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+        .btn-clean-action {
             border: none;
-            padding: 0.38rem 0.85rem;
+            padding: 0.28rem 0.75rem;
             border-radius: 9999px;
-            font-size: 0.8rem;
+            font-size: 0.72rem;
             font-weight: 800;
             cursor: pointer;
             display: inline-flex;
             align-items: center;
-            gap: 0.4rem;
+            gap: 0.35rem;
             transition: all 0.15s ease;
+            user-select: none;
         }
-        .btn-customer-select:hover {
-            background: #1e293b;
-            transform: translateY(-1px);
+        .btn-clean-blue {
+            background: rgba(56, 189, 248, 0.18);
+            color: #7dd3fc !important;
+            border: 1px solid rgba(56, 189, 248, 0.35);
+        }
+        .btn-clean-blue:hover {
+            background: #0284c7;
+            color: #ffffff !important;
+            border-color: #0284c7;
+        }
+        .card-body-clean {
+            display: flex;
+            align-items: center;
+            gap: 0.7rem;
+        }
+        .card-avatar-box {
+            width: 38px;
+            height: 38px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.25rem;
+            flex-shrink: 0;
+        }
+        .avatar-blue {
+            background: rgba(56, 189, 248, 0.16);
+            color: #38bdf8;
+            border: 1px solid rgba(56, 189, 248, 0.25);
+        }
+        .card-chevron-clean {
+            color: #64748b;
+            font-size: 0.8rem;
+            transition: transform 0.15s ease;
+        }
+        .customer-card-blue:hover .card-chevron-clean {
+            color: #38bdf8;
+            transform: translateX(2px);
         }
 
+        /* 4. Sales Rep Selection Card - Cherry Red Luxury */
+        .salesrep-card-cherry {
+            background: linear-gradient(135deg, #270611 0%, #400b1d 100%);
+            border: 1.5px solid rgba(251, 113, 133, 0.28);
+            border-radius: 16px;
+            padding: 0.75rem 0.95rem;
+            box-shadow: 0 8px 22px -6px rgba(39, 6, 17, 0.5);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            color: #ffffff;
+        }
+        .salesrep-card-cherry:hover {
+            border-color: #fb7185;
+            box-shadow: 0 10px 25px -4px rgba(251, 113, 133, 0.35);
+            transform: translateY(-1px);
+        }
+        .btn-clean-cherry {
+            background: rgba(251, 113, 133, 0.18);
+            color: #fca5a5 !important;
+            border: 1px solid rgba(251, 113, 133, 0.35);
+        }
+        .btn-clean-cherry:hover {
+            background: #e11d48;
+            color: #ffffff !important;
+            border-color: #e11d48;
+        }
+        .avatar-cherry {
+            background: rgba(251, 113, 133, 0.16);
+            color: #fb7185;
+            border: 1px solid rgba(251, 113, 133, 0.25);
+        }
+        .salesrep-card-cherry:hover .card-chevron-clean {
+            color: #fb7185;
+            transform: translateX(2px);
+        }
+
+        /* Fallback classes for legacy/compatibility */
+        .customer-card {
+            background: rgba(255, 255, 255, 0.94);
+            border: 1px solid var(--pos-border);
+            border-radius: 16px;
+            padding: 0.95rem;
+            cursor: pointer;
+        }
         .summary-card {
             background: rgba(255, 255, 255, 0.94);
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
             border: 1px solid var(--pos-border);
             border-radius: 16px;
             padding: 1rem;
             display: flex;
             flex-direction: column;
             gap: 0.75rem;
-            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.03);
         }
-
         .summary-row {
             display: flex;
             justify-content: space-between;
             align-items: center;
             font-size: 0.95rem;
         }
-
         .summary-row-total {
             border-top: 2px dashed var(--pos-border);
             padding-top: 0.85rem;
@@ -608,6 +1361,119 @@
             transform: translateY(-1px);
         }
 
+        /* ── Modern Hero Payable Amount Card ── */
+        .summary-payable-hero {
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            border-radius: 14px;
+            padding: 0.85rem 1.15rem;
+            color: #ffffff;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 4px 16px rgba(15, 23, 42, 0.15);
+            margin-top: 4px;
+        }
+        .summary-payable-hero .hero-label {
+            font-size: 0.82rem;
+            font-weight: 800;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            color: #94a3b8;
+        }
+        .summary-payable-hero .hero-amount {
+            font-family: 'Outfit', 'SF Pro Display', sans-serif;
+            font-size: 1.85rem;
+            font-weight: 900;
+            color: #ffffffff;
+            letter-spacing: -0.02em;
+            text-shadow: 0 0 20px rgba(52, 211, 153, 0.25);
+        }
+
+        /* ── Modern Checkout Hero Action Button ── */
+        .checkout-action-area {
+            margin-top: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .btn-pos-pay-hero {
+            width: 100%;
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: #ffffff;
+            border: none;
+            border-radius: 14px;
+            padding: 0.95rem 1.25rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 6px 20px rgba(16, 185, 129, 0.35);
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            user-select: none;
+        }
+
+        .btn-pos-pay-hero:hover {
+            background: linear-gradient(135deg, #059669 0%, #047857 100%);
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(16, 185, 129, 0.45);
+        }
+
+        .btn-pos-pay-hero:active {
+            transform: translateY(0);
+        }
+
+        .pay-hero-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .pay-hero-icon {
+            width: 38px;
+            height: 38px;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.3rem;
+        }
+
+        .pay-hero-text {
+            display: flex;
+            flex-direction: column;
+            text-align: left;
+        }
+
+        .pay-hero-title {
+            font-family: 'Outfit', 'SF Pro Display', sans-serif;
+            font-size: 1.25rem;
+            font-weight: 900;
+            letter-spacing: 0.02em;
+            line-height: 1.1;
+        }
+
+        .pay-hero-sub {
+            font-size: 0.72rem;
+            font-weight: 700;
+            letter-spacing: 0.06em;
+            opacity: 0.9;
+            text-transform: uppercase;
+            margin-top: 2px;
+        }
+
+        .pay-hero-arrow {
+            font-size: 1.15rem;
+            opacity: 0.8;
+            transition: transform 0.18s ease;
+        }
+
+        .btn-pos-pay-hero:hover .pay-hero-arrow {
+            transform: translateX(4px);
+            opacity: 1;
+        }
+
         /* ── Dark Minimalist Shortcut Bar ── */
         .shortcut-bar {
             background-color: #0f172a;
@@ -631,29 +1497,83 @@
             border: 1px solid rgba(255, 255, 255, 0.2);
         }
 
-        /* ── Glassmorphism Modals & Dialogs ── */
+        /* ── Comprehensive Responsive Screen-Fit Rules ── */
+        @media (max-height: 800px) {
+            .pos-header { height: 50px; min-height: 50px; padding: 0 1rem; }
+            .header-curtiss-logo { height: 20px; }
+            .header-company-logo { height: 24px; }
+            .pos-sidebar { width: 78px; min-width: 78px; max-width: 78px; padding: 0.5rem 0.35rem; gap: 0.5rem; }
+            .pos-side-btn { width: 64px; height: 64px; border-radius: 11px; }
+            .pos-side-icon-box { width: 28px; height: 28px; font-size: 1rem; }
+            .pos-side-label { font-size: 9.5px; }
+            .pos-left { padding: 0.5rem; gap: 0.5rem; }
+            .pos-right { padding: 0.5rem; gap: 0.5rem; }
+            .customer-card { padding: 0.7rem; }
+            .summary-card { padding: 0.75rem; gap: 0.5rem; }
+            .summary-row { font-size: 0.88rem; }
+            .summary-payable-hero { padding: 0.65rem 0.95rem; }
+            .summary-payable-hero .hero-amount { font-size: 1.55rem; }
+            .btn-pos-pay-hero { padding: 0.75rem 1rem; }
+            .pay-hero-title { font-size: 1.1rem; }
+            .cart-table th { padding: 0.6rem 0.7rem; }
+            .cart-table td { padding: 0.5rem 0.7rem; }
+            .shortcut-bar { padding: 0.35rem 1rem; font-size: 0.74rem; }
+        }
+
+        @media (max-width: 1024px) {
+            .pos-sidebar { width: 78px; min-width: 78px; max-width: 78px; }
+            .pos-side-btn { width: 64px; height: 64px; }
+            .pos-right { width: 320px; min-width: 300px; }
+            .pay-hero-sub { display: none; }
+        }
+
+        @media (max-width: 768px) {
+            .pos-container { height: 100vh; overflow-y: auto; }
+            .pos-header { flex-wrap: wrap; height: auto; padding: 0.65rem; gap: 0.5rem; }
+            .pos-body { flex-direction: column; overflow-y: visible; flex: none; }
+            .pos-sidebar {
+                width: 100%;
+                min-width: 100%;
+                max-width: 100%;
+                height: auto;
+                border-right: none;
+                border-bottom: 1px solid var(--pos-border);
+                flex-direction: row;
+                justify-content: center;
+                padding: 0.65rem;
+                overflow-x: auto;
+            }
+            .pos-sidebar-actions {
+                flex-direction: row;
+                justify-content: center;
+                gap: 0.65rem;
+                width: auto;
+            }
+            .pos-side-btn { width: 68px; height: 64px; }
+            .pos-left { border-right: none; border-bottom: 1px solid var(--pos-border); min-height: 420px; }
+            .pos-right { width: 100%; min-width: 100%; border-left: none; }
+            .shortcut-bar { display: none; }
+        }
+
+        /* ── High-Performance Fast Modals & Dialogs ── */
         .pos-modal {
             position: fixed;
             top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(15, 23, 42, 0.45);
-            backdrop-filter: blur(8px);
-            -webkit-backdrop-filter: blur(8px);
-            display: flex;
+            background: rgba(15, 23, 42, 0.65);
+            display: none;
             align-items: center;
             justify-content: center;
             z-index: 100000;
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity 0.2s ease-out;
-        }
-
-        .pos-modal.active {
             opacity: 1;
             pointer-events: auto;
         }
 
+        .pos-modal.active {
+            display: flex;
+        }
+
         .pos-modal-content {
-            background: rgba(255, 255, 255, 0.98);
+            background: #ffffff;
             border: 1px solid rgba(226, 232, 240, 0.9);
             border-radius: 20px;
             width: 92%;
@@ -661,13 +1581,13 @@
             max-height: 88vh;
             display: flex;
             flex-direction: column;
-            box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.2);
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.2);
             color: var(--pos-text);
-            transform: scale(0.97);
-            transition: transform 0.2s ease-out;
+            transform: none !important;
+            transition: none !important;
         }
 
-        .pos-modal.active .pos-modal-content { transform: scale(1); }
+        .pos-modal.active .pos-modal-content { transform: none !important; }
 
         .pos-modal-header {
             padding: 1.15rem 1.4rem;
@@ -698,7 +1618,7 @@
             border-bottom-right-radius: 20px;
         }
 
-        .lot-card, .cust-item-card {
+        .lot-card {
             background: #f8fafc;
             border: 1px solid var(--pos-border);
             border-radius: 12px;
@@ -711,10 +1631,230 @@
             transition: all 0.15s ease;
         }
 
-        .lot-card:hover, .cust-item-card:hover, .cust-item-card.selected, .lot-card.selected {
+        .lot-card:hover, .lot-card.selected {
             border-color: #2563eb;
             background: #eff6ff;
             box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+        }
+
+        /* ── Modern Modal UI: Customer & Sales Rep Selectors ── */
+        .modal-shell-clean {
+            max-width: 650px !important;
+            padding: 0 !important;
+            border-radius: 20px !important;
+            overflow: hidden !important;
+            box-shadow: 0 25px 60px rgba(15, 23, 42, 0.28) !important;
+            border: 1px solid rgba(226, 232, 240, 0.95) !important;
+        }
+
+        .modal-header-dark {
+            background: #0f172a;
+            padding: 1.1rem 1.4rem;
+            color: #ffffff;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .modal-header-icon-box {
+            width: 38px;
+            height: 38px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.15rem;
+            flex-shrink: 0;
+        }
+
+        .modal-header-icon-box.icon-customer {
+            background: rgba(56, 189, 248, 0.16);
+            color: #38bdf8;
+            border: 1px solid rgba(56, 189, 248, 0.25);
+        }
+
+        .modal-header-icon-box.icon-salesrep {
+            background: rgba(251, 113, 133, 0.16);
+            color: #fb7185;
+            border: 1px solid rgba(251, 113, 133, 0.25);
+        }
+
+        .modal-header-title-wrap {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .modal-header-sub {
+            font-size: 0.7rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: #94a3b8;
+        }
+
+        .modal-header-title {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.15rem;
+            font-weight: 800;
+            color: #ffffff;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .modal-sc-pill {
+            background: rgba(255, 255, 255, 0.14);
+            border: 1px solid rgba(255, 255, 255, 0.22);
+            color: #f8fafc;
+            padding: 1px 7px;
+            border-radius: 6px;
+            font-size: 0.74rem;
+            font-weight: 800;
+            font-family: monospace;
+        }
+
+        .modal-close-btn-round {
+            background: rgba(255, 255, 255, 0.12);
+            border: none;
+            color: #f8fafc;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.15rem;
+            transition: all 0.15s ease;
+        }
+
+        .modal-close-btn-round:hover {
+            background: rgba(255, 255, 255, 0.22);
+            color: #ffffff;
+            transform: scale(1.05);
+        }
+
+        .modal-body-clean {
+            padding: 1.25rem 1.4rem;
+            background: #ffffff;
+            display: flex;
+            flex-direction: column;
+            gap: 0.85rem;
+        }
+
+        .modal-search-wrapper {
+            position: relative;
+            flex: 1;
+        }
+
+        .modal-search-wrapper .modal-search-icon {
+            position: absolute;
+            left: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #94a3b8;
+            font-size: 0.95rem;
+            pointer-events: none;
+        }
+
+        .modal-search-input {
+            width: 100%;
+            height: 46px;
+            border-radius: 12px;
+            padding: 0 14px 0 42px;
+            font-size: 0.92rem;
+            font-weight: 600;
+            color: #0f172a;
+            border: 1.5px solid #cbd5e1;
+            background: #f8fafc;
+            transition: all 0.18s ease;
+            box-sizing: border-box;
+            outline: none;
+        }
+
+        .modal-search-input:focus {
+            border-color: #0284c7;
+            background: #ffffff;
+            box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.15);
+        }
+
+        .btn-modal-action-pill {
+            height: 46px;
+            padding: 0 18px;
+            border-radius: 12px;
+            font-weight: 800;
+            font-size: 0.85rem;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            white-space: nowrap;
+            transition: all 0.18s ease;
+            border: none;
+            user-select: none;
+        }
+
+        .btn-modal-walkin {
+            background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+            color: #ffffff;
+            box-shadow: 0 4px 12px rgba(2, 132, 199, 0.28);
+        }
+
+        .btn-modal-walkin:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 16px rgba(2, 132, 199, 0.38);
+        }
+
+        .btn-modal-direct-rep {
+            background: linear-gradient(135deg, #e11d48 0%, #be123c 100%);
+            color: #ffffff;
+            box-shadow: 0 4px 12px rgba(225, 29, 72, 0.28);
+        }
+
+        .btn-modal-direct-rep:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 16px rgba(225, 29, 72, 0.38);
+        }
+
+        /* Results List Styling */
+        .modal-results-scroll {
+            max-height: 390px;
+            overflow-y: auto;
+            padding-right: 4px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .cust-item-card {
+            background: #ffffff;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 14px;
+            padding: 10px 14px;
+            margin-bottom: 0;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            transition: all 0.16s ease;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+            box-sizing: border-box;
+        }
+
+        .cust-item-card:hover, .cust-item-card.selected {
+            border-color: #0284c7;
+            background: #f0f9ff;
+            box-shadow: 0 6px 18px rgba(2, 132, 199, 0.12);
+            transform: translateY(-1px);
+        }
+
+        .cust-item-card.rep-card:hover, .cust-item-card.rep-card.selected {
+            border-color: #e11d48;
+            background: #fff1f2;
+            box-shadow: 0 6px 18px rgba(225, 29, 72, 0.12);
         }
 
         .cust-item-card.quick-create-card {
@@ -730,40 +1870,701 @@
             transform: translateY(-1px);
         }
 
-        /* ── Payment Methods Grid ── */
+        .cust-card-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex: 1;
+            min-width: 0;
+        }
+
+        .cust-avatar-box {
+            width: 42px;
+            height: 42px;
+            border-radius: 12px;
+            background: #f1f5f9;
+            color: #475569;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.15rem;
+            flex-shrink: 0;
+            border: 1px solid #e2e8f0;
+            transition: all 0.15s ease;
+        }
+
+        .cust-avatar-box.avatar-current {
+            background: #dcfce7;
+            color: #15803d;
+            border-color: #bbf7d0;
+        }
+
+        .cust-avatar-box.avatar-loyalty {
+            background: #ede9fe;
+            color: #7c3aed;
+            border-color: #ddd6fe;
+        }
+
+        .cust-avatar-box.avatar-rep {
+            background: #ffe4e6;
+            color: #e11d48;
+            border-color: #fecdd3;
+        }
+
+        .cust-info-main {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+            min-width: 0;
+            flex: 1;
+        }
+
+        .cust-primary-line {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .cust-name {
+            font-weight: 800;
+            color: #0f172a;
+            font-size: 0.98rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 290px;
+        }
+
+        .cust-code-badge {
+            font-size: 0.74rem;
+            font-weight: 700;
+            color: #475569;
+            background: #f1f5f9;
+            border: 1px solid #e2e8f0;
+            padding: 1px 7px;
+            border-radius: 6px;
+            font-family: monospace;
+        }
+
+        .cust-loyalty-badge {
+            font-size: 0.68rem;
+            background: #f5f3ff;
+            color: #7c3aed;
+            border: 1px solid #ddd6fe;
+            padding: 2px 8px;
+            border-radius: 9999px;
+            font-weight: 800;
+        }
+
+        .cust-current-badge {
+            font-size: 0.68rem;
+            background: #dcfce7;
+            color: #15803d;
+            border: 1px solid #bbf7d0;
+            padding: 2px 8px;
+            border-radius: 9999px;
+            font-weight: 800;
+        }
+
+        .cust-meta-line {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 0.78rem;
+            color: #64748b;
+            flex-wrap: wrap;
+        }
+
+        .cust-meta-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .cust-meta-item strong {
+            color: #334155;
+            font-weight: 700;
+        }
+
+        .cust-outstanding-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            background: #fef2f2;
+            color: #b91c1c;
+            border: 1px solid #fecaca;
+            padding: 1px 7px;
+            border-radius: 6px;
+            font-size: 0.74rem;
+            font-weight: 800;
+        }
+
+        .btn-customer-select {
+            height: 34px;
+            padding: 0 16px;
+            border-radius: 9999px;
+            font-weight: 800;
+            font-size: 0.82rem;
+            background: #f8fafc;
+            color: #334155;
+            border: 1.5px solid #cbd5e1;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.15s ease;
+            flex-shrink: 0;
+            user-select: none;
+        }
+
+        .cust-item-card:hover .btn-customer-select,
+        .cust-item-card.selected .btn-customer-select {
+            background: #0284c7;
+            color: #ffffff;
+            border-color: #0284c7;
+            box-shadow: 0 4px 10px rgba(2, 132, 199, 0.3);
+        }
+
+        .cust-item-card.rep-card:hover .btn-customer-select,
+        .cust-item-card.rep-card.selected .btn-customer-select {
+            background: #e11d48;
+            color: #ffffff;
+            border-color: #e11d48;
+            box-shadow: 0 4px 10px rgba(225, 29, 72, 0.3);
+        }
+
+        .btn-customer-select.btn-customer-current {
+            background: #dcfce7;
+            color: #15803d;
+            border-color: #86efac;
+        }
+
+        .modal-helper-bar {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+            padding: 0.65rem 1rem;
+            background: #f8fafc;
+            border-top: 1px solid #e2e8f0;
+            font-size: 0.73rem;
+            color: #64748b;
+            font-weight: 600;
+        }
+
+        .modal-helper-bar kbd {
+            background: #ffffff;
+            border: 1px solid #cbd5e1;
+            border-radius: 4px;
+            padding: 1px 6px;
+            color: #334155;
+            font-weight: 700;
+            font-size: 0.7rem;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+        }
+
+        /* ── Pop-Up Payment Settlement Modal ── */
+        #modal-payment.pos-modal {
+            background: rgba(11, 19, 32, 0.75);
+            padding: 1rem !important;
+            display: none;
+            align-items: center !important;
+            justify-content: center !important;
+        }
+
+        #modal-payment.pos-modal.active {
+            display: flex !important;
+        }
+
+        #modal-payment .pos-modal-content {
+            width: 95% !important;
+            max-width: 890px !important;
+            max-height: 90vh !important;
+            border-radius: 20px !important;
+            border: 1.5px solid rgba(255, 255, 255, 0.14) !important;
+            background: #f8fafc !important;
+            display: flex !important;
+            flex-direction: column !important;
+            margin: auto !important;
+            padding: 0 !important;
+            box-shadow: 0 25px 70px -12px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(0, 0, 0, 0.08) !important;
+            overflow: hidden !important;
+            transform: none !important;
+            transition: none !important;
+        }
+
+        #modal-payment.active .pos-modal-content {
+            transform: none !important;
+        }
+
+        .pay-popup-header {
+            background: linear-gradient(135deg, #0b1320 0%, #111d33 100%);
+            border-bottom: 1.5px solid rgba(255, 255, 255, 0.08);
+            padding: 0.85rem 1.4rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-shrink: 0;
+            color: #ffffff;
+        }
+
+        .pay-header-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 40px;
+            height: 40px;
+            border-radius: 12px;
+            background: rgba(16, 185, 129, 0.15);
+            border: 1px solid rgba(16, 185, 129, 0.35);
+            color: #34d399;
+            font-size: 1.2rem;
+            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+        }
+
+        .pay-badge-pill {
+            background: rgba(255, 255, 255, 0.15);
+            color: #e2e8f0;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            font-size: 0.74rem;
+            font-weight: 700;
+            padding: 2px 9px;
+            border-radius: 999px;
+        }
+
+        .pay-header-balance-wrap {
+            text-align: right;
+            padding-right: 12px;
+        }
+
+        .pay-header-balance-val {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.35rem;
+            font-weight: 900;
+            color: #34d399;
+            line-height: 1.1;
+            letter-spacing: -0.01em;
+            text-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+        }
+
+        .btn-payment-close {
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.16);
+            color: #cbd5e1;
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .btn-payment-close:hover {
+            background: #ef4444;
+            color: #ffffff;
+            border-color: #ef4444;
+            transform: scale(1.05);
+        }
+
+        .pay-popup-body {
+            flex: 1;
+            min-height: 0;
+            overflow-y: auto;
+            padding: 1rem 1.4rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.85rem;
+            box-sizing: border-box;
+            background: #f8fafc;
+        }
+
+        .pay-popup-footer {
+            background: #ffffff;
+            border-top: 1.5px solid #e2e8f0;
+            padding: 0.75rem 1.4rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-shrink: 0;
+            box-shadow: 0 -4px 18px rgba(0, 0, 0, 0.04);
+            z-index: 50;
+        }
+
+        /* ── Payment Methods Grid: 4 Method Cards with Dark Luxury Gradients (POS Theme) ── */
         .pm-grid {
             display: grid;
-            grid-template-columns: repeat(6, 1fr);
-            gap: 0.5rem;
-            margin-bottom: 1.15rem;
+            grid-template-columns: repeat(4, 1fr) !important;
+            gap: 0.6rem;
+            margin-bottom: 0.25rem;
         }
 
         .payment-method-btn {
-            padding: 0.9rem 0.25rem;
-            border: 1px solid var(--pos-border);
-            border-radius: 12px;
-            background: #ffffff;
-            color: var(--pos-text);
-            font-weight: 700;
-            font-size: 0.85rem;
+            padding: 0.55rem 0.25rem;
+            border-radius: 14px;
             cursor: pointer;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            gap: 0.45rem;
-            transition: all 0.15s ease;
+            gap: 0.3rem;
+            min-height: 74px;
+            height: 74px;
+            transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
             font-family: inherit;
+            user-select: none;
+            position: relative;
+            box-shadow: 0 3px 8px rgba(0, 0, 0, 0.25);
+            border: 2px solid transparent;
+            opacity: 0.62;
+            filter: brightness(0.82) grayscale(0.25);
         }
 
+        .payment-method-btn i {
+            font-size: 1.45rem !important;
+            color: #ffffff !important;
+            filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
+            transition: transform 0.18s ease;
+        }
+
+        .payment-method-btn span {
+            font-size: 0.82rem !important;
+            font-weight: 800 !important;
+            color: #ffffff !important;
+            letter-spacing: 0.02em;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+        }
+
+        .payment-method-btn .pm-badge-pill {
+            position: absolute;
+            top: 4px;
+            right: 4px;
+            background: rgba(255, 255, 255, 0.25);
+            color: #ffffff !important;
+            font-size: 8px !important;
+            font-weight: 900 !important;
+            padding: 1px 4px;
+            border-radius: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .payment-method-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+            opacity: 0.95;
+            filter: brightness(1.08) grayscale(0);
+        }
+
+        .payment-method-btn:hover i {
+            transform: scale(1.08);
+        }
+
+        /* Dark Luxury Gradients for each method (Exact Match to POS Sidebar) */
+        .payment-method-btn[data-method="Cash"] {
+            background: linear-gradient(135deg, #042614 0%, #083c21 50%, #0d4a2b 100%);
+            border-color: rgba(16, 185, 129, 0.35);
+        }
+        .payment-method-btn[data-method="Card"] {
+            background: linear-gradient(135deg, #071529 0%, #0d2344 50%, #163765 100%);
+            border-color: rgba(56, 189, 248, 0.35);
+        }
+        .payment-method-btn[data-method="Bank"] {
+            background: linear-gradient(135deg, #190933 0%, #2b1354 50%, #3e1b78 100%);
+            border-color: rgba(168, 85, 247, 0.35);
+        }
+        .payment-method-btn[data-method="Credit"] {
+            background: linear-gradient(135deg, #270611 0%, #400b1d 50%, #591029 100%);
+            border-color: rgba(244, 63, 94, 0.35);
+        }
+        .payment-method-btn[data-method="Split"] {
+            background: linear-gradient(135deg, #1a0826 0%, #2e0f43 50%, #471766 100%);
+            border-color: rgba(192, 132, 252, 0.35);
+        }
+
+        /* Active Luxury Highlight - State-of-the-Art High-Contrast Glow & Halo */
         .payment-method-btn.active {
-            border-color: #0f172a;
-            background: #0f172a;
-            color: #ffffff;
-            box-shadow: 0 4px 14px rgba(15, 23, 42, 0.2);
+            opacity: 1 !important;
+            filter: brightness(1.25) grayscale(0) !important;
+            transform: translateY(-6px) scale(1.06) !important;
+            z-index: 20 !important;
         }
 
-        .payment-method-btn i { font-size: 1.35rem; }
+        /* Top luminous indicator bar on active card */
+        .payment-method-btn.active::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 20%;
+            right: 20%;
+            height: 3.5px;
+            background: #ffffff;
+            border-radius: 0 0 5px 5px;
+            box-shadow: 0 0 10px #ffffff, 0 0 4px #ffffff;
+            z-index: 2;
+        }
+
+        /* Bottom floating active pill badge */
+        .payment-method-btn.active::after {
+            content: 'ACTIVE';
+            position: absolute;
+            bottom: -9px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #0f172a;
+            font-size: 7.5px;
+            font-weight: 900;
+            letter-spacing: 0.1em;
+            padding: 2px 8px;
+            border-radius: 999px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+            border: 1.5px solid currentColor;
+            white-space: nowrap;
+            pointer-events: none;
+            z-index: 3;
+        }
+
+        /* Method-Tailored Active Glowing Borders, Rings & Badges (Ultra-Visible on Any Screen) */
+        .payment-method-btn[data-method="Cash"].active {
+            border: 2.5px solid #10b981 !important;
+            box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.45), 0 0 24px rgba(16, 185, 129, 0.75), 0 14px 28px rgba(0, 0, 0, 0.5) !important;
+        }
+        .payment-method-btn[data-method="Cash"].active::after { color: #34d399; border-color: #10b981; }
+
+        .payment-method-btn[data-method="Card"].active {
+            border: 2.5px solid #0ea5e9 !important;
+            box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.45), 0 0 24px rgba(14, 165, 233, 0.75), 0 14px 28px rgba(0, 0, 0, 0.5) !important;
+        }
+        .payment-method-btn[data-method="Card"].active::after { color: #38bdf8; border-color: #0ea5e9; }
+
+        .payment-method-btn[data-method="Bank"].active {
+            border: 2.5px solid #a855f7 !important;
+            box-shadow: 0 0 0 3px rgba(168, 85, 247, 0.45), 0 0 24px rgba(168, 85, 247, 0.75), 0 14px 28px rgba(0, 0, 0, 0.5) !important;
+        }
+        .payment-method-btn[data-method="Bank"].active::after { color: #c084fc; border-color: #a855f7; }
+
+        .payment-method-btn[data-method="Credit"].active {
+            border: 2.5px solid #f43f5e !important;
+            box-shadow: 0 0 0 3px rgba(244, 63, 94, 0.45), 0 0 24px rgba(244, 63, 94, 0.75), 0 14px 28px rgba(0, 0, 0, 0.5) !important;
+        }
+        .payment-method-btn[data-method="Credit"].active::after { color: #fb7185; border-color: #f43f5e; }
+
+        .payment-method-btn[data-method="Split"].active {
+            border: 2.5px solid #d946ef !important;
+            box-shadow: 0 0 0 3px rgba(217, 70, 239, 0.45), 0 0 24px rgba(217, 70, 239, 0.75), 0 14px 28px rgba(0, 0, 0, 0.5) !important;
+        }
+        .payment-method-btn[data-method="Split"].active::after { color: #f0abfc; border-color: #d946ef; }
+
+        /* Credit Customer Action Buttons Focus Highlight (Keyboard Navigation) */
+        .btn-credit-cust-action:focus,
+        #btn-credit-change-cust:focus,
+        #btn-credit-select-cust:focus,
+        #btn-credit-change-cust-warn:focus,
+        #split-change-cust-btn:focus {
+            outline: none !important;
+            border-color: #b45309 !important;
+            background: #fef3c7 !important;
+            box-shadow: 0 0 0 3px rgba(217, 119, 6, 0.45), 0 2px 8px rgba(180, 83, 9, 0.25) !important;
+            transform: translateY(-1px) scale(1.03);
+        }
+
+        /* Centered & Clean Single Method Form Container (Constrained Width) */
+        .single-method-content-wrap {
+            max-width: 520px;
+            width: 100%;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 0.65rem;
+        }
+
+        .pay-amount-box {
+            background: #ffffff;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 14px;
+            padding: 0.85rem 1.15rem;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+        }
+
+        /* Split Cards Grid */
+        .split-card {
+            background: #ffffff;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 0.55rem 0.75rem;
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.03);
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+            transition: all 0.18s ease;
+        }
+
+        .split-card:hover, .split-card:focus-within {
+            border-color: #cbd5e1;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06);
+        }
+
+        .split-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.15rem;
+        }
+
+        .split-card-title {
+            font-size: 0.8rem;
+            font-weight: 800;
+            color: #1e293b;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn-fill-exact {
+            background: #f1f5f9;
+            border: 1px solid #cbd5e1;
+            color: #334155;
+            font-size: 0.72rem;
+            font-weight: 800;
+            padding: 3px 8px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .btn-fill-exact:hover {
+            background: #0284c7;
+            color: #ffffff;
+            border-color: #0284c7;
+        }
+
+        .split-input-wrapper {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        .split-input-wrapper .currency-prefix {
+            position: absolute;
+            left: 12px;
+            font-family: 'Outfit', sans-serif;
+            font-weight: 800;
+            font-size: 0.95rem;
+            color: #94a3b8;
+            pointer-events: none;
+        }
+
+        .split-amount-input {
+            width: 100%;
+            height: 44px;
+            border-radius: 10px;
+            border: 1.5px solid #cbd5e1;
+            padding: 0 12px 0 52px;
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.45rem;
+            font-weight: 900;
+            text-align: right;
+            color: #0f172a;
+            box-sizing: border-box;
+            background: #ffffff;
+            transition: all 0.15s ease;
+            outline: none;
+        }
+
+        .split-amount-input:focus {
+            border-color: #0284c7;
+            box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.15);
+        }
+
+        .split-select-input {
+            border-radius: 8px;
+            border: 1.5px solid #cbd5e1;
+            padding: 0 10px;
+            font-size: 0.82rem;
+            font-weight: 600;
+            color: #0f172a;
+            box-sizing: border-box;
+            background: #ffffff;
+            outline: none;
+        }
+
+        .split-select-input:focus {
+            border-color: #0284c7;
+            box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.15);
+        }
+
+        /* Ultra-Clean Modern Footer Action Buttons */
+        .btn-pay-action {
+            height: 44px;
+            border-radius: 12px;
+            padding: 0 22px;
+            font-weight: 800;
+            font-size: 0.9rem;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            border: none;
+            transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+            user-select: none;
+            letter-spacing: 0.01em;
+        }
+
+        .btn-pay-action:hover {
+            transform: translateY(-2px);
+        }
+
+        .btn-pay-action:active {
+            transform: translateY(0);
+        }
+
+        .btn-pay-whatsapp {
+            background: linear-gradient(135deg, #059669 0%, #047857 100%);
+            color: #ffffff;
+            box-shadow: 0 4px 14px rgba(5, 150, 105, 0.28);
+        }
+
+        .btn-pay-whatsapp:hover {
+            box-shadow: 0 6px 20px rgba(5, 150, 105, 0.42);
+            filter: brightness(1.08);
+        }
+
+        .btn-pay-print {
+            background: linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%);
+            color: #ffffff;
+            padding: 0 26px;
+            box-shadow: 0 4px 14px rgba(29, 78, 216, 0.28);
+        }
+
+        .btn-pay-print:hover {
+            box-shadow: 0 6px 20px rgba(29, 78, 216, 0.42);
+            filter: brightness(1.08);
+        }
+
+        .btn-payment-cancel {
+            background: #ffffff;
+            border: 1.5px solid #cbd5e1;
+            color: #475569;
+            height: 44px;
+            padding: 0 18px;
+            border-radius: 12px;
+            font-weight: 800;
+            font-size: 0.86rem;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.15s ease;
+        }
+
+        .btn-payment-cancel:hover {
+            background: #fee2e2;
+            color: #b91c1c;
+            border-color: #fca5a5;
+        }
 
         /* ── Balance Banner ── */
         .balance-banner {
@@ -862,30 +2663,99 @@
     <div class="pos-container">
         <!-- Top Navigation Header -->
         <header class="pos-header">
-            <div class="pos-brand">
-                <i class="fa-solid fa-cash-register"></i>
-                <span><?= htmlspecialchars($businessName) ?> POS</span>
+            <div class="header-brand-lockup">
+                <img src="assets/CurtissPOS Text Logo.png" alt="CurtissPOS" class="header-curtiss-logo">
+                <span class="header-collab-x">✕</span>
+                <?php if (!empty($companyLogo) && file_exists(dirname(__DIR__, 2) . '/' . $companyLogo)): ?>
+                    <img src="<?= htmlspecialchars($companyLogo) ?>" alt="<?= htmlspecialchars($businessName) ?>" class="header-company-logo">
+                <?php else: ?>
+                    <span class="header-company-name"><?= htmlspecialchars($businessName) ?></span>
+                <?php endif; ?>
             </div>
 
             <div class="pos-info-bar">
-                <span id="pos-network-status" class="badge-status-online" onclick="openOfflineSyncModal()">
+                <div id="pos-network-status" class="badge-status-online" onclick="openOfflineSyncModal()" title="Network status - Click for sync details">
                     <span class="pulse-dot"></span> <i class="fa-solid fa-wifi"></i> Online
-                </span>
-                <button type="button" class="btn-header-action" id="btn-sync-offline" onclick="triggerManualSync()" title="Synchronize pending offline sales">
-                    <i class="fa-solid fa-rotate"></i> Sync <span id="sync-pending-badge" style="background:#f59e0b; color:#fff; border-radius:10px; padding:0.1rem 0.4rem; font-size:0.75rem; display:none;">0</span>
+                </div>
+
+                <button type="button" class="header-ghost-btn" id="btn-sync-offline" onclick="triggerManualSync()" title="Synchronize pending offline sales">
+                    <i class="fa-solid fa-rotate"></i> Sync <span id="sync-pending-badge" class="header-pending-pill" style="display:none;">0</span>
                 </button>
-                <span class="badge-branch"><i class="fa-solid fa-store"></i> <?= htmlspecialchars($currentBranch['name']) ?></span>
-                <span class="badge-user"><i class="fa-solid fa-user-gear"></i> <?= htmlspecialchars($currentUser['full_name']) ?></span>
-                <span id="pos-clock" style="font-family: monospace; color: var(--pos-text-muted); font-weight: 800;"></span>
-                <a href="dashboard.php" class="btn-header-action" title="Back to Main ERP Dashboard">
-                    <i class="fa-solid fa-right-from-bracket"></i> Exit POS
+
+                <span class="header-divider"></span>
+
+                <?php if (!empty($allActiveBranches) && count($allActiveBranches) > 1): ?>
+                <div class="header-meta-item" title="Active Branch">
+                    <i class="fa-solid fa-store"></i>
+                    <span><?= htmlspecialchars($currentBranch['name']) ?></span>
+                </div>
+                <?php endif; ?>
+
+                <div class="header-meta-item" title="Active Cashier / User">
+                    <i class="fa-solid fa-circle-user"></i>
+                    <span><?= htmlspecialchars($currentUser['full_name']) ?></span>
+                </div>
+
+                <span class="header-divider"></span>
+
+                <div id="pos-clock" class="header-clock"></div>
+
+                <a href="dashboard.php" class="header-exit-btn" title="Back to Main ERP Dashboard">
+                    <i class="fa-solid fa-arrow-right-from-bracket"></i> Exit POS
                 </a>
             </div>
         </header>
 
         <!-- POS Workspace Body -->
         <div class="pos-body">
-            <!-- Left Side: Barcode Search & Cart Table -->
+            <!-- Left Side Bar / Quick Action Panel -->
+            <aside class="pos-sidebar" id="pos-sidebar" aria-label="POS Quick Actions">
+                <div class="pos-sidebar-actions">
+                    <button type="button" class="pos-side-btn btn-side-returns" id="btn-pos-returns" onclick="openReturnsModal()" title="Sales Returns & Exchanges (F1)">
+                        <div class="pos-side-icon-box">
+                            <i class="fa-solid fa-arrow-rotate-left"></i>
+                        </div>
+                        <span class="pos-side-label">Returns<small>F1</small></span>
+                    </button>
+
+                    <button type="button" class="pos-side-btn btn-side-hold" id="btn-hold-sale" title="Park current invoice line items (F6)">
+                        <div class="pos-side-icon-box">
+                            <i class="fa-solid fa-pause"></i>
+                        </div>
+                        <span class="pos-side-label">Hold<small>F6</small></span>
+                    </button>
+
+                    <button type="button" class="pos-side-btn btn-side-held-list" id="btn-view-held" title="View list of parked invoices (F7)">
+                        <div class="pos-side-icon-box">
+                            <i class="fa-solid fa-folder-open"></i>
+                        </div>
+                        <span class="pos-side-label">Held List<small>F7</small></span>
+                    </button>
+
+                    <button type="button" class="pos-side-btn btn-side-history" id="btn-sales-history" onclick="openSalesHistoryModal()" title="View Sales History & Print Receipts (F5)">
+                        <div class="pos-side-icon-box">
+                            <i class="fa-solid fa-clock-rotate-left"></i>
+                        </div>
+                        <span class="pos-side-label">History<small>Sales</small></span>
+                    </button>
+
+                    <button type="button" class="pos-side-btn btn-side-clear" id="btn-clear-sale" title="Reset cart items (F8)">
+                        <div class="pos-side-icon-box">
+                            <i class="fa-solid fa-rotate-right"></i>
+                        </div>
+                        <span class="pos-side-label">Clear<small>F8</small></span>
+                    </button>
+
+                    <button type="button" class="pos-side-btn btn-side-cancel" id="btn-cancel-sale" title="Cancel active sale (F9)">
+                        <div class="pos-side-icon-box">
+                            <i class="fa-solid fa-ban"></i>
+                        </div>
+                        <span class="pos-side-label">Cancel<small>F9</small></span>
+                    </button>
+                </div>
+            </aside>
+
+            <!-- Center: Barcode Search & Cart Table -->
             <div class="pos-left">
                 <!-- Barcode & Product Search Box -->
                 <div class="search-box-container">
@@ -899,13 +2769,13 @@
                     <table class="cart-table">
                         <thead>
                             <tr>
-                                <th style="width: 4%;">#</th>
-                                <th style="width: 44%;">Product Item</th>
-                                <th style="width: 15%;">Qty</th>
-                                <th style="width: 12%;">Unit Price</th>
-                                <th style="width: 11%;">Discount</th>
-                                <th style="width: 12%;">Subtotal</th>
-                                <th style="width: 2%; text-align: center;"></th>
+                                <th style="width: 3.5%; text-align: center;">#</th>
+                                <th style="width: 38.5%; text-align: left;">Product Item</th>
+                                <th style="width: 15%; text-align: center;">Qty</th>
+                                <th style="width: 13%; text-align: right;">Unit Price</th>
+                                <th style="width: 14%; text-align: right;">Discount</th>
+                                <th style="width: 12%; text-align: right;">Subtotal</th>
+                                <th style="width: 4%; text-align: center;"></th>
                             </tr>
                         </thead>
                         <tbody id="cart-table-body">
@@ -917,52 +2787,72 @@
 
             <!-- Right Side: Customer & Checkout Panel -->
             <div class="pos-right">
-                <!-- Customer Selection Card -->
-                <div class="customer-card" id="card-customer-selection" onclick="openCustomerModal()" title="Click or press F4 to select customer">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                        <span style="font-size: 0.8rem; color: var(--pos-text-muted); font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em;">CUSTOMER SELECTION</span>
-                        <button type="button" class="btn-customer-change" id="btn-change-customer" onclick="event.stopPropagation(); openCustomerModal();" title="Change Customer (F4)">
-                            <i class="fa-solid fa-user-pen"></i> Change (F4)
-                        </button>
+                <!-- 1. TOP: Total Payable Amount (Bigger Card - Dark Green Luxury) -->
+                <div class="pos-payable-hero-card" id="card-payable-amount">
+                    <div class="payable-hero-top">
+                        <span class="payable-hero-badge"><i class="fa-solid fa-receipt"></i> Total Payable Amount</span>
+                        <span style="font-size: 0.72rem; color: #a7f3d0; font-weight: 800; background: rgba(52, 211, 153, 0.18); padding: 2px 8px; border-radius: 999px; letter-spacing: 0.04em;">DUE NOW</span>
                     </div>
-                    <div style="display: flex; align-items: center; gap: 0.75rem;">
-                        <i class="fa-solid fa-circle-user" style="font-size: 2.3rem; color: var(--pos-primary);"></i>
-                        <div style="flex: 1;">
-                            <div id="cust-disp-name" style="font-weight: 800; font-size: 1.05rem; color: var(--pos-text);">Walk-in Customer</div>
-                            <div id="cust-disp-code" style="font-size: 0.8rem; color: var(--pos-text-muted);">Default POS Customer</div>
-                        </div>
-                        <i class="fa-solid fa-chevron-right" style="color: #94a3b8; font-size: 0.85rem;"></i>
+                    <div class="payable-hero-amount" id="summary-payable">LKR 0.00</div>
+                    <!-- Customer Savings Line inside Top Hero -->
+                    <div id="summary-savings-row" style="display: none;">
+                        <span class="payable-hero-savings">
+                            <i class="fa-solid fa-wand-magic-sparkles"></i> TOTAL SAVINGS: <b id="summary-savings-val">LKR 0.00</b>
+                        </span>
                     </div>
                 </div>
 
-                <!-- Sales Rep Selection Card -->
-                <div class="customer-card" id="card-sales-rep-selection" onclick="openSalesRepModal()" title="Click or press F3 to select Sales Rep" style="margin-top: 0.65rem;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                        <span style="font-size: 0.8rem; color: var(--pos-text-muted); font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em;">SALES REP / SOLD BY</span>
-                        <button type="button" class="btn-customer-change" id="btn-change-sales-rep" onclick="event.stopPropagation(); openSalesRepModal();" title="Change Sales Rep (F3)">
-                            <i class="fa-solid fa-user-tag"></i> Select (F3)
-                        </button>
+                <!-- 2. Total Discount Card (Dark Luxury Rose / Ruby Card) -->
+                <div class="pos-discount-card" id="card-total-discount">
+                    <div class="discount-card-top">
+                        <span class="discount-card-badge"><i class="fa-solid fa-tags"></i> Total Discount</span>
+                        <span class="discount-card-pill">SAVINGS</span>
                     </div>
-                    <div style="display: flex; align-items: center; gap: 0.75rem;">
-                        <i class="fa-solid fa-id-badge" style="font-size: 2.2rem; color: #475569;"></i>
-                        <div style="flex: 1;">
-                            <div id="rep-disp-name" style="font-weight: 800; font-size: 1rem; color: var(--pos-text);">Direct Cashier / None</div>
-                            <div id="rep-disp-code" style="font-size: 0.8rem; color: var(--pos-text-muted);">No Sales Rep Attributed</div>
-                        </div>
-                        <button type="button" id="btn-clear-sales-rep" onclick="event.stopPropagation(); clearSalesRep();" style="display:none; background:none; border:none; color:#ef4444; font-size:1.1rem; cursor:pointer;" title="Clear Sales Rep"><i class="fa-solid fa-xmark"></i></button>
-                        <i class="fa-solid fa-chevron-right" style="color: #94a3b8; font-size: 0.85rem;"></i>
-                    </div>
+                    <div class="discount-card-amount" id="summary-discount-val">- LKR 0.00</div>
                 </div>
 
-                <!-- Order Totals & Discount Card -->
-                <div class="summary-card">
-                    <div class="summary-row">
-                        <span style="color: var(--pos-text-muted); font-weight: 600;">Cart Subtotal</span>
-                        <span id="summary-subtotal" style="font-weight: 800;">LKR 0.00</span>
+                <!-- 3. Breakdown Card (Dark Luxury Midnight Card) -->
+                <div class="pos-breakdown-card" id="card-order-breakdown">
+                    <div class="breakdown-card-header">
+                        <span class="breakdown-title"><i class="fa-solid fa-list-check"></i> Order Breakdown</span>
                     </div>
 
                     <div class="summary-row">
-                        <span style="color: var(--pos-text-muted); font-weight: 600;">Invoice Discount <span style="font-size: 0.72rem; color: #94a3b8; font-weight: 700; font-family: monospace;">(Ctrl+D)</span></span>
+                        <span>Cart Subtotal</span>
+                        <span id="summary-subtotal" style="font-weight: 800; color: #ffffff;">LKR 0.00</span>
+                    </div>
+
+                    <!-- Promo / Coupon Code Input -->
+                    <div class="summary-row" style="margin-top: 2px;">
+                        <span>Promo / Coupon</span>
+                        <div style="display: flex; gap: 4px; align-items: center;">
+                            <input type="text" id="summary-coupon-input" class="item-discount-input" placeholder="Coupon Code" style="width: 90px; text-transform: uppercase; text-align: right;" autocomplete="off" title="Enter Promo / Coupon Code" onkeydown="if(event.key==='Enter'){event.preventDefault();applyCouponCode();}">
+                            <button type="button" id="btn-apply-coupon" onclick="applyCouponCode()" class="btn-qty" style="height: 28px; width: auto; padding: 0 8px; font-size: 11px; font-weight: 700; border-radius: 6px; cursor: pointer;" title="Apply Coupon">Apply</button>
+                        </div>
+                    </div>
+
+                    <!-- Applied Promotions Badges Container -->
+                    <div id="applied-promos-container" style="display: none; padding: 2px 0;">
+                        <div id="applied-promos-badges" style="display: flex; flex-wrap: wrap; gap: 4px;"></div>
+                    </div>
+
+                    <!-- Eligible Promotion Available Banner -->
+                    <div class="summary-row" id="summary-promo-available-row" style="display: none; background: rgba(22, 163, 74, 0.15); border: 1px dashed rgba(74, 222, 128, 0.4); border-radius: 8px; padding: 6px 10px; margin-bottom: 4px; align-items: center; justify-content: space-between;">
+                        <span style="color: #4ade80; font-weight: 700; font-size: 0.8rem;" id="summary-promo-available-text"><i class="fa-solid fa-gift"></i> Promo Available</span>
+                        <button type="button" onclick="promptPromotionModal()" class="btn-qty" style="height: 24px; width: auto; padding: 0 10px; font-size: 11px; font-weight: 800; border-radius: 6px; background: #16a34a; color: #ffffff; border: none; cursor: pointer;">Apply</button>
+                    </div>
+
+                    <!-- Promotional Discounts Line -->
+                    <div class="summary-row" id="summary-promo-row" style="display: none; align-items: center; justify-content: space-between;">
+                        <span style="color: #4ade80; font-weight: 700;"><i class="fa-solid fa-tag fa-xs"></i> Promotion Applied</span>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span id="summary-promo-val" style="color: #4ade80; font-weight: 800;">- LKR 0.00</span>
+                            <span onclick="cancelAppliedPromotion()" style="cursor: pointer; color: #f87171; font-size: 14px; font-weight: 800;" title="Remove Promotion">&times;</span>
+                        </div>
+                    </div>
+
+                    <div class="summary-row">
+                        <span>Invoice Discount <span style="font-size: 0.72rem; color: #64748b; font-weight: 700; font-family: monospace;">(Ctrl+D)</span></span>
                         <input type="text" id="summary-discount-input" class="item-discount-input" placeholder="0 or 10%" style="width: 100px; text-align: right;" autocomplete="off" title="Invoice Discount (Ctrl+D)">
                     </div>
 
@@ -973,43 +2863,21 @@
                             <span id="roundup-text">Add LKR 0.00 to Round total to LKR 0.00</span>
                         </div>
                     </div>
-
-                    <div class="summary-row">
-                        <span style="color: var(--pos-text-muted); font-weight: 600;">Total Discount</span>
-                        <span id="summary-discount-val" style="color: var(--pos-danger); font-weight: 700;">- LKR 0.00</span>
-                    </div>
-
-                    <div class="summary-row summary-row-total">
-                        <span>Payable Amount</span>
-                        <span id="summary-payable">LKR 0.00</span>
-                    </div>
                 </div>
 
-                <!-- POS Action Button Grid -->
-                <div class="action-grid">
-                    <button class="btn-pos-action btn-pos-hold" id="btn-hold-sale" title="Park current invoice line items">
-                        <i class="fa-solid fa-pause fa-lg"></i>
-                        <span>Hold Invoice (F6)</span>
-                    </button>
-
-                    <button class="btn-pos-action btn-pos-held-list" id="btn-view-held" title="View list of parked invoices">
-                        <i class="fa-solid fa-folder-open fa-lg"></i>
-                        <span>Held List (F7)</span>
-                    </button>
-
-                    <button class="btn-pos-action btn-pos-clear" id="btn-clear-sale" title="Reset cart items">
-                        <i class="fa-solid fa-rotate-right fa-lg"></i>
-                        <span>Clear Sale (F8)</span>
-                    </button>
-
-                    <button class="btn-pos-action btn-pos-cancel" id="btn-cancel-sale" title="Cancel active sale">
-                        <i class="fa-solid fa-ban fa-lg"></i>
-                        <span>Cancel Sale (F9)</span>
-                    </button>
-
-                    <button class="btn-pos-action btn-pos-pay" id="btn-proceed-pay" title="Proceed to payment view">
-                        <i class="fa-solid fa-circle-check"></i>
-                        <span>COMPLETE SALE (Enter / F10)</span>
+                <!-- POS Action Button Area -->
+                <div class="checkout-action-area">
+                    <button type="button" class="btn-pos-pay-hero" id="btn-proceed-pay" title="Proceed to payment view (Enter / F10)">
+                        <div class="pay-hero-left">
+                            <div class="pay-hero-icon">
+                                <i class="fa-solid fa-circle-check"></i>
+                            </div>
+                            <div class="pay-hero-text">
+                                <span class="pay-hero-title">COMPLETE SALE</span>
+                                <span class="pay-hero-sub">Enter / F10</span>
+                            </div>
+                        </div>
+                        <i class="fa-solid fa-arrow-right pay-hero-arrow"></i>
                     </button>
                 </div>
             </div>
@@ -1017,17 +2885,40 @@
 
         <!-- Keyboard Shortcut Footer -->
         <footer class="shortcut-bar">
+            <span><span class="sc-tag" style="background: #fee2e2; color: #b91c1c; border-color: #fca5a5;">F1</span> Returns</span>
             <span><span class="sc-tag">Ctrl+S / F2</span> Search</span>
             <span><span class="sc-tag">Ctrl+D</span> Bill Discount</span>
             <span><span class="sc-tag">Tab / +/-</span> Qty Adjust</span>
-            <span><span class="sc-tag">F3</span> Sales Rep</span>
-            <span><span class="sc-tag">F4</span> Customer</span>
             <span><span class="sc-tag">F6</span> Hold</span>
             <span><span class="sc-tag">F7</span> Held List</span>
             <span><span class="sc-tag">F8</span> Clear</span>
             <span><span class="sc-tag">F9</span> Cancel</span>
             <span><span class="sc-tag">F10 / Enter</span> Pay</span>
         </footer>
+    </div>
+
+    <!-- Full-Screen Sales Returns & Exchanges Modal -->
+    <div class="pos-modal" id="modal-pos-returns" style="z-index: 100080; padding: 0;">
+        <div style="width: 100vw; height: 100vh; max-width: 100vw; max-height: 100vh; background: #ffffff; display: flex; flex-direction: column; overflow: hidden; border-radius: 0;">
+            <!-- Modal Header Bar -->
+            <div style="background: #0f172a; color: #ffffff; height: 48px; min-height: 48px; padding: 0 1.25rem; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; box-shadow: 0 2px 10px rgba(0,0,0,0.15);">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <div style="width: 28px; height: 28px; border-radius: 6px; background: rgba(239, 68, 68, 0.2); color: #f87171; display: flex; align-items: center; justify-content: center; font-size: 0.9rem;">
+                        <i class="fa-solid fa-arrow-rotate-left"></i>
+                    </div>
+                    <span style="font-family: 'Outfit', sans-serif; font-weight: 800; font-size: 1rem; color: #ffffff;">Sales Returns & Exchanges</span>
+                    <span style="font-size: 0.72rem; background: rgba(255, 255, 255, 0.12); color: #cbd5e1; padding: 2px 8px; border-radius: 999px; font-weight: 700;">POS Integration</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <span style="font-size: 0.75rem; color: #94a3b8;"><kbd style="background: rgba(255,255,255,0.15); color: #fff; border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; padding: 1px 6px;">Esc</kbd> Close</span>
+                    <button type="button" onclick="closeReturnsModal()" style="background: rgba(255, 255, 255, 0.15); border: none; color: #ffffff; width: 30px; height: 30px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; transition: background 0.15s;" title="Close Returns Modal (Esc)">&times;</button>
+                </div>
+            </div>
+            <!-- Iframe loading the exact existing returns page -->
+            <div style="flex: 1; min-height: 0; position: relative; background: #f8fafc;">
+                <iframe id="pos-returns-iframe" src="" style="width: 100%; height: 100%; border: none;" allow="clipboard-read; clipboard-write"></iframe>
+            </div>
+        </div>
     </div>
 
     <!-- Lot Selector Modal -->
@@ -1056,6 +2947,115 @@
         </div>
     </div>
 
+    <!-- Sales History Modal -->
+    <div class="pos-modal" id="modal-sales-history" style="z-index: 100060;">
+        <div class="pos-modal-content" style="max-width: 1040px; width: 95vw; height: 86vh; max-height: 86vh; padding: 0; border-radius: 20px; overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 25px 60px rgba(15, 23, 42, 0.25); border: 1px solid rgba(226, 232, 240, 0.95);">
+            <!-- Modal Header -->
+            <div style="background: #0f172a; padding: 1.1rem 1.4rem; color: #ffffff; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0;">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <div style="width: 36px; height: 36px; border-radius: 10px; background: rgba(56, 189, 248, 0.2); display: flex; align-items: center; justify-content: center; font-size: 1.05rem; color: #38bdf8;">
+                        <i class="fa-solid fa-clock-rotate-left"></i>
+                    </div>
+                    <div>
+                        <div style="font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: #94a3b8;">POS Operations</div>
+                        <div style="font-family: 'Outfit', sans-serif; font-size: 1.15rem; font-weight: 800; color: #ffffff;">Sales History & Receipts</div>
+                    </div>
+                </div>
+                <button type="button" onclick="closeSalesHistoryModal()" style="background: rgba(255, 255, 255, 0.12); border: none; color: #fff; width: 30px; height: 30px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; transition: background 0.15s;">&times;</button>
+            </div>
+
+            <!-- Toolbar: Date Presets & Real-time Search -->
+            <div style="padding: 0.8rem 1.4rem; background: #f8fafc; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; flex-shrink: 0;">
+                <!-- Date Presets -->
+                <div style="display: flex; align-items: center; gap: 6px;">
+                    <button type="button" class="hist-preset-btn active" id="btn-hist-preset-today" onclick="setSalesHistoryPreset('today')">Today</button>
+                    <button type="button" class="hist-preset-btn" id="btn-hist-preset-yesterday" onclick="setSalesHistoryPreset('yesterday')">Yesterday</button>
+                    <button type="button" class="hist-preset-btn" id="btn-hist-preset-week" onclick="setSalesHistoryPreset('week')">Last 7 Days</button>
+                    <button type="button" class="hist-preset-btn" id="btn-hist-preset-all" onclick="setSalesHistoryPreset('all')">All Sales</button>
+                </div>
+
+                <!-- Search Input & Refresh -->
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <div style="position: relative;">
+                        <i class="fa-solid fa-magnifying-glass" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); font-size: 0.75rem; color: #94a3b8; pointer-events: none;"></i>
+                        <input type="text" id="hist-search-input" placeholder="Search invoice, customer, phone, cashier, payment..." oninput="debounceHistorySearch()" style="height: 34px; border-radius: 999px; border: 1.5px solid #cbd5e1; padding: 0 14px 0 32px; font-size: 0.82rem; font-weight: 600; width: 310px; outline: none; background: #ffffff;">
+                    </div>
+                    <button type="button" onclick="loadSalesHistory(1)" title="Refresh History" style="height: 34px; width: 34px; border-radius: 50%; border: 1.5px solid #cbd5e1; background: #ffffff; color: #475569; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s ease;">
+                        <i class="fa-solid fa-rotate"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Table Container with Internal Scroll & Sticky Header -->
+            <div style="flex: 1; min-height: 0; overflow-y: auto; background: #ffffff;">
+                <table class="sales-hist-table" style="width: 100%; border-collapse: separate; border-spacing: 0;">
+                    <thead>
+                        <tr>
+                            <th style="padding: 10px 14px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.07em; color: #64748b; background: #f8fafc; border-bottom: 1px solid #e2e8f0; position: sticky; top: 0; z-index: 10; text-align: left;">Invoice #</th>
+                            <th style="padding: 10px 14px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.07em; color: #64748b; background: #f8fafc; border-bottom: 1px solid #e2e8f0; position: sticky; top: 0; z-index: 10; text-align: left;">Date & Time</th>
+                            <th style="padding: 10px 14px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.07em; color: #64748b; background: #f8fafc; border-bottom: 1px solid #e2e8f0; position: sticky; top: 0; z-index: 10; text-align: left;">Customer</th>
+                            <th style="padding: 10px 14px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.07em; color: #64748b; background: #f8fafc; border-bottom: 1px solid #e2e8f0; position: sticky; top: 0; z-index: 10; text-align: center;">Items</th>
+                            <th style="padding: 10px 14px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.07em; color: #64748b; background: #f8fafc; border-bottom: 1px solid #e2e8f0; position: sticky; top: 0; z-index: 10; text-align: right;">Total (LKR)</th>
+                            <th style="padding: 10px 14px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.07em; color: #64748b; background: #f8fafc; border-bottom: 1px solid #e2e8f0; position: sticky; top: 0; z-index: 10; text-align: center;">Payment</th>
+                            <th style="padding: 10px 14px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.07em; color: #64748b; background: #f8fafc; border-bottom: 1px solid #e2e8f0; position: sticky; top: 0; z-index: 10; text-align: center;">Status</th>
+                            <th style="padding: 10px 14px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.07em; color: #64748b; background: #f8fafc; border-bottom: 1px solid #e2e8f0; position: sticky; top: 0; z-index: 10; text-align: right;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="sales-history-tbody">
+                        <!-- Populated by JS -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Footer Pagination -->
+            <div style="padding: 0.75rem 1.4rem; background: #f8fafc; border-top: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0;">
+                <div id="hist-page-info" style="font-size: 0.82rem; font-weight: 600; color: #64748b;">
+                    Showing 0 to 0 of 0 sales
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <button type="button" id="btn-hist-prev" onclick="prevSalesHistoryPage()" style="height: 32px; padding: 0 14px; border-radius: 8px; border: 1.5px solid #cbd5e1; background: #ffffff; color: #475569; font-size: 0.78rem; font-weight: 700; cursor: pointer;">
+                        <i class="fa-solid fa-chevron-left me-1"></i> Prev
+                    </button>
+                    <span id="hist-page-num" style="font-size: 0.82rem; font-weight: 800; color: #0f172a; padding: 0 6px;">1</span>
+                    <button type="button" id="btn-hist-next" onclick="nextSalesHistoryPage()" style="height: 32px; padding: 0 14px; border-radius: 8px; border: 1.5px solid #cbd5e1; background: #ffffff; color: #475569; font-size: 0.78rem; font-weight: 700; cursor: pointer;">
+                        Next <i class="fa-solid fa-chevron-right ms-1"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sale Details Modal / Drawer -->
+    <div class="pos-modal" id="modal-sale-details" style="z-index: 100070;">
+        <div class="pos-modal-content" style="max-width: 720px; width: 92vw; max-height: 86vh; padding: 0; border-radius: 20px; overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 25px 60px rgba(15, 23, 42, 0.25); border: 1px solid rgba(226, 232, 240, 0.95);">
+            <div style="background: #0f172a; padding: 1.1rem 1.4rem; color: #ffffff; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0;">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <div style="width: 36px; height: 36px; border-radius: 10px; background: rgba(56, 189, 248, 0.2); display: flex; align-items: center; justify-content: center; font-size: 1.05rem; color: #38bdf8;">
+                        <i class="fa-solid fa-file-invoice"></i>
+                    </div>
+                    <div>
+                        <div style="font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: #94a3b8;">Sale Overview</div>
+                        <div style="font-family: 'Outfit', sans-serif; font-size: 1.15rem; font-weight: 800; color: #ffffff;" id="detail-invoice-title">Invoice #</div>
+                    </div>
+                </div>
+                <button type="button" onclick="closeSaleDetailsModal()" style="background: rgba(255, 255, 255, 0.12); border: none; color: #fff; width: 30px; height: 30px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; transition: background 0.15s;">&times;</button>
+            </div>
+
+            <div style="flex: 1; min-height: 0; overflow-y: auto; padding: 1.25rem 1.4rem; background: #ffffff;" id="sale-details-content">
+                <!-- JS populated -->
+            </div>
+
+            <div style="padding: 0.85rem 1.4rem; background: #f8fafc; border-top: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0;">
+                <button type="button" onclick="closeSaleDetailsModal()" style="height: 38px; padding: 0 16px; border-radius: 10px; border: 1.5px solid #cbd5e1; background: #ffffff; color: #475569; font-weight: 700; cursor: pointer;">
+                    Close
+                </button>
+                <button type="button" id="btn-detail-print" onclick="" class="btn-hist-print" style="height: 38px; padding: 0 18px; font-size: 0.88rem;">
+                    <i class="fa-solid fa-print me-1"></i> Print Receipt
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Offline Sales Sync Queue Modal -->
     <div class="pos-modal" id="modal-offline-sync-queue">
         <div class="pos-modal-content" style="max-width: 800px;">
@@ -1079,92 +3079,8 @@
         </div>
     </div>
 
-    <!-- Enhanced Customer Selector Modal -->
-    <div class="pos-modal" id="modal-customer-selector">
-        <div class="pos-modal-content" style="max-width: 620px;">
-            <div class="pos-modal-header">
-                <span style="font-weight: 800; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">
-                    <i class="fa-solid fa-users" style="color: #0f172a;"></i> Select Customer (F4)
-                </span>
-                <button type="button" style="background: none; border: none; color: var(--pos-text); cursor: pointer; font-size: 1.2rem;" onclick="closeModal('modal-customer-selector')">&times;</button>
-            </div>
-            <div class="pos-modal-body">
-                <div style="display: flex; gap: 8px; margin-bottom: 0.85rem;">
-                    <input type="text" id="cust-search-input" class="search-input" placeholder="Type Name, Phone, Code or Barcode..." style="flex: 1;" autocomplete="off">
-                    <button type="button" class="btn-customer-change" onclick="selectWalkinCustomer()" style="white-space: nowrap; height: 44px; border-radius: 12px; padding: 0 16px;" title="Reset to default Walk-in Customer">
-                        <i class="fa-solid fa-user-clock"></i> Walk-in
-                    </button>
-                </div>
-                <div id="cust-search-results" style="max-height: 380px; overflow-y: auto;">
-                    <!-- JS Populated -->
-                </div>
-            </div>
-        </div>
-    </div>
 
-    <!-- Quick Create Customer Popup Modal -->
-    <div class="pos-modal" id="modal-quick-customer" style="z-index: 100060;">
-        <div class="pos-modal-content" style="max-width: 480px; padding: 0; border-radius: 20px; overflow: hidden; box-shadow: 0 25px 60px rgba(15, 23, 42, 0.25); border: 1px solid rgba(226, 232, 240, 0.95);">
-            <div style="background: #0f172a; padding: 1.15rem 1.4rem; color: #ffffff; display: flex; align-items: center; justify-content: space-between;">
-                <div style="display: flex; align-items: center; gap: 10px;">
-                    <div style="width: 36px; height: 36px; border-radius: 10px; background: rgba(255, 255, 255, 0.12); display: flex; align-items: center; justify-content: center; font-size: 1.05rem; color: #38bdf8;">
-                        <i class="fa-solid fa-user-plus"></i>
-                    </div>
-                    <div>
-                        <div style="font-size: 0.72rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: #94a3b8;">Quick Customer Setup</div>
-                        <div style="font-family: 'Outfit', sans-serif; font-size: 1.15rem; font-weight: 800; color: #ffffff;">Create New Customer</div>
-                    </div>
-                </div>
-                <button type="button" onclick="closeQuickCustomerModal()" style="background: rgba(255, 255, 255, 0.12); border: none; color: #fff; width: 30px; height: 30px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; transition: background 0.15s;">&times;</button>
-            </div>
 
-            <form id="form-quick-customer" onsubmit="event.preventDefault(); submitQuickCustomer();" style="padding: 1.35rem 1.4rem; background: #ffffff;">
-                <div style="display: flex; flex-direction: column; gap: 1rem;">
-                    <div>
-                        <label style="display: block; font-size: 0.78rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: #475569; margin-bottom: 0.35rem;">
-                            Customer Name <span style="color: #dc2626;">*</span>
-                        </label>
-                        <input type="text" id="quick-cust-name" class="search-input" placeholder="Full Name / Customer Name" required autocomplete="off" style="width: 100%; height: 44px; border-radius: 12px; font-size: 0.95rem; font-weight: 600; padding: 0 14px; border: 1.5px solid #cbd5e1;">
-                    </div>
-
-                    <div>
-                        <label style="display: block; font-size: 0.78rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: #475569; margin-bottom: 0.35rem;">
-                            Phone Number (10 Digits)
-                        </label>
-                        <input type="tel" id="quick-cust-phone" class="search-input" placeholder="07XXXXXXXX (10 digits)" maxlength="10" autocomplete="off" style="width: 100%; height: 44px; border-radius: 12px; font-size: 0.95rem; font-weight: 600; padding: 0 14px; border: 1.5px solid #cbd5e1;">
-                    </div>
-
-                    <div>
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
-                            <label style="font-size: 0.78rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: #475569;">
-                                WhatsApp Number (10 Digits)
-                            </label>
-                            <label style="font-size: 0.75rem; color: #0284c7; cursor: pointer; display: flex; align-items: center; gap: 4px; user-select: none;">
-                                <input type="checkbox" id="quick-cust-same-wa" style="cursor: pointer;"> Same as Phone
-                            </label>
-                        </div>
-                        <input type="tel" id="quick-cust-whatsapp" class="search-input" placeholder="07XXXXXXXX (10 digits)" maxlength="10" autocomplete="off" style="width: 100%; height: 44px; border-radius: 12px; font-size: 0.95rem; font-weight: 600; padding: 0 14px; border: 1.5px solid #cbd5e1;">
-                    </div>
-                </div>
-
-                <div id="quick-cust-error" style="display: none; margin-top: 0.85rem; padding: 0.65rem 0.85rem; background: #fee2e2; border: 1px solid #fca5a5; color: #b91c1c; border-radius: 10px; font-size: 0.82rem; font-weight: 600;"></div>
-
-                <div style="display: grid; grid-template-columns: 1fr 1.4fr; gap: 0.75rem; margin-top: 1.25rem;">
-                    <button type="button" onclick="closeQuickCustomerModal()" class="btn-loyalty-choice btn-loyalty-cancel" style="height: 44px; border-radius: 12px; font-weight: 700; border: 1.5px solid #cbd5e1; background: #f8fafc; color: #475569;">
-                        <i class="fa-solid fa-xmark"></i> Cancel (Esc)
-                    </button>
-                    <button type="submit" id="btn-save-quick-cust" class="btn-loyalty-choice btn-loyalty-apply" style="height: 44px; border-radius: 12px; font-weight: 800; background: #0f172a; color: #fff; display: flex; align-items: center; justify-content: center; gap: 8px;">
-                        <i class="fa-solid fa-check"></i> Save & Select (Enter)
-                    </button>
-                </div>
-
-                <div style="display: flex; justify-content: center; gap: 12px; margin-top: 0.85rem; font-size: 0.72rem; color: #94a3b8; font-weight: 600;">
-                    <span><kbd style="background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 4px; padding: 1px 5px; color: #475569;">Enter</kbd> Next Field / Save</span>
-                    <span><kbd style="background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 4px; padding: 1px 5px; color: #475569;">Esc</kbd> Cancel</span>
-                </div>
-            </form>
-        </div>
-    </div>
 
     <!-- Loyalty Customer Detected Prompt Modal -->
     <div class="pos-modal" id="modal-loyalty-prompt" style="z-index: 100050;">
@@ -1215,328 +3131,286 @@
         </div>
     </div>
 
-    <!-- Enhanced Sales Rep Selector Modal -->
-    <div class="pos-modal" id="modal-sales-rep-selector">
-        <div class="pos-modal-content" style="max-width: 620px;">
-            <div class="pos-modal-header">
-                <span style="font-weight: 800; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">
-                    <i class="fa-solid fa-user-tag" style="color: #0f172a;"></i> Select Sales Representative (F3)
-                </span>
-                <button type="button" style="background: none; border: none; color: var(--pos-text); cursor: pointer; font-size: 1.2rem;" onclick="closeModal('modal-sales-rep-selector')">&times;</button>
+    <!-- Promotion Available Confirmation Popup Modal -->
+    <div class="pos-modal" id="modal-promotion-confirm" style="z-index: 100060;">
+        <div class="pos-modal-content" style="max-width: 480px; padding: 0; border-radius: 20px; overflow: hidden; box-shadow: 0 25px 60px rgba(15, 23, 42, 0.22); border: 1px solid rgba(226, 232, 240, 0.95);">
+            <div style="background: #0f172a; padding: 1.25rem 1.5rem; color: #ffffff; display: flex; align-items: center; justify-content: space-between;">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <div style="width: 38px; height: 38px; border-radius: 10px; background: rgba(255, 255, 255, 0.12); display: flex; align-items: center; justify-content: center; font-size: 1.15rem; color: #38bdf8;">
+                        <i class="fa-solid fa-tags"></i>
+                    </div>
+                    <div>
+                        <div style="font-size: 0.72rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: #94a3b8;">Promotion Available</div>
+                        <div style="font-family: 'Outfit', sans-serif; font-size: 1.15rem; font-weight: 800; color: #ffffff;">Eligible Discount Offer</div>
+                    </div>
+                </div>
+                <button type="button" onclick="dismissPromotionPrompt()" style="background: rgba(255, 255, 255, 0.15); border: none; color: #fff; width: 30px; height: 30px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; transition: background 0.15s;">&times;</button>
             </div>
-            <div class="pos-modal-body">
-                <div style="display: flex; gap: 8px; margin-bottom: 0.85rem;">
-                    <input type="text" id="rep-search-input" class="search-input" placeholder="Type Sales Rep Name, Code, Role or Phone..." style="flex: 1;" autocomplete="off">
-                    <button type="button" class="btn-customer-change" onclick="clearSalesRep(); closeModal('modal-sales-rep-selector');" style="white-space: nowrap; height: 44px; border-radius: 12px; padding: 0 16px;" title="No Sales Rep Attributed">
-                        <i class="fa-solid fa-user-xmark"></i> Direct
+
+            <div style="padding: 1.5rem 1.5rem 1.25rem 1.5rem; background: #ffffff;">
+                <div style="background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 14px; padding: 1.15rem; margin-bottom: 1.15rem;">
+                    <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 0.5rem;">
+                        <div>
+                            <div style="font-weight: 800; color: #0f172a; font-size: 1.05rem;" id="promo-modal-title">Special Promotion</div>
+                            <div style="font-size: 0.8rem; color: #64748b; margin-top: 2px;" id="promo-modal-scope">Eligible items in cart</div>
+                        </div>
+                        <span id="promo-modal-savings-badge" style="background: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; font-weight: 900; font-size: 0.82rem; padding: 3px 10px; border-radius: 999px; white-space: nowrap;">Save LKR 0.00</span>
+                    </div>
+                    <div style="font-size: 0.82rem; color: #475569; line-height: 1.45;" id="promo-modal-desc">
+                        A qualifying promotional discount was detected for this bill.
+                    </div>
+                </div>
+
+                <div style="font-size: 0.92rem; color: #334155; font-weight: 600; text-align: center; margin-bottom: 1.25rem;">
+                    Would you like to apply this promotional discount to this bill?
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1.3fr; gap: 0.75rem;">
+                    <button type="button" id="btn-promo-cancel" onclick="dismissPromotionPrompt()" onkeydown="handlePromoButtonKey(event)" style="height: 44px; border-radius: 12px; border: 1.5px solid #cbd5e1; background: #ffffff; color: #475569; font-weight: 800; font-size: 0.88rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; transition: all 0.15s;">
+                        <i class="fa-solid fa-xmark"></i> Cancel (Don't Apply)
+                    </button>
+                    <button type="button" id="btn-promo-apply" onclick="confirmApplyPromotion()" onkeydown="handlePromoButtonKey(event)" style="height: 44px; border-radius: 12px; border: none; background: #0f172a; color: #ffffff; font-weight: 800; font-size: 0.88rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; box-shadow: 0 4px 12px rgba(15, 23, 42, 0.2); transition: all 0.15s;">
+                        <i class="fa-solid fa-check"></i> Apply Discount (Enter)
                     </button>
                 </div>
-                <div id="rep-search-results" style="max-height: 380px; overflow-y: auto;">
-                    <!-- JS Populated -->
+
+                <div style="display: flex; justify-content: center; gap: 12px; margin-top: 0.85rem; font-size: 0.72rem; color: #94a3b8; font-weight: 600;">
+                    <span><kbd style="background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 4px; padding: 1px 5px; color: #475569;">Enter</kbd> Apply</span>
+                    <span><kbd style="background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 4px; padding: 1px 5px; color: #475569;">Esc</kbd> Cancel</span>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Enhanced Dedicated Payment Settlement View / Modal -->
+
+
+    <!-- Enhanced Dedicated Payment Settlement View / Popup Modal Dialog -->
     <div class="pos-modal" id="modal-payment">
-        <div class="pos-modal-content" style="max-width: 680px;">
-            <div class="pos-modal-header" style="display: flex; justify-content: space-between; align-items: center; padding: 0.9rem 1.25rem; border-bottom: 1px solid var(--pos-border);">
-                <div style="display: flex; align-items: center; gap: 8px;">
-                    <span style="display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 8px; background: #0f172a; color: #fff; font-size: 0.9rem;">
+        <div class="pos-modal-content">
+            <!-- Luxury Header -->
+            <div class="pay-popup-header">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <span class="pay-header-icon">
                         <i class="fa-solid fa-cash-register"></i>
                     </span>
-                    <span style="font-weight: 800; font-size: 1.15rem; color: #0f172a;">Payment Settlement</span>
+                    <div>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <h2 style="font-family: 'Outfit', sans-serif; font-weight: 900; font-size: 1.35rem; color: #ffffff; margin: 0; line-height: 1.1;">Payment Settlement</h2>
+                        </div>
+                        <div style="font-size: 0.74rem; color: #94a3b8; margin-top: 2px;">
+                            Select payment method &bull; Enter amount to finalize sale
+                        </div>
+                    </div>
                 </div>
-                <button type="button" style="background: none; border: none; color: var(--pos-text-muted); cursor: pointer; font-size: 1.4rem; line-height: 1;" onclick="closeModal('modal-payment')">&times;</button>
+
+                <div style="display: flex; align-items: center; gap: 14px;">
+                    <div class="pay-header-balance-wrap">
+                        <div style="font-size: 0.65rem; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.06em;">Remaining Due</div>
+                        <div id="pay-modal-remaining" class="pay-header-balance-val">LKR 0.00</div>
+                    </div>
+                    <button type="button" class="btn-payment-close" onclick="closeModal('modal-payment')" title="Return to cart (Esc)">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
             </div>
-            <div class="pos-modal-body" style="padding: 1.1rem 1.25rem; max-height: calc(90vh - 120px); overflow-y: auto;">
-                <!-- 4-Column Invoice Payment Summary Bar -->
-                <div style="background: #f8fafc; border: 1px solid var(--pos-border); border-radius: 12px; padding: 0.85rem 1rem; margin-bottom: 1rem; display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.75rem; text-align: center;">
-                    <div>
-                        <div style="font-size: 0.72rem; color: var(--pos-text-muted); font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em;">Invoice Total</div>
-                        <div id="pay-modal-total" style="font-family: 'Outfit', sans-serif; font-size: 1.25rem; font-weight: 800; color: #0f172a;">LKR 0.00</div>
-                    </div>
-                    <div>
-                        <div style="font-size: 0.72rem; color: var(--pos-text-muted); font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em;">Discounts</div>
-                        <div id="pay-modal-discount" style="font-family: 'Outfit', sans-serif; font-size: 1.25rem; font-weight: 800; color: var(--pos-danger);">- LKR 0.00</div>
-                    </div>
-                    <div>
-                        <div style="font-size: 0.72rem; color: var(--pos-text-muted); font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em;">Allocated / Paid</div>
-                        <div id="lbl-total-allocated" style="font-family: 'Outfit', sans-serif; font-size: 1.25rem; font-weight: 800; color: #0284c7;">LKR 0.00</div>
-                    </div>
-                    <div>
-                        <div style="font-size: 0.72rem; color: var(--pos-text-muted); font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em;">Remaining Due</div>
-                        <div id="pay-modal-remaining" style="font-family: 'Outfit', sans-serif; font-size: 1.35rem; font-weight: 900; color: #dc2626; transition: color .2s;">LKR 0.00</div>
-                    </div>
-                </div>
 
-                <!-- Existing Split Payment Allocations Table Container (Shown when 1+ split added) -->
-                <div id="allocated-payments-container" style="display: none; margin-bottom: 1rem; background: #ffffff; border: 1.5px solid #e2e8f0; border-radius: 12px; overflow: hidden;">
-                    <div style="background: #f1f5f9; padding: 0.5rem 0.85rem; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0;">
-                        <span style="font-size: 0.75rem; font-weight: 800; color: #475569; text-transform: uppercase; letter-spacing: 0.05em;">
-                            <i class="fa-solid fa-list-check me-1"></i> Added Split Allocations (<span id="allocated-count">0</span>)
-                        </span>
-                        <span id="allocated-status-badge" style="font-size: 0.72rem; font-weight: 800; padding: 2px 8px; border-radius: 999px; background: #fef3c7; color: #b45309;">
-                            Partial Payment
+            <!-- Legacy Hidden Elements for Seamless JS Compatibility (User: No need to show total) -->
+            <div style="display: none;">
+                <span id="pay-header-customer"></span>
+                <span id="pay-header-salesrep"></span>
+                <div id="pay-modal-total">LKR 0.00</div>
+                <div id="pay-modal-discount">- LKR 0.00</div>
+                <div id="lbl-total-allocated">LKR 0.00</div>
+                <div id="metric-card-remaining"></div>
+                <div id="lbl-remaining-title"></div>
+                <input type="hidden" id="split-cash-tendered">
+                <span id="split-cash-change-badge"></span>
+            </div>
+
+            <!-- Popup Scrollable Body -->
+            <div class="pay-popup-body">
+                <!-- Payment Method Cards (Dark Luxury Styling) -->
+                <div>
+                    <div style="margin-bottom: 0.45rem;">
+                        <span style="font-size: 0.74rem; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.07em;">
+                            Select Payment Method
                         </span>
                     </div>
-                    <div style="max-height: 125px; overflow-y: auto;">
-                        <table class="cart-table" style="margin: 0; width: 100%;">
-                            <thead>
-                                <tr style="background: #ffffff; border-bottom: 1px solid #f1f5f9;">
-                                    <th style="padding: 6px 12px; font-size: 10.5px; text-align: left;">Method</th>
-                                    <th style="padding: 6px 12px; font-size: 10.5px; text-align: left;">Details / Info</th>
-                                    <th style="padding: 6px 12px; font-size: 10.5px; text-align: right;">Amount (LKR)</th>
-                                    <th style="padding: 6px 12px; font-size: 10.5px; text-align: center; width: 36px;"></th>
-                                </tr>
-                            </thead>
-                            <tbody id="payment-allocations-body">
-                                <!-- JS Populated -->
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
-                <!-- Payment Method Tabs (6 In A Single Row) -->
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
-                    <span style="font-size: 0.8rem; font-weight: 800; color: var(--pos-text-muted); text-transform: uppercase; letter-spacing: 0.04em;">
-                        Select Payment Method
-                    </span>
-                    <span style="font-size: 0.72rem; color: #64748b;">Keyboard: <kbd style="background: #e2e8f0; padding: 1px 4px; border-radius: 4px; font-size: 10px;">←</kbd> <kbd style="background: #e2e8f0; padding: 1px 4px; border-radius: 4px; font-size: 10px;">→</kbd> to switch</span>
-                </div>
-                <div class="pm-grid">
-                    <button type="button" class="payment-method-btn active" data-method="Cash" onclick="switchPaymentMethod('Cash')">
-                        <i class="fa-solid fa-money-bill-wave"></i>
-                        <span>Cash</span>
-                    </button>
-                    <button type="button" class="payment-method-btn" data-method="Card" onclick="switchPaymentMethod('Card')">
-                        <i class="fa-solid fa-credit-card"></i>
-                        <span>Card</span>
-                    </button>
-                    <button type="button" class="payment-method-btn" data-method="Bank" onclick="switchPaymentMethod('Bank')">
-                        <i class="fa-solid fa-building-columns"></i>
-                        <span>Bank</span>
-                    </button>
-                    <button type="button" class="payment-method-btn" data-method="Credit" onclick="switchPaymentMethod('Credit')">
-                        <i class="fa-solid fa-handshake-angle"></i>
-                        <span>Credit</span>
-                    </button>
-                    <button type="button" class="payment-method-btn" data-method="Voucher" onclick="switchPaymentMethod('Voucher')">
-                        <i class="fa-solid fa-ticket"></i>
-                        <span>Voucher</span>
-                    </button>
-                    <button type="button" class="payment-method-btn" data-method="Koko" onclick="switchPaymentMethod('Koko')" style="position: relative;">
-                        <i class="fa-solid fa-qrcode" style="color: #0284c7;"></i>
-                        <span style="font-weight: 800;">Koko</span>
-                        <span style="position: absolute; top: 4px; right: 4px; background: #0284c7; color: #fff; font-size: 8px; font-weight: 900; padding: 1px 4px; border-radius: 4px; text-transform: uppercase;">BNPL</span>
-                    </button>
-                </div>
-
-                <!-- Universal Payment Amount & Specific Method Settings -->
-                <div style="background: #ffffff; border: 1.5px solid var(--pos-border); border-radius: 12px; padding: 1.05rem; margin-bottom: 1rem;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
-                        <label id="lbl-split-amount" for="pay-split-amount-input" style="font-weight: 800; font-size: 0.9rem; color: #0f172a;">
-                            Amount to Pay with <span id="active-method-label" style="color: var(--pos-primary);">Cash</span> (LKR)
-                        </label>
-                        <button type="button" class="btn-quick-cash" onclick="setSplitExactRemaining()" style="font-size: 0.72rem; padding: 2px 8px; border-radius: 6px;">
-                            <i class="fa-solid fa-bolt me-1"></i> Exact Due (<span id="lbl-btn-exact-due">LKR 0.00</span>)
+                    <div class="pm-grid">
+                        <button type="button" class="payment-method-btn active" data-method="Cash" onclick="switchPaymentMethod('Cash')">
+                            <i class="fa-solid fa-money-bill-wave"></i>
+                            <span>Cash</span>
+                        </button>
+                        <button type="button" class="payment-method-btn" data-method="Card" onclick="switchPaymentMethod('Card')">
+                            <i class="fa-solid fa-credit-card"></i>
+                            <span>Card</span>
+                        </button>
+                        <button type="button" class="payment-method-btn" data-method="Bank" onclick="switchPaymentMethod('Bank')">
+                            <i class="fa-solid fa-building-columns"></i>
+                            <span>Bank</span>
+                        </button>
+                        <button type="button" class="payment-method-btn" data-method="Split" onclick="switchPaymentMethod('Split')">
+                            <i class="fa-solid fa-layer-group"></i>
+                            <span>Split</span>
+                            <span class="pm-badge-pill">MULTI</span>
                         </button>
                     </div>
-                    <input type="number" id="pay-split-amount-input" class="search-input" placeholder="0.00" step="0.01" style="font-family: 'Outfit', sans-serif; font-size: 1.6rem; font-weight: 900; text-align: right; padding: 0.55rem 1rem; margin-bottom: 0.75rem;">
+                </div>
 
-                    <!-- Cash Specific Method Details -->
-                    <div id="cash-payment-section">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
-                            <label for="pay-cash-given-input" style="font-weight: 700; font-size: 0.82rem; color: var(--pos-text-muted);">
-                                Cash Tendered by Customer (LKR)
-                            </label>
-                            <span style="font-size: 0.72rem; color: #64748b;">(For calculating balance return)</span>
-                        </div>
-                        <input type="number" id="pay-cash-given-input" class="search-input" placeholder="Enter Tendered Cash..." step="0.01" style="font-family: 'Outfit', sans-serif; font-size: 1.25rem; font-weight: 800; text-align: right; padding: 0.5rem 1rem;">
-                        
-                        <div class="quick-cash-btns" style="margin-top: 0.5rem; margin-bottom: 0.75rem;">
-                            <button type="button" class="btn-quick-cash" onclick="setCashTendered('exact')">Exact Amount</button>
-                            <button type="button" class="btn-quick-cash" onclick="setCashTendered(500)">LKR 500</button>
-                            <button type="button" class="btn-quick-cash" onclick="setCashTendered(1000)">LKR 1,000</button>
-                            <button type="button" class="btn-quick-cash" onclick="setCashTendered(2000)">LKR 2,000</button>
-                            <button type="button" class="btn-quick-cash" onclick="setCashTendered(5000)">LKR 5,000</button>
-                        </div>
-
-                        <!-- Balance Return Banner -->
-                        <div class="balance-banner" style="margin-top: 0.5rem; padding: 0.75rem 1rem;">
-                            <div class="balance-banner-label" style="font-size: 0.75rem;">Cash Balance to Return</div>
-                            <div class="balance-banner-amount" id="pay-change-amount" style="font-size: 1.8rem;">LKR 0.00</div>
-                        </div>
-                    </div>
-
-                    <!-- Card Specific Method Details -->
-                    <div id="card-payment-section" style="display: none;">
-                        <div style="display: flex; align-items: center; gap: 10px; padding: 0.75rem 1rem; background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 10px;">
-                            <div style="width: 38px; height: 38px; border-radius: 8px; background: #eff6ff; color: #2563eb; display: flex; align-items: center; justify-content: center; font-size: 1.1rem;">
-                                <i class="fa-solid fa-credit-card"></i>
-                            </div>
-                            <div>
-                                <div style="font-size: 0.85rem; font-weight: 800; color: #0f172a;">Card Payment Terminal</div>
-                                <div style="font-size: 0.75rem; color: #64748b;">Process card transaction on POS terminal for the allocated amount.</div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Bank Specific Method Details -->
-                    <div id="bank-payment-section" style="display: none;">
-                        <div style="margin-bottom: 0.65rem;">
+                <!-- Single Payment Method Container (Cash / Card / Bank / Credit) -->
+                <div id="single-payment-method-container">
+                    <div class="single-method-content-wrap">
+                        <!-- Centered Amount Input Box -->
+                        <div class="pay-amount-box">
                             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
-                                <label for="pay-bank-account-select" style="font-weight: 700; font-size: 0.82rem; color: var(--pos-text-muted);">
-                                    Destination Bank Account <span style="color: var(--pos-danger);">*</span>
+                                <label id="lbl-split-amount" for="pay-split-amount-input" style="font-weight: 800; font-size: 0.88rem; color: #0f172a; margin: 0;">
+                                    Amount to Pay with <span id="active-method-label" style="color: #0284c7;">Cash</span> (LKR)
                                 </label>
-                                <span style="font-size: 0.72rem; color: var(--pos-danger); font-weight: 700;">Required</span>
-                            </div>
-                            <select id="pay-bank-account-select" class="search-input" style="font-weight: 800; font-size: 0.95rem; padding: 0.65rem 0.85rem; cursor: pointer;">
-                                <option value="">-- Choose Active Bank Account --</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label for="pay-bank-ref-input" style="font-weight: 700; font-size: 0.82rem; color: var(--pos-text-muted); display: block; margin-bottom: 0.35rem;">
-                                Transfer Reference / Slip No <span style="font-weight: normal; font-size: 0.72rem;">(Optional)</span>
-                            </label>
-                            <input type="text" id="pay-bank-ref-input" class="search-input" placeholder="e.g. Slip #49120 or Tx Ref" style="font-size: 0.95rem; font-weight: 700; padding: 0.55rem 0.85rem;">
-                        </div>
-                    </div>
-
-                    <!-- Credit Specific Method Details -->
-                    <div id="credit-payment-section" style="display: none;">
-                        <div id="credit-customer-info" style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 0.75rem 1rem;">
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
-                                <span style="font-size: 0.82rem; font-weight: 800; color: #0f172a;" id="credit-cust-name">Walk-in Customer</span>
-                                <span style="font-size: 0.75rem; font-weight: 700; color: #64748b;" id="credit-cust-phone">-</span>
-                            </div>
-                            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; text-align: center; border-top: 1px dashed #cbd5e1; padding-top: 0.45rem;">
-                                <div>
-                                    <div style="font-size: 0.68rem; color: #64748b; font-weight: 700; text-transform: uppercase;">Credit Limit</div>
-                                    <div id="credit-cust-limit" style="font-size: 0.88rem; font-weight: 800; color: #0f172a;">LKR 0.00</div>
-                                </div>
-                                <div>
-                                    <div style="font-size: 0.68rem; color: #64748b; font-weight: 700; text-transform: uppercase;">Current Balance</div>
-                                    <div id="credit-cust-balance" style="font-size: 0.88rem; font-weight: 800; color: #dc2626;">LKR 0.00</div>
-                                </div>
-                                <div>
-                                    <div style="font-size: 0.68rem; color: #64748b; font-weight: 700; text-transform: uppercase;">Available Credit</div>
-                                    <div id="credit-cust-available" style="font-size: 0.88rem; font-weight: 800; color: #16a34a;">LKR 0.00</div>
-                                </div>
-                            </div>
-                        </div>
-                        <div id="credit-walkin-warning" style="display: none; margin-top: 0.5rem; background: #fee2e2; border: 1px solid #fca5a5; border-radius: 8px; padding: 0.6rem 0.85rem; color: #991b1b; font-size: 0.8rem; font-weight: 700;">
-                            <i class="fa-solid fa-triangle-exclamation me-1"></i> Credit payment is strictly prohibited for Walk-in Customers. Please assign a registered customer first.
-                        </div>
-                    </div>
-
-                    <!-- Voucher Specific Method Details -->
-                    <div id="voucher-payment-section" style="display: none;">
-                        <label for="pay-voucher-code-input" style="font-weight: 700; font-size: 0.82rem; color: var(--pos-text-muted); display: block; margin-bottom: 0.35rem;">
-                            Gift Voucher Barcode / Serial Number <span style="color: var(--pos-danger);">*</span>
-                        </label>
-                        <div style="display: flex; gap: 8px; margin-bottom: 0.5rem;">
-                            <input type="text" id="pay-voucher-code-input" class="search-input" placeholder="Scan or enter gift voucher barcode..." style="font-size: 0.95rem; font-weight: 700; padding: 0.55rem 0.85rem;">
-                            <button type="button" id="btn-verify-voucher" class="btn-pos-action" onclick="verifyVoucherCode()" style="width: auto; padding: 0 1.25rem; font-size: 0.82rem; background: #0f172a; color: #fff; border-radius: 8px; white-space: nowrap;">
-                                <i class="fa-solid fa-magnifying-glass me-1"></i> Verify
-                            </button>
-                        </div>
-                        <div id="voucher-verification-result" style="display: none; padding: 0.55rem 0.85rem; border-radius: 8px; font-size: 0.8rem; font-weight: 700;"></div>
-                    </div>
-
-                    <!-- KOKO BNPL Payment Section -->
-                    <div id="koko-payment-section" style="border: 1.5px solid #0284c7; border-radius: 12px; padding: 0.9rem; margin-top: 0.5rem; display: none;">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; padding-bottom: 0.5rem; border-bottom: 1px solid #e2e8f0;">
-                            <div style="display: flex; align-items: center; gap: 8px;">
-                                <span style="background: #0284c7; color: #ffffff; font-size: 0.72rem; font-weight: 900; padding: 2px 7px; border-radius: 5px;">KOKO BNPL</span>
-                                <span style="font-size: 0.82rem; font-weight: 800; color: #0f172a;">Buy Now Pay in 3 Installments</span>
-                            </div>
-                            <div style="text-align: right;">
-                                <div style="font-size: 0.7rem; font-weight: 700; color: #64748b; text-transform: uppercase;">3x Installments</div>
-                                <div id="koko-installment-amount" style="font-size: 0.92rem; font-weight: 900; color: #0284c7; font-family: 'Outfit', sans-serif;">3 x LKR 0.00</div>
-                            </div>
-                        </div>
-
-                        <!-- Channel Tabs -->
-                        <div style="display: flex; gap: 6px; margin-bottom: 0.75rem; background: #f1f5f9; padding: 4px; border-radius: 10px;">
-                            <button type="button" class="koko-tab-btn active" id="tab-koko-qr" onclick="switchKokoTab('qr')" style="flex: 1; padding: 6px 10px; border-radius: 8px; border: none; font-size: 0.78rem; font-weight: 800; cursor: pointer; background: #0f172a; color: #ffffff; transition: all .15s;">
-                                <i class="fa-solid fa-qrcode me-1"></i> Scan QR
-                            </button>
-                            <button type="button" class="koko-tab-btn" id="tab-koko-link" onclick="switchKokoTab('link')" style="flex: 1; padding: 6px 10px; border-radius: 8px; border: none; font-size: 0.78rem; font-weight: 800; cursor: pointer; background: transparent; color: #475569; transition: all .15s;">
-                                <i class="fa-solid fa-link me-1"></i> Link
-                            </button>
-                            <button type="button" class="koko-tab-btn" id="tab-koko-sms" onclick="switchKokoTab('sms')" style="flex: 1; padding: 6px 10px; border-radius: 8px; border: none; font-size: 0.78rem; font-weight: 800; cursor: pointer; background: transparent; color: #475569; transition: all .15s;">
-                                <i class="fa-solid fa-mobile-screen-button me-1"></i> SMS
-                            </button>
-                        </div>
-
-                        <div id="koko-view-qr" style="text-align: center; padding: 0.35rem 0;">
-                            <div id="koko-qr-box" style="display: inline-block; padding: 8px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; margin-bottom: 0.5rem; min-height: 180px; min-width: 180px;">
-                                <div id="koko-qr-spinner" style="color: #64748b; font-size: 0.85rem; padding: 30px 0;"><i class="fa-solid fa-spinner fa-spin me-1"></i> Generating QR...</div>
-                            </div>
-                        </div>
-
-                        <div id="koko-view-link" style="display: none; padding: 0.35rem 0;">
-                            <div style="display: flex; gap: 6px; margin-bottom: 0.5rem;">
-                                <input type="text" id="koko-link-input" readonly class="search-input" style="font-size: 0.8rem; padding: 0.5rem 0.75rem; background: #f8fafc; font-family: monospace;" value="Generating...">
-                                <button type="button" class="btn-pos-action" onclick="copyKokoLink()" style="width: auto; padding: 0 1rem; font-size: 0.8rem; background: #0f172a; color: #fff; border-radius: 8px;">
-                                    <i class="fa-solid fa-copy me-1"></i> Copy
+                                <button type="button" class="btn-fill-exact" onclick="setSplitExactRemaining()">
+                                    <i class="fa-solid fa-bolt me-1"></i> Exact Due (<span id="lbl-btn-exact-due">LKR 0.00</span>)
                                 </button>
                             </div>
-                            <div style="text-align: right;">
-                                <a id="koko-link-open" href="#" target="_blank" style="font-size: 0.75rem; font-weight: 800; color: #0284c7; text-decoration: none;">
-                                    <i class="fa-solid fa-arrow-up-right-from-square me-1"></i> Open Checkout
-                                </a>
+                            <div class="split-input-wrapper">
+                                <span class="currency-prefix">LKR</span>
+                                <input type="number" id="pay-split-amount-input" class="split-amount-input" placeholder="0.00" step="0.01">
                             </div>
                         </div>
 
-                        <div id="koko-view-sms" style="display: none; padding: 0.35rem 0;">
-                            <div style="display: flex; gap: 6px; margin-bottom: 0.5rem;">
-                                <input type="tel" id="koko-phone-input" class="search-input" placeholder="07XXXXXXXX or +947XXXXXXXX" style="font-size: 0.95rem; font-weight: 700; padding: 0.5rem 0.75rem;">
-                                <button type="button" id="btn-koko-send-sms" class="btn-pos-action" onclick="sendKokoSms()" style="width: auto; padding: 0 1.1rem; font-size: 0.8rem; background: #0284c7; color: #fff; border-radius: 8px;">
-                                    <i class="fa-solid fa-paper-plane me-1"></i> Send
-                                </button>
-                            </div>
-                            <div id="koko-sms-status" style="font-size: 0.72rem; font-weight: 700; color: #64748b;"></div>
-                        </div>
-
-                        <!-- Status & Instant Verification -->
-                        <div style="margin-top: 0.65rem; padding: 0.65rem; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
-                            <div style="display: flex; align-items: center; gap: 8px;">
-                                <span id="koko-status-indicator" style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #eab308; box-shadow: 0 0 8px #eab308;"></span>
-                                <div>
-                                    <div id="koko-status-label" style="font-size: 0.8rem; font-weight: 800; color: #0f172a;">Awaiting Payment...</div>
-                                    <div id="koko-order-ref-lbl" style="font-size: 0.7rem; color: #64748b; font-family: monospace;">Order: -</div>
+                        <!-- Cash Specific Method Details -->
+                        <div id="cash-payment-section">
+                            <div class="pay-amount-box" style="margin-bottom: 0.5rem;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem;">
+                                    <label for="pay-cash-given-input" style="font-weight: 800; font-size: 0.82rem; color: #475569; margin: 0;">
+                                        Cash Tendered by Customer (LKR)
+                                    </label>
+                                    <span style="font-size: 0.72rem; color: #64748b;">(For calculating balance return)</span>
+                                </div>
+                                <div class="split-input-wrapper">
+                                    <span class="currency-prefix">LKR</span>
+                                    <input type="number" id="pay-cash-given-input" class="split-amount-input" placeholder="Enter Tendered Cash..." step="0.01" style="height: 40px; font-size: 1.3rem;">
+                                </div>
+                                
+                                <div class="quick-cash-btns" style="margin-top: 0.45rem;">
+                                    <button type="button" class="btn-quick-cash" onclick="setCashTendered('exact')">Exact Amount</button>
+                                    <button type="button" class="btn-quick-cash" onclick="setCashTendered(500)">LKR 500</button>
+                                    <button type="button" class="btn-quick-cash" onclick="setCashTendered(1000)">LKR 1,000</button>
+                                    <button type="button" class="btn-quick-cash" onclick="setCashTendered(2000)">LKR 2,000</button>
+                                    <button type="button" class="btn-quick-cash" onclick="setCashTendered(5000)">LKR 5,000</button>
                                 </div>
                             </div>
-                            <div style="display: flex; gap: 6px;">
-                                <button type="button" class="btn-pos-action" onclick="checkKokoStatusManual()" style="width: auto; padding: 4px 10px; font-size: 0.72rem; background: #ffffff; color: #0f172a; border: 1px solid #cbd5e1; border-radius: 8px;">
-                                    <i class="fa-solid fa-rotate me-1"></i> Check
-                                </button>
-                                <button type="button" id="btn-koko-verify-instant" class="btn-pos-action" onclick="verifyKokoInstant()" style="width: auto; padding: 4px 12px; font-size: 0.72rem; background: #16a34a; color: #fff; border-radius: 8px;">
-                                    <i class="fa-solid fa-check-circle me-1"></i> Verify
-                                </button>
+
+                            <!-- Balance Return Banner -->
+                            <div class="balance-banner" style="margin-top: 0; padding: 0.65rem 1rem;">
+                                <div class="balance-banner-label" style="font-size: 0.74rem;">Cash Balance to Return</div>
+                                <div class="balance-banner-amount" id="pay-change-amount" style="font-size: 1.6rem; color: #15803d;">LKR 0.00</div>
+                            </div>
+                        </div>
+
+                        <!-- Card Specific Method Details -->
+                        <div id="card-payment-section" style="display: none;">
+                            <div style="display: flex; align-items: center; gap: 12px; padding: 0.85rem 1.15rem; background: #eff6ff; border: 1.5px solid #bfdbfe; border-radius: 14px;">
+                                <div style="width: 40px; height: 40px; border-radius: 10px; background: #dbeafe; color: #1d4ed8; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; flex-shrink: 0;">
+                                    <i class="fa-solid fa-credit-card"></i>
+                                </div>
+                                <div>
+                                    <div style="font-size: 0.88rem; font-weight: 800; color: #1e3a8a;">Card Payment Terminal</div>
+                                    <div style="font-size: 0.78rem; color: #2563eb; line-height: 1.4;">Process the allocated amount on the merchant bank card terminal, then finalize.</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Bank Specific Method Details -->
+                        <div id="bank-payment-section" style="display: none;">
+                            <div class="pay-amount-box">
+                                <div style="margin-bottom: 0.55rem;">
+                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem;">
+                                        <label for="pay-bank-account-select" style="font-weight: 800; font-size: 0.82rem; color: #475569; margin: 0;">
+                                            Destination Bank Account <span style="color: #dc2626;">*</span>
+                                        </label>
+                                        <span style="font-size: 0.72rem; color: #dc2626; font-weight: 700;">Required</span>
+                                    </div>
+                                    <select id="pay-bank-account-select" class="split-select-input" style="width: 100%; height: 38px; font-weight: 700; cursor: pointer; font-size: 0.84rem;">
+                                        <option value="">-- Choose Active Bank Account --</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label for="pay-bank-ref-input" style="font-weight: 800; font-size: 0.82rem; color: #475569; display: block; margin-bottom: 0.25rem;">
+                                        Transfer Reference / Slip No <span style="font-weight: normal; font-size: 0.72rem; color: #64748b;">(Optional)</span>
+                                    </label>
+                                    <input type="text" id="pay-bank-ref-input" class="split-select-input" placeholder="e.g. Slip #49120 or Tx Ref" style="width: 100%; height: 38px; font-size: 0.84rem;">
+                                </div>
                             </div>
                         </div>
                     </div>
+                </div>
 
-                    <!-- Split Payment Action Bar -->
-                    <div style="margin-top: 0.85rem; padding-top: 0.75rem; border-top: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center;">
-                        <span style="font-size: 0.75rem; color: #64748b;">
-                            <i class="fa-solid fa-circle-info me-1"></i> Paying partially? Add this amount to split.
-                        </span>
-                        <button type="button" id="btn-add-split-line" class="btn-header-action" onclick="addSplitPaymentLine()" style="background: #eff6ff; color: #1d4ed8; border: 1.5px solid #bfdbfe; font-size: 0.82rem; font-weight: 800; padding: 0.5rem 1.1rem; border-radius: 8px; cursor: pointer; transition: all .15s;">
-                            <i class="fa-solid fa-plus-circle me-1"></i> Add to Split (<span id="btn-split-amt-lbl">LKR 0.00</span>)
-                        </button>
+                <!-- Dedicated Multi-Method Split Payment Section -->
+                <div id="split-multi-payment-section" style="display: none;">
+                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.65rem;">
+                        <!-- Card 1: Cash (Ultra-Clean - Text & Buttons Removed on Split) -->
+                        <div class="split-card" style="border-top: 4px solid #10b981;">
+                            <div class="split-card-header">
+                                <span class="split-card-title"><i class="fa-solid fa-money-bill-wave" style="color: #10b981;"></i> Cash Amount</span>
+                                <button type="button" class="btn-fill-exact" onclick="fillSplitField('split-cash-amount')">Fill Remaining</button>
+                            </div>
+                            <div class="split-input-wrapper">
+                                <span class="currency-prefix">LKR</span>
+                                <input type="number" id="split-cash-amount" class="split-amount-input" placeholder="0.00" step="0.01" style="height: 38px; font-size: 1.25rem;">
+                            </div>
+                        </div>
+
+                        <!-- Card 2: Card (Ultra-Clean - Prompt Text Removed on Split) -->
+                        <div class="split-card" style="border-top: 4px solid #3b82f6;">
+                            <div class="split-card-header">
+                                <span class="split-card-title"><i class="fa-solid fa-credit-card" style="color: #3b82f6;"></i> Card Amount</span>
+                                <button type="button" class="btn-fill-exact" onclick="fillSplitField('split-card-amount')">Fill Remaining</button>
+                            </div>
+                            <div class="split-input-wrapper">
+                                <span class="currency-prefix">LKR</span>
+                                <input type="number" id="split-card-amount" class="split-amount-input" placeholder="0.00" step="0.01" style="height: 38px; font-size: 1.25rem;">
+                            </div>
+                        </div>
+
+                        <!-- Card 3: Bank Transfer -->
+                        <div class="split-card" style="border-top: 4px solid #6366f1;">
+                            <div class="split-card-header">
+                                <span class="split-card-title"><i class="fa-solid fa-building-columns" style="color: #6366f1;"></i> Bank Transfer</span>
+                                <button type="button" class="btn-fill-exact" onclick="fillSplitField('split-bank-amount')">Fill Remaining</button>
+                            </div>
+                            <div class="split-input-wrapper">
+                                <span class="currency-prefix">LKR</span>
+                                <input type="number" id="split-bank-amount" class="split-amount-input" placeholder="0.00" step="0.01" style="height: 38px; font-size: 1.25rem;">
+                            </div>
+                            <!-- Dynamic bank details: Shown ONLY when split-bank-amount > 0 -->
+                            <div id="split-bank-details" style="display: none; margin-top: 0.35rem; padding: 0.45rem 0.65rem; background: #eef2ff; border: 1.5px solid #c7d2fe; border-radius: 10px;">
+                                <label for="split-bank-account-select" style="font-size: 0.72rem; font-weight: 800; color: #3730a3; display: block; margin-bottom: 0.2rem;">
+                                    Destination Bank Account <span style="color: #dc2626;">*</span>
+                                </label>
+                                <select id="split-bank-account-select" class="split-select-input" style="width: 100%; height: 32px; margin-bottom: 0.35rem; font-weight: 700; font-size: 0.78rem;">
+                                    <option value="">-- Choose Active Bank Account --</option>
+                                </select>
+                                <input type="text" id="split-bank-ref-input" class="split-select-input" placeholder="Transfer Ref / Slip No (Optional)" style="width: 100%; height: 30px; font-size: 0.78rem;">
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
-            <div class="pos-modal-footer" style="display: flex; justify-content: space-between; align-items: center; padding: 0.85rem 1.25rem;">
-                <button type="button" class="btn-header-action" onclick="closeModal('modal-payment')">Back (Esc)</button>
+
+            <!-- Fixed Bottom Control Bar (Ultra-Clean Layout) -->
+            <div class="pay-popup-footer">
+                <button type="button" class="btn-payment-cancel" onclick="closeModal('modal-payment')">
+                    <i class="fa-solid fa-arrow-left me-1"></i> Back to Cart
+                </button>
+
                 <div style="display: flex; align-items: center; gap: 10px;">
-                    <button type="button" class="btn-pos-action btn-pos-pay" id="btn-finalize-sale" onclick="finalizeSale()" style="width: auto; grid-column: auto; padding: 0.75rem 2.2rem; font-size: 1.05rem; border-radius: 10px; font-weight: 800;">
-                        <i class="fa-solid fa-check-circle me-1"></i> CONFIRM PAYMENT (Enter)
+                    <button type="button" class="btn-pay-action btn-pay-whatsapp" id="btn-save-whatsapp-sale" onclick="finalizeSale('whatsapp')" title="Save Bill and send via WhatsApp (Alt + Enter)">
+                        <i class="fa-brands fa-whatsapp" style="font-size: 1.2rem;"></i>
+                        <span>Save & WhatsApp</span>
+                    </button>
+
+                    <button type="button" class="btn-pay-action btn-pay-print" id="btn-save-print-sale" onclick="finalizeSale('print')" title="Save Bill and print receipt (Ctrl + Enter)">
+                        <i class="fa-solid fa-print" style="font-size: 1.15rem;"></i>
+                        <span>Save & Print Bill</span>
                     </button>
                 </div>
             </div>
@@ -1591,6 +3465,7 @@
 
     <!-- JS POS Billing Engine -->
     <script src="assets/js/offline_pos.js"></script>
+    <script src="assets/js/qrcode.min.js"></script>
     <script>
         const DEFAULT_LOYALTY_DISCOUNT_PERCENTAGE = <?= json_encode((float)Settings::get('loyalty_discount_percentage', '5.00')) ?>;
 
@@ -1779,190 +3654,34 @@
             if (codeEl) codeEl.innerText = currentCustomer.card_barcode ? `Card: ${currentCustomer.card_barcode}` : (currentCustomer.phone ? `Phone: ${currentCustomer.phone}` : currentCustomer.customer_code);
         }
 
-        function updateSalesRepDisplay() {
-            const nameEl = document.getElementById('rep-disp-name');
-            const codeEl = document.getElementById('rep-disp-code');
-            const clearBtn = document.getElementById('btn-clear-sales-rep');
-            if (currentSalesRep) {
-                if (nameEl) nameEl.innerText = currentSalesRep.full_name;
-                if (codeEl) codeEl.innerText = `${currentSalesRep.employee_code} (${currentSalesRep.job_role || 'Sales Rep'})`;
-                if (clearBtn) clearBtn.style.display = 'inline-block';
-            } else {
-                if (nameEl) nameEl.innerText = 'Direct Cashier / None';
-                if (codeEl) codeEl.innerText = 'No Sales Rep Attributed';
-                if (clearBtn) clearBtn.style.display = 'none';
-            }
-        }
+        function updateSalesRepDisplay() {}
+        function clearSalesRep() { currentSalesRep = null; }
+        function selectSalesRep(rep) { currentSalesRep = null; }
+        function selectSalesRepByIndex(idx) {}
+        function openSalesRepModal() {}
+        function performSalesRepSearch(q) {}
+        function updateSalesRepHighlight() {}
+        function renderSalesRepSearchResults(reps) {}
 
-        function clearSalesRep() {
-            currentSalesRep = null;
-            updateSalesRepDisplay();
-            closeModal('modal-sales-rep-selector');
-            setTimeout(() => {
-                searchInput.focus();
-                searchInput.select();
-            }, 60);
-        }
-
-        function selectSalesRep(rep) {
-            currentSalesRep = rep;
-            updateSalesRepDisplay();
-            closeModal('modal-sales-rep-selector');
-            setTimeout(() => {
-                searchInput.focus();
-                searchInput.select();
-            }, 60);
-        }
-
-        function selectSalesRepByIndex(idx) {
-            if (currentSearchReps && currentSearchReps[idx]) {
-                selectSalesRep(currentSearchReps[idx]);
-            }
-        }
-
-        function openSalesRepModal() {
-            openModal('modal-sales-rep-selector');
-            const repInput = document.getElementById('rep-search-input');
-            if (repInput) {
-                repInput.value = '';
-                performSalesRepSearch('');
-                setTimeout(() => {
-                    repInput.focus();
-                    repInput.select();
-                }, 100);
-            }
-        }
-
-        async function performSalesRepSearch(q) {
-            q = (q || '').trim();
-            try {
-                let reps = [];
-                let onlineSuccess = false;
-
-                if (navigator.onLine) {
-                    try {
-                        const res = await fetch(`pos_api.php?action=search_sales_reps&q=${encodeURIComponent(q)}`);
-                        const data = await res.json();
-                        if (data.success && Array.isArray(data.data)) {
-                            reps = data.data;
-                            onlineSuccess = true;
-                        }
-                    } catch (e) {
-                        console.warn("Online sales rep search failed, falling back to cache", e);
-                    }
-                }
-
-                if (!onlineSuccess && typeof CurtissOfflinePOS !== 'undefined') {
-                    const cached = await CurtissOfflinePOS.getCachedData('sales_reps');
-                    if (cached && cached.length > 0) {
-                        if (!q) {
-                            reps = cached;
-                        } else {
-                            const qLower = q.toLowerCase();
-                            reps = cached.filter(r =>
-                                (r.full_name && r.full_name.toLowerCase().includes(qLower)) ||
-                                (r.employee_code && r.employee_code.toLowerCase().includes(qLower)) ||
-                                (r.phone && r.phone.includes(qLower))
-                            );
-                        }
-                    }
-                }
-
-                currentSearchReps = reps;
-                selectedRepIndex = reps.length > 0 ? 0 : -1;
-                renderSalesRepSearchResults(currentSearchReps);
-            } catch (err) {
-                console.error("Sales rep search error:", err);
-            }
-        }
-
-        function updateSalesRepHighlight() {
-            const cards = document.querySelectorAll('#rep-search-results .cust-item-card');
-            cards.forEach((card, idx) => {
-                if (idx === selectedRepIndex) {
-                    card.classList.add('selected');
-                    card.scrollIntoView({ block: 'nearest' });
-                } else {
-                    card.classList.remove('selected');
-                }
-            });
-        }
-
-        function renderSalesRepSearchResults(reps) {
-            const container = document.getElementById('rep-search-results');
-            if (!container) return;
-            if (!reps || reps.length === 0) {
-                container.innerHTML = '<div style="text-align:center; padding:1.5rem; color: var(--pos-text-muted); font-weight: 600;">No active branch sales representatives found.</div>';
-                return;
-            }
-
-            let html = '';
-            reps.forEach((r, idx) => {
-                const isSelected = idx === selectedRepIndex ? 'selected' : '';
-                const isCurrent = currentSalesRep && currentSalesRep.id == r.id;
-                html += `
-                    <div class="cust-item-card ${isSelected}" data-index="${idx}" onclick="selectSalesRepByIndex(${idx})" style="border: 1px solid ${isCurrent ? '#0f172a' : 'var(--pos-border)'};">
-                        <div>
-                            <div style="font-weight: 800; color: var(--pos-text); font-size: 1rem; display: flex; align-items: center; gap: 6px;">
-                                ${escapeHtml(r.full_name)} <span style="font-size: 0.78rem; font-weight: 700; color: #64748b;">(${escapeHtml(r.employee_code || '')})</span>
-                                ${isCurrent ? '<span style="font-size:0.68rem; background:#dcfce7; color:#15803d; padding:2px 8px; border-radius:999px; font-weight:800;">SELECTED</span>' : ''}
-                            </div>
-                            <div style="font-size: 0.8rem; color: var(--pos-text-muted); margin-top: 3px;">
-                                Role: <strong>${escapeHtml(r.job_role || 'Sales Rep')}</strong> | Phone: <strong>${escapeHtml(r.phone || 'N/A')}</strong>
-                            </div>
-                        </div>
-                        <button class="btn-customer-select" type="button">Select</button>
-                    </div>
-                `;
-            });
-            container.innerHTML = html;
-        }
-
-        const repInputElem = document.getElementById('rep-search-input');
-        if (repInputElem) {
-            repInputElem.addEventListener('input', (e) => {
-                clearTimeout(repSearchTimer);
-                const q = e.target.value;
-                repSearchTimer = setTimeout(() => {
-                    performSalesRepSearch(q);
-                }, 60);
-            });
-
-            repInputElem.addEventListener('keydown', (e) => {
-                if (currentSearchReps.length > 0) {
-                    if (e.key === 'ArrowDown') {
-                        e.preventDefault();
-                        selectedRepIndex = (selectedRepIndex + 1) % currentSearchReps.length;
-                        updateSalesRepHighlight();
-                    } else if (e.key === 'ArrowUp') {
-                        e.preventDefault();
-                        selectedRepIndex = (selectedRepIndex - 1 + currentSearchReps.length) % currentSearchReps.length;
-                        updateSalesRepHighlight();
-                    } else if (e.key === 'Enter') {
-                        e.preventDefault();
-                        if (selectedRepIndex >= 0 && currentSearchReps[selectedRepIndex]) {
-                            selectSalesRepByIndex(selectedRepIndex);
-                        } else {
-                            closeModal('modal-sales-rep-selector');
-                            setTimeout(() => {
-                                searchInput.focus();
-                                searchInput.select();
-                            }, 60);
-                        }
-                    }
-                } else if (e.key === 'Enter') {
-                    e.preventDefault();
-                    closeModal('modal-sales-rep-selector');
-                    setTimeout(() => {
-                        searchInput.focus();
-                        searchInput.select();
-                    }, 60);
-                }
-            });
-        }
-
-        // --- HYBRID ONLINE/OFFLINE REAL-TIME PRODUCT SEARCH ENGINE ---
+        // --- HIGH-SPEED ONLINE/OFFLINE REAL-TIME PRODUCT SEARCH ENGINE ---
         let productSearchTimer = null;
+        let activeProductSearchId = 0;
+        const productSearchCache = new Map();
+
+        function getCachedProductSearch(q) {
+            const key = String(q || '').trim().toLowerCase();
+            return productSearchCache.has(key) ? productSearchCache.get(key) : null;
+        }
+
+        function setCachedProductSearch(q, products) {
+            const key = String(q || '').trim().toLowerCase();
+            if (!key) return;
+            if (productSearchCache.size > 250) {
+                const first = productSearchCache.keys().next().value;
+                productSearchCache.delete(first);
+            }
+            productSearchCache.set(key, products);
+        }
 
         async function performProductSearch(val) {
             val = val.trim();
@@ -1970,6 +3689,17 @@
                 searchDropdown.style.display = 'none';
                 currentSearchProducts = [];
                 selectedSearchIndex = -1;
+                return;
+            }
+
+            const searchId = ++activeProductSearchId;
+
+            // Instant in-memory cache hit (0ms round-trip)
+            const cachedMatch = getCachedProductSearch(val);
+            if (cachedMatch) {
+                currentSearchProducts = cachedMatch;
+                selectedSearchIndex = cachedMatch.length > 0 ? 0 : -1;
+                renderSearchResults(currentSearchProducts);
                 return;
             }
 
@@ -1981,9 +3711,11 @@
                     try {
                         const res = await fetch(`pos_api.php?action=search_products&q=${encodeURIComponent(val)}`);
                         const data = await res.json();
+                        if (searchId !== activeProductSearchId) return; // Stale response discarded
                         if (data.success && Array.isArray(data.data)) {
                             products = data.data;
                             onlineSuccess = true;
+                            setCachedProductSearch(val, products);
                         }
                     } catch (e) {
                         console.warn("Online search failed, using local offline cache", e);
@@ -1992,6 +3724,7 @@
 
                 // Fallback to local IndexedDB cache ONLY if offline / network fetch failed
                 if (!onlineSuccess && typeof CurtissOfflinePOS !== 'undefined') {
+                    if (searchId !== activeProductSearchId) return;
                     const cached = await CurtissOfflinePOS.getCachedData('products');
                     const cachedLots = await CurtissOfflinePOS.getCachedData('lots') || [];
                     if (cached && cached.length > 0) {
@@ -2004,8 +3737,21 @@
 
                         if (matched.length > 0) {
                             products = matched.map(p => {
-                                const prodLots = cachedLots.filter(l => l.product_id == p.id && parseFloat(l.remaining_quantity || 0) > 0);
+                                const prodLots = cachedLots.filter(l => l.product_id == p.id);
                                 const totalStock = prodLots.reduce((sum, l) => sum + parseFloat(l.remaining_quantity || 0), 0);
+                                const defaultLots = prodLots.length > 0 ? prodLots.map(l => ({
+                                    lot_id: parseInt(l.id),
+                                    lot_number: l.lot_number,
+                                    product_id: parseInt(l.product_id),
+                                    selling_price: parseFloat(l.selling_price),
+                                    remaining_quantity: parseFloat(l.remaining_quantity)
+                                })) : [{
+                                    lot_id: 0,
+                                    lot_number: 'LOT-AUTO',
+                                    product_id: parseInt(p.id),
+                                    selling_price: parseFloat(p.selling_price || 0),
+                                    remaining_quantity: 0
+                                }];
                                 return {
                                     product_id: parseInt(p.id),
                                     sku: p.sku,
@@ -2016,27 +3762,16 @@
                                     brand_name: 'Store Product',
                                     category_name: 'General',
                                     total_branch_stock: totalStock,
-                                    lots: prodLots.map(l => ({
-                                        lot_id: parseInt(l.id),
-                                        lot_number: l.lot_number,
-                                        product_id: parseInt(l.product_id),
-                                        selling_price: parseFloat(l.selling_price),
-                                        remaining_quantity: parseFloat(l.remaining_quantity)
-                                    })),
-                                    active_lots_count: prodLots.length,
-                                    auto_selected_lot: prodLots.length > 0 ? {
-                                        lot_id: parseInt(prodLots[0].id),
-                                        lot_number: prodLots[0].lot_number,
-                                        product_id: parseInt(prodLots[0].product_id),
-                                        selling_price: parseFloat(prodLots[0].selling_price),
-                                        remaining_quantity: parseFloat(prodLots[0].remaining_quantity)
-                                    } : null
+                                    lots: defaultLots,
+                                    active_lots_count: defaultLots.length,
+                                    auto_selected_lot: defaultLots[0]
                                 };
                             });
                         }
                     }
                 }
 
+                if (searchId !== activeProductSearchId) return;
                 currentSearchProducts = products;
                 selectedSearchIndex = products.length > 0 ? 0 : -1;
                 renderSearchResults(currentSearchProducts);
@@ -2059,13 +3794,13 @@
             });
         }
 
-        // Paste event listener for direct barcode pasting (Ctrl+V or Context Menu Paste)
+        // Paste event listener for direct instant barcode pasting
         searchInput.addEventListener('paste', (e) => {
             const pastedText = (e.clipboardData || window.clipboardData).getData('text');
             if (pastedText && pastedText.trim().length > 0) {
-                setTimeout(() => {
-                    handleBarcodeOrSearchSubmit(pastedText.trim());
-                }, 50);
+                e.preventDefault();
+                searchInput.value = pastedText.trim();
+                handleBarcodeOrSearchSubmit(pastedText.trim());
             }
         });
 
@@ -2094,7 +3829,7 @@
                         searchInput.focus();
                     }
                 }
-            }, 50);
+            }, 40);
         });
 
         searchInput.addEventListener('focus', () => {
@@ -2104,10 +3839,30 @@
         });
 
         searchInput.addEventListener('keydown', async (e) => {
-            // Guard: If lot modal or any overlay modal is open, ignore searchInput key navigation
-            if (document.getElementById('modal-lot-selector').classList.contains('active') ||
-                document.getElementById('modal-payment').classList.contains('active') ||
-                document.getElementById('modal-invoice-complete').classList.contains('active')) {
+            // Guard: If any overlay modal is open, delegate or ignore searchInput key navigation
+            const anyActiveModal = document.querySelector('.pos-modal.active');
+            if (anyActiveModal) {
+                const promoModal = document.getElementById('modal-promotion-confirm');
+                if (promoModal && promoModal.classList.contains('active')) {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (promoChoiceIndex === 1) confirmApplyPromotion();
+                        else dismissPromotionPrompt();
+                        return;
+                    } else if (e.key === 'Escape') {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        dismissPromotionPrompt();
+                        return;
+                    } else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'Tab') {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        promoChoiceIndex = (promoChoiceIndex === 1) ? 0 : 1;
+                        updatePromoChoiceHighlight();
+                        return;
+                    }
+                }
                 return;
             }
 
@@ -2170,6 +3925,9 @@
             if (e.key === 'Enter') {
                 e.preventDefault();
                 e.stopPropagation();
+                if (Date.now() - lastModalClosedTime < 450) {
+                    return;
+                }
                 clearTimeout(productSearchTimer);
                 const val = searchInput.value.trim();
                 if (!val) {
@@ -2217,8 +3975,21 @@
 
                         if (matched.length > 0) {
                             products = matched.map(p => {
-                                const prodLots = cachedLots.filter(l => l.product_id == p.id && parseFloat(l.remaining_quantity || 0) > 0);
+                                const prodLots = cachedLots.filter(l => l.product_id == p.id);
                                 const totalStock = prodLots.reduce((sum, l) => sum + parseFloat(l.remaining_quantity || 0), 0);
+                                const defaultLots = prodLots.length > 0 ? prodLots.map(l => ({
+                                    lot_id: parseInt(l.id),
+                                    lot_number: l.lot_number,
+                                    product_id: parseInt(l.product_id),
+                                    selling_price: parseFloat(l.selling_price),
+                                    remaining_quantity: parseFloat(l.remaining_quantity)
+                                })) : [{
+                                    lot_id: 0,
+                                    lot_number: 'LOT-AUTO',
+                                    product_id: parseInt(p.id),
+                                    selling_price: parseFloat(p.selling_price || 0),
+                                    remaining_quantity: 0
+                                }];
                                 return {
                                     product_id: parseInt(p.id),
                                     sku: p.sku,
@@ -2229,21 +4000,9 @@
                                     brand_name: 'Store Product',
                                     category_name: 'General',
                                     total_branch_stock: totalStock,
-                                    lots: prodLots.map(l => ({
-                                        lot_id: parseInt(l.id),
-                                        lot_number: l.lot_number,
-                                        product_id: parseInt(l.product_id),
-                                        selling_price: parseFloat(l.selling_price),
-                                        remaining_quantity: parseFloat(l.remaining_quantity)
-                                    })),
-                                    active_lots_count: prodLots.length,
-                                    auto_selected_lot: prodLots.length > 0 ? {
-                                        lot_id: parseInt(prodLots[0].id),
-                                        lot_number: prodLots[0].lot_number,
-                                        product_id: parseInt(prodLots[0].product_id),
-                                        selling_price: parseFloat(prodLots[0].selling_price),
-                                        remaining_quantity: parseFloat(prodLots[0].remaining_quantity)
-                                    } : null
+                                    lots: defaultLots,
+                                    active_lots_count: defaultLots.length,
+                                    auto_selected_lot: defaultLots[0]
                                 };
                             });
                         }
@@ -2366,47 +4125,56 @@
             // Filter available lots on branch with positive remaining stock
             const availableLots = (product.lots || []).filter(l => parseFloat(l.remaining_quantity) > 0);
 
-            if (product.active_lots_count === 0 && availableLots.length === 0 && parseFloat(product.total_branch_stock || 0) <= 0) {
-                alert(`Product "${product.product_name}" has no available stock in this branch.`);
+            if (availableLots.length > 1) {
+                showAutomaticLotModal(product, availableLots);
+                return;
+            } else if (availableLots.length === 1) {
+                addItemToCartWithLot(product, availableLots[0]);
                 return;
             }
 
-            // If product already has available lots attached from search
-            if (availableLots.length > 0) {
-                if (availableLots.length > 1) {
-                    showAutomaticLotModal(product, availableLots);
-                } else {
-                    addItemToCartWithLot(product, availableLots[0]);
-                }
+            // Fallback for zero-stock product: use attached fallback lot or auto-selected lot
+            if (product.lots && product.lots.length > 0) {
+                addItemToCartWithLot(product, product.lots[0]);
                 return;
             }
 
-            // Always fetch/check active lots with available stock for this product if not already attached
+            if (product.auto_selected_lot) {
+                addItemToCartWithLot(product, product.auto_selected_lot);
+                return;
+            }
+
+            // Fetch lots from server (backend returns fallback lot for 0-stock products)
             fetch(`pos_api.php?action=get_product_lots&product_id=${product.product_id}`)
                 .then(res => res.json())
                 .then(res => {
                     if (res.success && res.data && res.data.length > 0) {
-                        const lots = res.data.filter(l => parseFloat(l.remaining_quantity) > 0);
-                        product.lots = lots;
-
-                        if (lots.length > 1) {
-                            showAutomaticLotModal(product, lots);
-                        } else if (lots.length === 1) {
-                            addItemToCartWithLot(product, lots[0]);
+                        product.lots = res.data;
+                        const posLots = res.data.filter(l => parseFloat(l.remaining_quantity) > 0);
+                        if (posLots.length > 1) {
+                            showAutomaticLotModal(product, posLots);
                         } else {
-                            alert(`Product "${product.product_name}" has no available stock lots in this branch.`);
+                            addItemToCartWithLot(product, res.data[0]);
                         }
-                    } else if (product.auto_selected_lot && parseFloat(product.auto_selected_lot.remaining_quantity) > 0) {
-                        addItemToCartWithLot(product, product.auto_selected_lot);
                     } else {
-                        alert(`Product "${product.product_name}" has no available stock lots in this branch.`);
+                        const fallbackLot = {
+                            lot_id: 0,
+                            lot_number: 'LOT-AUTO',
+                            remaining_quantity: 0,
+                            selling_price: parseFloat(product.default_price || 0)
+                        };
+                        addItemToCartWithLot(product, fallbackLot);
                     }
                 })
                 .catch(err => {
                     console.error("Error fetching product lots:", err);
-                    if (product.auto_selected_lot && parseFloat(product.auto_selected_lot.remaining_quantity) > 0) {
-                        addItemToCartWithLot(product, product.auto_selected_lot);
-                    }
+                    const fallbackLot = {
+                        lot_id: 0,
+                        lot_number: 'LOT-AUTO',
+                        remaining_quantity: 0,
+                        selling_price: parseFloat(product.default_price || 0)
+                    };
+                    addItemToCartWithLot(product, fallbackLot);
                 });
         }
 
@@ -2503,18 +4271,11 @@
 
         function addItemToCartWithLot(product, selectedLot) {
             const maxStock = parseFloat(selectedLot.remaining_quantity) || 0;
-            if (maxStock <= 0) {
-                alert(`Cannot add item. Lot "${selectedLot.lot_number}" has 0 available stock.`);
-                return;
-            }
+            const isZeroStock = (maxStock <= 0);
 
             const existingIndex = cart.findIndex(i => i.product_id === product.product_id && i.lot_id === selectedLot.lot_id);
             if (existingIndex > -1) {
                 const newQty = cart[existingIndex].quantity + 1;
-                if (newQty > maxStock) {
-                    alert(`Cannot bill over available stock! Only ${maxStock} units available for lot "${selectedLot.lot_number}".`);
-                    return;
-                }
                 const existingItem = cart.splice(existingIndex, 1)[0];
                 existingItem.quantity = newQty;
                 cart.unshift(existingItem);
@@ -2522,22 +4283,22 @@
                 cart.unshift({
                     product_id: product.product_id,
                     product_name: product.product_name,
+                    sku: product.sku || product.barcode,
                     barcode: product.barcode,
                     lot_id: selectedLot.lot_id,
                     lot_number: selectedLot.lot_number,
-                    lot_remaining_stock: parseFloat(selectedLot.remaining_quantity),
+                    lot_remaining_stock: maxStock,
+                    is_zero_stock: isZeroStock,
                     all_lots: product.lots || [selectedLot],
                     quantity: 1.00,
-                    original_price: parseFloat(selectedLot.selling_price),
-                    unit_price: parseFloat(selectedLot.selling_price),
+                    original_price: parseFloat(selectedLot.selling_price || product.default_price || 0),
+                    unit_price: parseFloat(selectedLot.selling_price || product.default_price || 0),
                     discount_value: ''
                 });
             }
 
             renderCart();
-            setTimeout(() => {
-                if (searchInput) searchInput.focus();
-            }, 50);
+            if (searchInput) searchInput.focus();
         }
 
         function parseDiscountJS(discountStr, baseAmount) {
@@ -2604,6 +4365,104 @@
             };
         }
 
+        function buildCartRowHtml(item, index) {
+
+            const itemSubtotal = item.unit_price * item.quantity;
+            const parsedItemDisc = parseDiscountJS(item.discount_value, itemSubtotal);
+            const itemPromo = parseFloat(item.promo_discount_amount) || 0.00;
+            const totalLineDisc = itemPromo + parsedItemDisc.total_discount;
+            const lineTotalNum = Math.max(0, itemSubtotal - totalLineDisc);
+            const lineTotal = lineTotalNum.toFixed(2);
+            item.discount_amount = parsedItemDisc.total_discount;
+            const isMultiLot = item.all_lots && item.all_lots.length > 1;
+
+            const promoDiscountBadge = itemPromo > 0 ? `
+                <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 2px; margin-top: 3px;">
+                    <span style="background: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; font-size: 10px; font-weight: 800; border-radius: 999px; padding: 1.5px 7px; display: inline-flex; align-items: center; gap: 3px; white-space: nowrap;" title="${escapeHtml(item.promo_name || 'Promo Discount')}">
+                        <i class="fa-solid fa-tag fa-2xs"></i> -LKR ${itemPromo.toFixed(2)}
+                    </span>
+                    ${item.promo_name ? `<span style="font-size: 9.5px; color: #16a34a; font-weight: 700; max-width: 120px; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHtml(item.promo_name)}">${escapeHtml(item.promo_name)}</span>` : ''}
+                </div>
+            ` : '';
+
+            const isLowStock = parseFloat(item.lot_remaining_stock) <= 5;
+
+            return `
+                <tr>
+                    <td style="text-align: center; vertical-align: middle;">
+                        <span class="cart-row-idx">${index + 1}</span>
+                    </td>
+                    <td style="vertical-align: middle;">
+                        <div style="font-weight: 800; color: #0f172a; font-size: 0.95rem; line-height: 1.35; letter-spacing: -0.01em;">
+                            ${escapeHtml(item.product_name)}
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 6px; margin-top: 4px; flex-wrap: wrap;">
+                            ${item.sku && item.sku !== item.barcode ? `
+                                <span class="cart-barcode-pill" style="background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; font-family: monospace; font-weight: 700;" title="SKU">
+                                    <i class="fa-solid fa-tag" style="font-size: 0.68rem; opacity: 0.7;"></i> ${escapeHtml(item.sku)}
+                                </span>
+                            ` : ''}
+                            <span class="cart-barcode-pill" title="Barcode">
+                                <i class="fa-solid fa-barcode" style="font-size: 0.68rem; opacity: 0.7;"></i> ${escapeHtml(item.barcode)}
+                            </span>
+                            <span class="lot-badge-inline" onclick="openLotSelectorModal(${index})" title="${isMultiLot ? 'Click to change stock lot' : 'Active stock lot'}">
+                                <i class="fa-solid fa-layer-group"></i> ${escapeHtml(item.lot_number)}
+                                ${isMultiLot ? '<i class="fa-solid fa-chevron-down" style="font-size: 0.58rem; margin-left: 2px;"></i>' : ''}
+                            </span>
+                            ${(item.is_zero_stock || parseFloat(item.lot_remaining_stock) <= 0) ? `
+                                <span style="background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; font-size: 10px; font-weight: 800; border-radius: 4px; padding: 1.5px 6px; display: inline-flex; align-items: center; gap: 3px;" title="This item has 0 inventory stock and will be automatically replenished upon sale finalization">
+                                    <i class="fa-solid fa-bolt"></i> Auto-Stock
+                                </span>
+                            ` : ''}
+                        </div>
+                    </td>
+                    <td style="text-align: center; vertical-align: middle;">
+                        <div style="display: inline-flex; flex-direction: column; align-items: center; gap: 3px;">
+                            <div class="qty-controls">
+                                <button type="button" class="btn-qty" onclick="updateItemQty(${index}, -1)" title="Decrease Qty">-</button>
+                                <input type="number" id="cart-item-qty-${index}" class="qty-input item-qty-input" value="${item.quantity}" min="1" ${(item.is_zero_stock || parseFloat(item.lot_remaining_stock) <= 0) ? '' : `max="${item.lot_remaining_stock}"`} step="1" oninput="validateQtyRealtime(this, ${index})" onchange="setItemQty(${index}, this.value)">
+                                <button type="button" class="btn-qty" onclick="updateItemQty(${index}, 1)" title="Increase Qty">+</button>
+                            </div>
+                            ${(item.is_zero_stock || parseFloat(item.lot_remaining_stock) <= 0) ? `
+                                <div class="cart-avail-badge" style="background: #fff1f2; color: #e11d48; border-color: #fecdd3;" title="Stock will be automatically adjusted on invoice save">
+                                    <span class="avail-dot" style="background: #e11d48;"></span>
+                                    <span>0 avail (Auto)</span>
+                                </div>
+                            ` : `
+                                <div class="cart-avail-badge" title="Available stock in current lot">
+                                    <span class="avail-dot" ${isLowStock ? 'style="background: #f59e0b;"' : ''}></span>
+                                    <span>${item.lot_remaining_stock} avail</span>
+                                </div>
+                            `}
+                        </div>
+                    </td>
+                    <td style="text-align: right; vertical-align: middle;">
+                        <div style="display: flex; justify-content: flex-end;">
+                            <input type="number" class="price-override-input" value="${item.unit_price.toFixed(2)}" step="0.50" 
+                                   ${!CAN_OVERRIDE_PRICE ? 'disabled' : ''} onchange="setItemPrice(${index}, this.value)">
+                        </div>
+                    </td>
+                    <td style="text-align: right; vertical-align: middle;">
+                        <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 2px;">
+                            <input type="text" id="cart-item-disc-${index}" class="item-discount-input" value="${escapeHtml(item.discount_value)}" placeholder="${itemPromo > 0 ? '-' + itemPromo.toFixed(2) : '0 / %'}" 
+                                   ${!CAN_DISCOUNT ? 'disabled' : ''} onchange="setItemDiscount(${index}, this.value)">
+                            ${promoDiscountBadge}
+                        </div>
+                    </td>
+                    <td style="text-align: right; vertical-align: middle;">
+                        <div style="font-family: 'Outfit', sans-serif; font-weight: 900; color: #0f172a; font-size: 1.05rem; white-space: nowrap; letter-spacing: -0.01em;">
+                            <span style="font-size: 0.72rem; font-weight: 800; color: #64748b; margin-right: 2px;">LKR</span> ${lineTotal}
+                        </div>
+                    </td>
+                    <td style="text-align: center; vertical-align: middle;">
+                        <button type="button" class="btn-cart-delete" onclick="removeFromCart(${index})" title="Remove ${escapeHtml(item.product_name)}">
+                            <i class="fa-solid fa-trash-can"></i>
+                        </button>
+                    </td>
+                </tr>
+            `;
+        }
+
         function renderCart() {
             if (cart.length === 0) {
                 cartTableBody.innerHTML = `
@@ -2621,94 +4480,53 @@
 
             let html = '';
             cart.forEach((item, index) => {
-                const itemSubtotal = item.unit_price * item.quantity;
-                const parsedItemDisc = parseDiscountJS(item.discount_value, itemSubtotal);
-                const lineTotalNum = Math.max(0, itemSubtotal - parsedItemDisc.total_discount);
-                const lineTotal = lineTotalNum.toFixed(2);
-                item.discount_amount = parsedItemDisc.total_discount;
-                const isMultiLot = item.all_lots && item.all_lots.length > 1;
-
-                html += `
-                    <tr>
-                        <td style="font-weight:700; color:var(--pos-text-muted);">${index + 1}</td>
-                        <td>
-                            <div style="font-weight: 800; color: var(--pos-text); font-size: 0.95rem;">${escapeHtml(item.product_name)}</div>
-                            <div style="display: flex; align-items: center; gap: 0.5rem; margin-top: 3px; flex-wrap: wrap;">
-                                <span style="font-size: 0.75rem; color: var(--pos-text-muted); font-family: monospace;">${escapeHtml(item.barcode)}</span>
-                                <span class="lot-badge-inline" onclick="openLotSelectorModal(${index})" title="${isMultiLot ? 'Click to change stock lot' : 'Active stock lot'}">
-                                    <i class="fa-solid fa-layer-group"></i> ${escapeHtml(item.lot_number)} (${item.lot_remaining_stock} avail)
-                                    ${isMultiLot ? '<i class="fa-solid fa-chevron-down" style="font-size:0.6rem;"></i>' : ''}
-                                </span>
-                            </div>
-                        </td>
-                        <td>
-                            <div class="qty-controls">
-                                <button type="button" class="btn-qty" onclick="updateItemQty(${index}, -1)">-</button>
-                                <input type="number" id="cart-item-qty-${index}" class="qty-input item-qty-input" value="${item.quantity}" min="1" max="${item.lot_remaining_stock}" step="1" oninput="validateQtyRealtime(this, ${index})" onchange="setItemQty(${index}, this.value)">
-                                <button type="button" class="btn-qty" onclick="updateItemQty(${index}, 1)">+</button>
-                            </div>
-                        </td>
-                        <td>
-                            <input type="number" class="price-override-input" value="${item.unit_price.toFixed(2)}" step="0.50" 
-                                   ${!CAN_OVERRIDE_PRICE ? 'disabled' : ''} onchange="setItemPrice(${index}, this.value)">
-                        </td>
-                        <td>
-                            <input type="text" id="cart-item-disc-${index}" class="item-discount-input" value="${escapeHtml(item.discount_value)}" placeholder="0 / %" 
-                                   ${!CAN_DISCOUNT ? 'disabled' : ''} onchange="setItemDiscount(${index}, this.value)">
-                        </td>
-                        <td style="font-family: 'Outfit', sans-serif; font-weight: 900; color: var(--pos-primary); font-size:1.05rem;">LKR ${lineTotal}</td>
-                        <td style="text-align: center;">
-                            <button type="button" style="background: none; border: none; color: #ef4444; cursor: pointer; font-size:1rem; padding:4px;" onclick="removeFromCart(${index})" title="Remove Item">
-                                <i class="fa-solid fa-trash"></i>
-                            </button>
-                        </td>
-                    </tr>
-                `;
+                html += buildCartRowHtml(item, index);
             });
 
             cartTableBody.innerHTML = html;
             calculateTotals();
         }
 
+        function renderCartRowsOnly() {
+            if (!cartTableBody || cart.length === 0) return;
+            let html = '';
+            cart.forEach((item, index) => {
+                html += buildCartRowHtml(item, index);
+            });
+            cartTableBody.innerHTML = html;
+        }
+
         function validateQtyRealtime(inputEl, index) {
-            const maxStock = parseFloat(cart[index].lot_remaining_stock) || 0;
+            const item = cart[index];
+            if (!item) return;
             const entered = parseFloat(inputEl.value);
-            if (!isNaN(entered) && entered > maxStock) {
-                alert(`Cannot bill over available stock! Available stock for "${cart[index].product_name}" (Lot: ${cart[index].lot_number}) is ${maxStock} units.`);
-                inputEl.value = maxStock;
-                cart[index].quantity = maxStock;
+            if (!isNaN(entered) && entered > 0) {
+                item.quantity = entered;
                 calculateTotals();
             }
         }
 
         function updateItemQty(index, delta) {
-            const maxStock = parseFloat(cart[index].lot_remaining_stock) || 0;
-            const newQty = cart[index].quantity + delta;
+            const item = cart[index];
+            if (!item) return;
+            const newQty = item.quantity + delta;
             if (newQty <= 0) {
                 removeFromCart(index);
                 return;
             }
-            if (newQty > maxStock) {
-                alert(`Cannot bill over available stock! Only ${maxStock} units available in stock.`);
-                return;
-            }
-            cart[index].quantity = newQty;
+            item.quantity = newQty;
             renderCart();
         }
 
         function setItemQty(index, value) {
+            const item = cart[index];
+            if (!item) return;
             const qty = parseFloat(value);
-            const maxStock = parseFloat(cart[index].lot_remaining_stock) || 0;
             if (isNaN(qty) || qty <= 0) {
                 removeFromCart(index);
                 return;
             }
-            if (qty > maxStock) {
-                alert(`Cannot bill over available stock! Only ${maxStock} units available in stock.`);
-                cart[index].quantity = maxStock;
-            } else {
-                cart[index].quantity = qty;
-            }
+            item.quantity = qty;
             renderCart();
         }
 
@@ -2735,50 +4553,487 @@
         let currentPayableTotal = 0.00;
         let currentSubtotal = 0.00;
         let currentTotalDiscount = 0.00;
+        let currentPromoDiscount = 0.00;
+        let activeCouponCode = '';
+        let currentAppliedPromotions = [];
+        let promoEvalTimer = null;
 
-        function calculateTotals() {
+        // Promotion Confirmation & Dismissal State
+        let confirmedPromoKey = null;
+        let declinedPromoKey = null;
+        let pendingPromotionData = null;
+        let pendingPromoKey = null;
+        let promoChoiceIndex = 1; // 0 = Cancel, 1 = Apply
+        let lastPromoModalOpenTime = 0;
+
+        function updatePromoChoiceHighlight() {
+            const btnApply = document.getElementById('btn-promo-apply');
+            const btnCancel = document.getElementById('btn-promo-cancel');
+            if (promoChoiceIndex === 1) {
+                if (btnApply) {
+                    btnApply.style.border = '2px solid #38bdf8';
+                    btnApply.style.boxShadow = '0 0 0 3px rgba(56, 189, 248, 0.35)';
+                    try { btnApply.focus(); } catch (e) {}
+                }
+                if (btnCancel) {
+                    btnCancel.style.border = '1.5px solid #cbd5e1';
+                    btnCancel.style.boxShadow = 'none';
+                }
+            } else {
+                if (btnCancel) {
+                    btnCancel.style.border = '2px solid #dc2626';
+                    btnCancel.style.boxShadow = '0 0 0 3px rgba(220, 38, 38, 0.2)';
+                    try { btnCancel.focus(); } catch (e) {}
+                }
+                if (btnApply) {
+                    btnApply.style.border = 'none';
+                    btnApply.style.boxShadow = '0 4px 12px rgba(15, 23, 42, 0.2)';
+                }
+            }
+        }
+
+        function handlePromoButtonKey(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                e.stopPropagation();
+                if (promoChoiceIndex === 1) {
+                    confirmApplyPromotion();
+                } else {
+                    dismissPromotionPrompt();
+                }
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                e.stopPropagation();
+                dismissPromotionPrompt();
+            } else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'Tab') {
+                e.preventDefault();
+                e.stopPropagation();
+                promoChoiceIndex = (promoChoiceIndex === 1) ? 0 : 1;
+                updatePromoChoiceHighlight();
+            }
+        }
+
+        function updatePromoSummaryUI(promoDiscount, totalSavings, promotions, isAvailableNotApplied = false) {
+            const promoRow = document.getElementById('summary-promo-row');
+            const promoVal = document.getElementById('summary-promo-val');
+            const promoAvailableRow = document.getElementById('summary-promo-available-row');
+            const promoAvailableText = document.getElementById('summary-promo-available-text');
+            const savingsRow = document.getElementById('summary-savings-row');
+            const savingsVal = document.getElementById('summary-savings-val');
+            const badgeContainer = document.getElementById('applied-promos-container');
+            const badgeList = document.getElementById('applied-promos-badges');
+
+            if (promoDiscount > 0) {
+                if (promoRow) promoRow.style.display = 'flex';
+                if (promoVal) promoVal.innerText = `- LKR ${promoDiscount.toFixed(2)}`;
+                if (promoAvailableRow) promoAvailableRow.style.display = 'none';
+            } else {
+                if (promoRow) promoRow.style.display = 'none';
+                if (isAvailableNotApplied && totalSavings > 0) {
+                    if (promoAvailableRow) promoAvailableRow.style.display = 'flex';
+                    if (promoAvailableText) promoAvailableText.innerHTML = `<i class="fa-solid fa-gift"></i> Promo Available (Save LKR ${totalSavings.toFixed(2)})`;
+                } else {
+                    if (promoAvailableRow) promoAvailableRow.style.display = 'none';
+                }
+            }
+
+            if (totalSavings > 0 && promoDiscount > 0) {
+                if (savingsRow) savingsRow.style.display = 'flex';
+                if (savingsVal) savingsVal.innerText = `LKR ${totalSavings.toFixed(2)}`;
+            } else {
+                if (savingsRow) savingsRow.style.display = 'none';
+            }
+
+            if (badgeContainer && badgeList) {
+                if (promoDiscount > 0 && promotions && promotions.length > 0) {
+                    badgeContainer.style.display = 'block';
+                    badgeList.innerHTML = promotions.map(p => `
+                        <span style="background: #f1f5f9; border: 1px solid #cbd5e1; color: #0f172a; font-size: 10px; font-weight: 700; border-radius: 999px; padding: 2px 8px; display: inline-flex; align-items: center; gap: 4px;">
+                            <i class="fa-solid fa-sparkles fa-xs" style="color: #0284c7;"></i> ${escapeHtml(p.name)}: -LKR ${parseFloat(p.total_savings).toFixed(2)}
+                        </span>
+                    `).join('');
+                } else {
+                    badgeContainer.style.display = 'none';
+                    badgeList.innerHTML = '';
+                }
+            }
+        }
+
+        function applyCouponCode() {
+            const input = document.getElementById('summary-coupon-input');
+            const code = input ? input.value.trim().toUpperCase() : '';
+            if (!code) {
+                activeCouponCode = '';
+                calculateTotals();
+                return;
+            }
+            fetch(`pos_api.php?action=validate_coupon&coupon_code=${encodeURIComponent(code)}&customer_id=${currentCustomer ? currentCustomer.id : 1}`)
+                .then(r => r.json())
+                .then(res => {
+                    if (res.success && res.data && res.data.valid) {
+                        activeCouponCode = code;
+                        calculateTotals();
+                    } else {
+                        alert(res.message || (res.data ? res.data.message : 'Invalid or expired coupon code.'));
+                        if (input) input.value = activeCouponCode;
+                    }
+                })
+                .catch(err => {
+                    alert("Coupon validation error: " + err.message);
+                });
+        }
+
+        function evaluatePromotionsRealtime() {
+            if (cart.length === 0) {
+                currentAppliedPromotions = [];
+                currentPromoDiscount = 0;
+                pendingPromotionData = null;
+                confirmedPromoKey = null;
+                declinedPromoKey = null;
+                cart.forEach(it => {
+                    it.promo_discount_amount = 0;
+                    it.applied_rule_id = null;
+                    it.promo_name = null;
+                });
+                closeModal('modal-promotion-confirm');
+                updatePromoSummaryUI(0, 0, []);
+                calculateTotalsOnly();
+                return;
+            }
+
+            const payload = {
+                action: 'evaluate_discounts',
+                items: cart.map(it => ({
+                    product_id: it.product_id,
+                    lot_id: it.lot_id,
+                    quantity: it.quantity,
+                    original_price: it.original_price || it.unit_price,
+                    unit_price: it.unit_price,
+                    discount_value: it.discount_value
+                })),
+                customer_id: currentCustomer ? currentCustomer.id : 1,
+                coupon_code: activeCouponCode,
+                manual_invoice_discount: summaryDiscountInput.value.trim()
+            };
+
+            fetch('pos_api.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            })
+            .then(r => r.json())
+            .then(res => {
+                if (res.success && res.data) {
+                    const data = res.data;
+                    const promos = data.applied_promotions || [];
+                    const promoDiscount = parseFloat(data.total_promo_discount) || 0.00;
+
+                    if (promos.length === 0 || promoDiscount <= 0) {
+                        currentAppliedPromotions = [];
+                        currentPromoDiscount = 0;
+                        pendingPromotionData = null;
+                        let itemsUpdated = false;
+                        cart.forEach(it => {
+                            if (it.promo_discount_amount > 0 || it.applied_rule_id) {
+                                it.promo_discount_amount = 0;
+                                it.applied_rule_id = null;
+                                it.promo_name = null;
+                                itemsUpdated = true;
+                            }
+                        });
+                        if (itemsUpdated) renderCartRowsOnly();
+                        updatePromoSummaryUI(0, 0, []);
+                        calculateTotalsOnly();
+                        return;
+                    }
+
+                    // Key promotions by rule identity AND the set of eligible products/lots
+                    // Adding another product eligible for promotion discount prompts the cashier again
+                    const promoItemSignatures = [];
+                    let hasInvoicePromo = false;
+                    if (data.cart_items && Array.isArray(data.cart_items)) {
+                        data.cart_items.forEach(ci => {
+                            if ((ci.promo_discount && parseFloat(ci.promo_discount) > 0.001) || ci.applied_rule_id) {
+                                promoItemSignatures.push(`${ci.product_id}_${ci.lot_id || 0}`);
+                            }
+                        });
+                    }
+                    if (promos.some(p => p.rule_type === 'invoice')) {
+                        hasInvoicePromo = true;
+                    }
+                    promoItemSignatures.sort();
+                    const promoRulesKey = promos.map(p => String(p.rule_id || p.rule_code || p.name)).sort().join('|');
+                    const promoKey = `${promoRulesKey}::items[${promoItemSignatures.join(',')}]${hasInvoicePromo ? '::inv' : ''}`;
+
+                    if (confirmedPromoKey === promoKey) {
+                        // Confirmed by cashier: automatically update and apply to cart for increased/decreased QTY
+                        pendingPromotionData = data;
+                        pendingPromoKey = promoKey;
+                        applyPromotionDataToCart(data);
+                    } else if (declinedPromoKey === promoKey) {
+                        // Declined by cashier: DO NOT re-prompt, DO NOT overwrite previously confirmed discounts on items
+                        pendingPromotionData = data;
+                        pendingPromoKey = promoKey;
+                        let activePromoTotal = 0.00;
+                        cart.forEach(it => {
+                            activePromoTotal += (parseFloat(it.promo_discount_amount) || 0.00);
+                        });
+                        currentPromoDiscount = activePromoTotal;
+                        const totalAvailableSavings = parseFloat(data.total_savings) || 0;
+                        updatePromoSummaryUI(currentPromoDiscount, totalAvailableSavings, currentAppliedPromotions, currentPromoDiscount < totalAvailableSavings);
+                        calculateTotalsOnly();
+                    } else {
+                        // NEW ELIGIBLE PROMOTION: Prompt cashier once to confirm or cancel
+                        pendingPromotionData = data;
+                        pendingPromoKey = promoKey;
+                        showPromotionPromptModal(data);
+                    }
+                }
+            })
+            .catch(err => console.error("Promotion evaluation error", err));
+        }
+
+        function showPromotionPromptModal(data) {
+            const promos = data.applied_promotions || [];
+            if (promos.length === 0) return;
+
+            const primaryPromo = promos[0];
+            const titleEl = document.getElementById('promo-modal-title');
+            const savingsEl = document.getElementById('promo-modal-savings-badge');
+            const scopeEl = document.getElementById('promo-modal-scope');
+            const descEl = document.getElementById('promo-modal-desc');
+
+            const totalSavings = parseFloat(data.total_savings || data.total_promo_discount || 0);
+
+            if (titleEl) {
+                if (promos.length === 1) {
+                    titleEl.textContent = primaryPromo.name || 'Special Promotion';
+                } else {
+                    titleEl.textContent = `${promos.length} Promotions Available`;
+                }
+            }
+
+            if (savingsEl) {
+                savingsEl.textContent = `Save LKR ${totalSavings.toFixed(2)}`;
+            }
+
+            if (scopeEl) {
+                scopeEl.textContent = promos.map(p => p.name).join(' + ');
+            }
+
+            if (descEl) {
+                const count = promos.reduce((sum, p) => sum + (p.items_count || 1), 0);
+                descEl.textContent = `Eligible for ${count} item(s) in cart. Applying will save LKR ${totalSavings.toFixed(2)}.`;
+            }
+
+            const modalEl = document.getElementById('modal-promotion-confirm');
+            const isAlreadyOpen = modalEl && modalEl.classList.contains('active');
+            if (!isAlreadyOpen) {
+                promoChoiceIndex = 1; // Default to Apply
+                lastPromoModalOpenTime = Date.now();
+                openModal('modal-promotion-confirm');
+                if (searchInput) searchInput.blur();
+                setTimeout(() => {
+                    updatePromoChoiceHighlight();
+                }, 60);
+            }
+        }
+
+        function confirmApplyPromotion() {
+            if (!pendingPromotionData) {
+                closeModal('modal-promotion-confirm');
+                lastModalClosedTime = Date.now();
+                return;
+            }
+            lastModalClosedTime = Date.now();
+            confirmedPromoKey = pendingPromoKey;
+            declinedPromoKey = null;
+            applyPromotionDataToCart(pendingPromotionData);
+            closeModal('modal-promotion-confirm');
+            setTimeout(() => {
+                if (searchInput && !document.querySelector('.pos-modal.active')) {
+                    searchInput.focus();
+                }
+            }, 200);
+        }
+
+        function dismissPromotionPrompt() {
+            lastModalClosedTime = Date.now();
+            declinedPromoKey = pendingPromoKey;
+            closeModal('modal-promotion-confirm');
+
+            // Retain discounts on items that already had confirmed promotional discounts applied
+            let activePromoTotal = 0.00;
+            cart.forEach(it => {
+                activePromoTotal += (parseFloat(it.promo_discount_amount) || 0.00);
+            });
+            currentPromoDiscount = activePromoTotal;
+
+            if (currentPromoDiscount <= 0.001) {
+                confirmedPromoKey = null;
+                currentAppliedPromotions = [];
+            }
+
+            renderCartRowsOnly();
+            const totalAvailableSavings = pendingPromotionData ? (parseFloat(pendingPromotionData.total_savings) || 0) : 0;
+            updatePromoSummaryUI(currentPromoDiscount, totalAvailableSavings, currentAppliedPromotions, currentPromoDiscount < totalAvailableSavings);
+            calculateTotalsOnly();
+            setTimeout(() => {
+                if (searchInput && !document.querySelector('.pos-modal.active')) {
+                    searchInput.focus();
+                }
+            }, 200);
+        }
+
+        function promptPromotionModal() {
+            if (pendingPromotionData) {
+                showPromotionPromptModal(pendingPromotionData);
+            }
+        }
+
+        function cancelAppliedPromotion() {
+            if (!confirm("Remove promotional discount from this bill?")) return;
+            declinedPromoKey = confirmedPromoKey;
+            confirmedPromoKey = null;
+            currentAppliedPromotions = [];
+            currentPromoDiscount = 0;
+            cart.forEach(it => {
+                it.promo_discount_amount = 0;
+                it.applied_rule_id = null;
+                it.promo_name = null;
+            });
+            renderCartRowsOnly();
+            updatePromoSummaryUI(0, pendingPromotionData ? (parseFloat(pendingPromotionData.total_savings) || 0) : 0, [], true);
+            calculateTotalsOnly();
+            searchInput.focus();
+        }
+
+        function applyPromotionDataToCart(data) {
+            currentAppliedPromotions = data.applied_promotions || [];
+            currentPromoDiscount = parseFloat(data.total_promo_discount) || 0.00;
+
+            let itemsUpdated = false;
+            if (data.cart_items && Array.isArray(data.cart_items)) {
+                data.cart_items.forEach((evItem, idx) => {
+                    if (cart[idx]) {
+                        const promoAmt = parseFloat(evItem.promo_discount) || 0;
+                        const rId = evItem.applied_rule_id || null;
+                        const pName = evItem.applied_promo_name || null;
+                        if (cart[idx].promo_discount_amount !== promoAmt || cart[idx].applied_rule_id !== rId) {
+                            cart[idx].promo_discount_amount = promoAmt;
+                            cart[idx].applied_rule_id = rId;
+                            cart[idx].promo_name = pName;
+                            itemsUpdated = true;
+                        }
+                    }
+                });
+            }
+
+            if (itemsUpdated) {
+                renderCartRowsOnly();
+            }
+
+            updatePromoSummaryUI(currentPromoDiscount, parseFloat(data.total_savings) || 0, currentAppliedPromotions, false);
+
+            if (data.final_payable !== undefined) {
+                currentPayableTotal = parseFloat(data.final_payable);
+                summaryPayable.innerText = `LKR ${currentPayableTotal.toFixed(2)}`;
+            }
+
+            const allDiscounts = currentPromoDiscount + currentTotalDiscount;
+            summaryDiscountVal.innerText = `- LKR ${allDiscounts.toFixed(2)}`;
+        }
+
+        function calculateTotalsOnly() {
             let subtotal = 0.00;
+            let eligibleSubtotal = 0.00;
             cart.forEach(item => {
                 const itemSubtotal = item.unit_price * item.quantity;
                 const parsedItemDisc = parseDiscountJS(item.discount_value, itemSubtotal);
-                subtotal += Math.max(0, itemSubtotal - parsedItemDisc.total_discount);
+                const itemPromo = parseFloat(item.promo_discount_amount) || 0.00;
+                const lineTotal = Math.max(0, itemSubtotal - parsedItemDisc.total_discount - itemPromo);
+                subtotal += lineTotal;
+
+                // Rule: If item wise discount added inline from cart, do not include total bill discount for that item!
+                const hasItemDisc = (parsedItemDisc.total_discount > 0 || (String(item.discount_value || '').trim() !== ''));
+                if (!hasItemDisc) {
+                    eligibleSubtotal += lineTotal;
+                }
             });
 
             currentSubtotal = subtotal;
             summarySubtotal.innerText = `LKR ${subtotal.toFixed(2)}`;
 
             const invDiscountStr = summaryDiscountInput.value.trim();
-            const parsedInvDisc = parseDiscountJS(invDiscountStr, subtotal);
+            const parsedInvDisc = parseDiscountJS(invDiscountStr, eligibleSubtotal);
             currentTotalDiscount = parsedInvDisc.total_discount;
             currentPayableTotal = Math.max(0, subtotal - currentTotalDiscount);
 
-            summaryDiscountVal.innerText = (currentTotalDiscount >= 0 ? `- LKR ` : `+ LKR `) + Math.abs(currentTotalDiscount).toFixed(2);
+            const allDiscounts = currentPromoDiscount + currentTotalDiscount;
+            summaryDiscountVal.innerText = (allDiscounts >= 0 ? `- LKR ` : `+ LKR `) + Math.abs(allDiscounts).toFixed(2);
+            summaryPayable.innerText = `LKR ${currentPayableTotal.toFixed(2)}`;
+        }
+
+        function calculateTotals() {
+            let subtotal = 0.00;
+            let eligibleSubtotal = 0.00;
+            cart.forEach(item => {
+                const itemSubtotal = item.unit_price * item.quantity;
+                const parsedItemDisc = parseDiscountJS(item.discount_value, itemSubtotal);
+                const itemPromo = parseFloat(item.promo_discount_amount) || 0.00;
+                const lineTotal = Math.max(0, itemSubtotal - parsedItemDisc.total_discount - itemPromo);
+                subtotal += lineTotal;
+
+                // Rule: If item wise discount added inline from cart, do not include total bill discount for that item!
+                const hasItemDisc = (parsedItemDisc.total_discount > 0 || (String(item.discount_value || '').trim() !== ''));
+                if (!hasItemDisc) {
+                    eligibleSubtotal += lineTotal;
+                }
+            });
+
+            currentSubtotal = subtotal;
+            summarySubtotal.innerText = `LKR ${subtotal.toFixed(2)}`;
+
+            const invDiscountStr = summaryDiscountInput.value.trim();
+            const parsedInvDisc = parseDiscountJS(invDiscountStr, eligibleSubtotal);
+            currentTotalDiscount = parsedInvDisc.total_discount;
+            currentPayableTotal = Math.max(0, subtotal - currentTotalDiscount);
+
+            const allDiscounts = currentPromoDiscount + currentTotalDiscount;
+            summaryDiscountVal.innerText = (allDiscounts >= 0 ? `- LKR ` : `+ LKR `) + Math.abs(allDiscounts).toFixed(2);
             summaryPayable.innerText = `LKR ${currentPayableTotal.toFixed(2)}`;
 
-            fetch(`pos_api.php?action=parse_discount&discount=${encodeURIComponent(invDiscountStr)}&subtotal=${subtotal}`)
-                .then(res => res.json())
-                .then(res => {
-                    if (res.success) {
-                        currentTotalDiscount = res.parsed.total_discount;
-                        currentPayableTotal = Math.max(0, subtotal - currentTotalDiscount);
-                        
-                        summaryDiscountVal.innerText = (currentTotalDiscount >= 0 ? `- LKR ` : `+ LKR `) + Math.abs(currentTotalDiscount).toFixed(2);
-                        summaryPayable.innerText = `LKR ${currentPayableTotal.toFixed(2)}`;
+            if (promoEvalTimer) clearTimeout(promoEvalTimer);
+            promoEvalTimer = setTimeout(evaluatePromotionsRealtime, 200);
 
-                        if (res.suggestion) {
-                            roundupContainer.style.display = 'block';
-                            roundupText.innerText = `Add +LKR ${res.suggestion.suggested_roundup.toFixed(2)} to round total to LKR ${res.suggestion.suggested_total.toFixed(2)}`;
-                            btnApplyRoundup.onclick = () => {
-                                const currentBase = invDiscountStr.includes('+') ? invDiscountStr.split('+')[0] : (invDiscountStr || '0');
-                                summaryDiscountInput.value = `${currentBase}+${res.suggestion.suggested_roundup.toFixed(2)}`;
-                                calculateTotals();
-                            };
-                        } else {
-                            roundupContainer.style.display = 'none';
+            if (typeof discountParseTimer !== 'undefined' && discountParseTimer) clearTimeout(discountParseTimer);
+            discountParseTimer = setTimeout(() => {
+                fetch(`pos_api.php?action=parse_discount&discount=${encodeURIComponent(invDiscountStr)}&subtotal=${subtotal}&eligible_subtotal=${eligibleSubtotal}`)
+                    .then(res => res.json())
+                    .then(res => {
+                        if (res.success) {
+                            currentTotalDiscount = res.parsed.total_discount;
+                            currentPayableTotal = Math.max(0, subtotal - currentTotalDiscount);
+                            
+                            const allDiscs = currentPromoDiscount + currentTotalDiscount;
+                            summaryDiscountVal.innerText = (allDiscs >= 0 ? `- LKR ` : `+ LKR `) + Math.abs(allDiscs).toFixed(2);
+                            summaryPayable.innerText = `LKR ${currentPayableTotal.toFixed(2)}`;
+
+                            if (res.suggestion) {
+                                roundupContainer.style.display = 'block';
+                                roundupText.innerText = `Add +LKR ${res.suggestion.suggested_roundup.toFixed(2)} to round total to LKR ${res.suggestion.suggested_total.toFixed(2)}`;
+                                btnApplyRoundup.onclick = () => {
+                                    const currentBase = invDiscountStr.includes('+') ? invDiscountStr.split('+')[0] : (invDiscountStr || '0');
+                                    summaryDiscountInput.value = `${currentBase}+${res.suggestion.suggested_roundup.toFixed(2)}`;
+                                    calculateTotals();
+                                };
+                            } else {
+                                roundupContainer.style.display = 'none';
+                            }
                         }
-                    }
-                })
-                .catch(err => console.error("Error calculating discount", err));
+                    })
+                    .catch(err => console.error("Error calculating discount", err));
+            }, 150);
         }
 
         summaryDiscountInput.addEventListener('input', () => {
@@ -2796,19 +5051,22 @@
                 .then(res => res.json())
                 .then(res => {
                     if (res.success && res.data) {
-                        const availableLots = res.data.filter(l => parseFloat(l.remaining_quantity) > 0);
+                        const availableLots = res.data.length > 0 ? res.data : [];
                         if (availableLots.length === 0) {
-                            alert(`No available stock lots found for "${item.product_name}" in this branch.`);
+                            alert(`No stock lots found for "${item.product_name}" in this branch.`);
                             return;
                         }
                         let html = '';
                         availableLots.forEach((lot, idx) => {
                             const isSelected = idx === 0 ? 'selected' : '';
+                            const lotRem = parseFloat(lot.remaining_quantity || 0);
                             html += `
-                                <div class="lot-card ${isSelected}" data-index="${idx}" onclick="selectLotForCartItem(${lot.lot_id}, '${escapeHtml(lot.lot_number)}', ${parseFloat(lot.selling_price)}, ${parseFloat(lot.remaining_quantity)})">
+                                <div class="lot-card ${isSelected}" data-index="${idx}" onclick="selectLotForCartItem(${lot.lot_id}, '${escapeHtml(lot.lot_number)}', ${parseFloat(lot.selling_price)}, ${lotRem})">
                                     <div>
                                         <div style="font-weight: 800; color: var(--pos-text);">${escapeHtml(lot.lot_number)}</div>
-                                        <div style="font-size: 0.8rem; color: var(--pos-text-muted);">Available Stock: <strong style="color:#047857;">${parseFloat(lot.remaining_quantity)} units</strong></div>
+                                        <div style="font-size: 0.8rem; color: var(--pos-text-muted);">
+                                            ${lotRem > 0 ? `Available Stock: <strong style="color:#047857;">${lotRem} units</strong>` : `<span style="color:#dc2626; font-weight:800;">0 Stock (Auto-Stock)</span>`}
+                                        </div>
                                     </div>
                                     <div style="font-family: 'Outfit', sans-serif; font-weight: 900; color: #047857;">
                                         LKR ${parseFloat(lot.selling_price).toFixed(2)}
@@ -2863,7 +5121,17 @@
                 sales_rep_id: currentSalesRep ? currentSalesRep.id : null,
                 discount_value: summaryDiscountInput.value.trim(),
                 held_notes: 'Parked by cashier',
-                items: cart
+                items: cart.map(it => ({
+                    product_id: it.product_id,
+                    lot_id: it.lot_id,
+                    quantity: it.quantity,
+                    unit_price: it.unit_price,
+                    original_price: it.original_price || it.unit_price,
+                    discount_value: it.discount_value,
+                    promo_discount_amount: parseFloat(it.promo_discount_amount) || 0,
+                    applied_rule_id: it.applied_rule_id || null,
+                    promo_name: it.promo_name || null
+                }))
             };
 
             fetch('pos_api.php', {
@@ -2942,10 +5210,11 @@
                         cart = s.items.map(item => ({
                             product_id: parseInt(item.product_id),
                             product_name: item.product_name,
+                            sku: item.sku || item.barcode,
                             barcode: item.barcode,
                             lot_id: parseInt(item.lot_id),
                             lot_number: item.lot_number,
-                            lot_remaining_stock: parseFloat(item.lot_remaining_stock),
+                            lot_remaining_stock: parseFloat(item.lot_remaining_stock || 999999),
                             quantity: parseFloat(item.quantity),
                             original_price: parseFloat(item.original_price),
                             unit_price: parseFloat(item.unit_price),
@@ -2959,6 +5228,355 @@
                     }
                 })
                 .catch(err => console.error("Error resuming held invoice", err));
+        }
+
+        // ==========================================
+        // SALES HISTORY & RECEIPT REPRINT CONTROLLER
+        // ==========================================
+        let currentHistPage = 1;
+        let currentHistPreset = 'today';
+        let currentHistSearch = '';
+        let currentHistTotalPages = 1;
+        let histSearchTimer = null;
+
+        function openSalesHistoryModal() {
+            openModal('modal-sales-history');
+            const searchInput = document.getElementById('hist-search-input');
+            if (searchInput) {
+                searchInput.value = '';
+                currentHistSearch = '';
+            }
+            setSalesHistoryPreset('today', false);
+            loadSalesHistory(1);
+        }
+
+        function closeSalesHistoryModal() {
+            closeModal('modal-sales-history');
+            lastModalClosedTime = Date.now();
+            setTimeout(() => {
+                if (searchInput) searchInput.focus();
+            }, 100);
+        }
+
+        function setSalesHistoryPreset(preset, autoLoad = true) {
+            currentHistPreset = preset;
+            const presets = ['today', 'yesterday', 'week', 'all'];
+            presets.forEach(p => {
+                const btn = document.getElementById('btn-hist-preset-' + p);
+                if (btn) {
+                    if (p === preset) {
+                        btn.classList.add('active');
+                    } else {
+                        btn.classList.remove('active');
+                    }
+                }
+            });
+            if (autoLoad) {
+                loadSalesHistory(1);
+            }
+        }
+
+        function debounceHistorySearch() {
+            if (histSearchTimer) clearTimeout(histSearchTimer);
+            histSearchTimer = setTimeout(() => {
+                const input = document.getElementById('hist-search-input');
+                currentHistSearch = input ? input.value.trim() : '';
+                loadSalesHistory(1);
+            }, 300);
+        }
+
+        function loadSalesHistory(page = 1) {
+            currentHistPage = page;
+            const tbody = document.getElementById('sales-history-tbody');
+            if (!tbody) return;
+
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="8" style="text-align: center; padding: 2.5rem; color: #64748b;">
+                        <i class="fa-solid fa-spinner fa-spin me-2" style="font-size: 1.2rem; color: #0284c7;"></i> Loading sales records...
+                    </td>
+                </tr>
+            `;
+
+            const url = `pos_api.php?action=get_sales_history&page=${page}&date_preset=${encodeURIComponent(currentHistPreset)}&search=${encodeURIComponent(currentHistSearch)}`;
+            fetch(url)
+                .then(res => res.json())
+                .then(res => {
+                    if (!res.success || !res.data) {
+                        tbody.innerHTML = `
+                            <tr>
+                                <td colspan="8" style="text-align: center; padding: 2.5rem; color: #dc2626;">
+                                    <i class="fa-solid fa-circle-exclamation me-1"></i> Failed to retrieve sales history.
+                                </td>
+                            </tr>
+                        `;
+                        return;
+                    }
+
+                    const items = res.data;
+                    const pag = res.pagination || {};
+                    currentHistTotalPages = pag.totalPages || 1;
+
+                    // Update pagination UI
+                    const pageInfo = document.getElementById('hist-page-info');
+                    const pageNum = document.getElementById('hist-page-num');
+                    const prevBtn = document.getElementById('btn-hist-prev');
+                    const nextBtn = document.getElementById('btn-hist-next');
+
+                    const start = pag.totalItems > 0 ? (pag.page - 1) * pag.limit + 1 : 0;
+                    const end = Math.min(pag.page * pag.limit, pag.totalItems);
+                    if (pageInfo) pageInfo.innerText = `Showing ${start} to ${end} of ${pag.totalItems} sales`;
+                    if (pageNum) pageNum.innerText = `${pag.page} / ${currentHistTotalPages}`;
+                    if (prevBtn) prevBtn.disabled = (pag.page <= 1);
+                    if (nextBtn) nextBtn.disabled = (pag.page >= currentHistTotalPages);
+
+                    if (items.length === 0) {
+                        tbody.innerHTML = `
+                            <tr>
+                                <td colspan="8" style="text-align: center; padding: 3rem 1rem; color: #64748b;">
+                                    <div style="width: 48px; height: 48px; border-radius: 50%; background: #f1f5f9; display: flex; align-items: center; justify-content: center; margin: 0 auto 0.75rem auto; color: #94a3b8; font-size: 1.25rem;">
+                                        <i class="fa-solid fa-receipt"></i>
+                                    </div>
+                                    <div style="font-weight: 700; color: #334155; margin-bottom: 2px;">No sales found</div>
+                                    <div style="font-size: 0.8rem; color: #94a3b8;">No matching transactions found for the selected period.</div>
+                                </td>
+                            </tr>
+                        `;
+                        return;
+                    }
+
+                    let html = '';
+                    items.forEach(sale => {
+                        const totalAmt = parseFloat(sale.total_amount) || 0;
+                        const itemsCount = parseFloat(sale.total_items) || 0;
+                        const isCompleted = (sale.status === 'completed');
+                        const isCancelled = (sale.status === 'cancelled');
+                        
+                        let statusBadge = '';
+                        if (isCompleted) {
+                            statusBadge = `<span style="display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 9px; border-radius: 999px; background: #dcfce7; color: #15803d; font-size: 11px; font-weight: 800;"><span style="width: 6px; height: 6px; border-radius: 50%; background: #16a34a;"></span>Completed</span>`;
+                        } else if (isCancelled) {
+                            statusBadge = `<span style="display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 9px; border-radius: 999px; background: #fee2e2; color: #b91c1c; font-size: 11px; font-weight: 800;"><span style="width: 6px; height: 6px; border-radius: 50%; background: #dc2626;"></span>Cancelled</span>`;
+                        } else {
+                            statusBadge = `<span style="display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 9px; border-radius: 999px; background: #fef3c7; color: #92400e; font-size: 11px; font-weight: 800;"><span style="width: 6px; height: 6px; border-radius: 50%; background: #d97706;"></span>${escapeHtml(sale.status)}</span>`;
+                        }
+
+                        const pmtMethod = sale.payment_methods || 'Cash';
+                        const custPhone = sale.customer_phone ? `<span style="color: #64748b; font-size: 0.76rem; font-weight: 500;"> (${escapeHtml(sale.customer_phone)})</span>` : '';
+
+                        html += `
+                            <tr onclick="viewSaleDetails(${sale.id})">
+                                <td style="font-weight: 800; color: #0284c7; white-space: nowrap;">
+                                    <i class="fa-solid fa-receipt me-1" style="font-size: 0.8rem; opacity: 0.7;"></i>${escapeHtml(sale.invoice_no)}
+                                </td>
+                                <td style="white-space: nowrap; color: #475569; font-size: 0.78rem;">
+                                    ${escapeHtml(sale.created_at)}
+                                </td>
+                                <td>
+                                    <div style="font-weight: 700; color: #0f172a; max-width: 170px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                                        ${escapeHtml(sale.customer_name)}${custPhone}
+                                    </div>
+                                </td>
+                                <td style="text-align: center; font-weight: 700; color: #334155;">
+                                    ${itemsCount}
+                                </td>
+                                <td style="text-align: right; font-weight: 900; font-family: 'Outfit', sans-serif; color: #0f172a; white-space: nowrap;">
+                                    ${totalAmt.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </td>
+                                <td style="text-align: center;">
+                                    <span style="display: inline-block; padding: 2px 8px; border-radius: 6px; background: #f1f5f9; color: #334155; font-size: 0.74rem; font-weight: 700; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                                        ${escapeHtml(pmtMethod)}
+                                    </span>
+                                </td>
+                                <td style="text-align: center;">
+                                    ${statusBadge}
+                                </td>
+                                <td style="text-align: right; white-space: nowrap;">
+                                    <div style="display: inline-flex; align-items: center; gap: 6px;">
+                                        <button type="button" class="btn-hist-print" onclick="event.stopPropagation(); printSaleReceipt(${sale.id});" title="Print 80mm Thermal Receipt">
+                                            <i class="fa-solid fa-print"></i> Print
+                                        </button>
+                                        <button type="button" class="btn-hist-view" onclick="event.stopPropagation(); viewSaleDetails(${sale.id});" title="View Sale Items & Payment Breakdown">
+                                            <i class="fa-solid fa-eye"></i> View
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        `;
+                    });
+
+                    tbody.innerHTML = html;
+                })
+                .catch(err => {
+                    console.error("Error loading sales history:", err);
+                    tbody.innerHTML = `
+                        <tr>
+                            <td colspan="8" style="text-align: center; padding: 2rem; color: #dc2626;">
+                                Error communicating with POS server.
+                            </td>
+                        </tr>
+                    `;
+                });
+        }
+
+        function prevSalesHistoryPage() {
+            if (currentHistPage > 1) {
+                loadSalesHistory(currentHistPage - 1);
+            }
+        }
+
+        function nextSalesHistoryPage() {
+            if (currentHistPage < currentHistTotalPages) {
+                loadSalesHistory(currentHistPage + 1);
+            }
+        }
+
+        function printSaleReceipt(saleId) {
+            if (!saleId) return;
+            const url = `receipt.php?sale_id=${saleId}&reprint=1`;
+            window.open(url, '_blank', 'width=400,height=650');
+        }
+
+        function viewSaleDetails(saleId) {
+            if (!saleId) return;
+            const content = document.getElementById('sale-details-content');
+            const title = document.getElementById('detail-invoice-title');
+            const printBtn = document.getElementById('btn-detail-print');
+
+            if (content) {
+                content.innerHTML = `
+                    <div style="text-align: center; padding: 3rem; color: #64748b;">
+                        <i class="fa-solid fa-spinner fa-spin me-2" style="font-size: 1.3rem; color: #0284c7;"></i> Loading sale details...
+                    </div>
+                `;
+            }
+            if (title) title.innerText = 'Invoice Details';
+            if (printBtn) {
+                printBtn.onclick = () => printSaleReceipt(saleId);
+            }
+            openModal('modal-sale-details');
+
+            fetch(`pos_api.php?action=get_sale_details&sale_id=${saleId}`)
+                .then(res => res.json())
+                .then(res => {
+                    if (!res.success || !res.sale) {
+                        if (content) {
+                            content.innerHTML = `<div style="text-align: center; padding: 2rem; color: #dc2626;">Sale details not found.</div>`;
+                        }
+                        return;
+                    }
+
+                    const s = res.sale;
+                    if (title) title.innerText = `Invoice #${s.invoice_no}`;
+
+                    let itemsHtml = '';
+                    const lineItems = res.items || s.items || [];
+                    lineItems.forEach((it, idx) => {
+                        const lineTot = parseFloat(it.line_total) || 0;
+                        const uPrice = parseFloat(it.unit_price) || 0;
+                        const qty = parseFloat(it.quantity) || 0;
+                        const disc = parseFloat(it.discount_amount) || 0;
+                        const discText = disc > 0 ? `<span style="color: #dc2626; font-size: 0.72rem;">(-${disc.toFixed(2)})</span>` : '';
+
+                        itemsHtml += `
+                            <tr style="border-bottom: 1px solid #f1f5f9;">
+                                <td style="padding: 8px 10px; font-size: 0.78rem; text-align: center; color: #94a3b8;">${idx + 1}</td>
+                                <td style="padding: 8px 10px;">
+                                    <div style="font-weight: 700; color: #0f172a; font-size: 0.82rem;">${escapeHtml(it.product_name)}</div>
+                                    <div style="font-size: 0.72rem; color: #64748b;">SKU: ${escapeHtml(it.sku || '—')} | Lot: ${escapeHtml(it.lot_number || '—')}</div>
+                                </td>
+                                <td style="padding: 8px 10px; font-size: 0.82rem; text-align: center; font-weight: 700;">${qty}</td>
+                                <td style="padding: 8px 10px; font-size: 0.82rem; text-align: right; color: #475569;">${uPrice.toFixed(2)}</td>
+                                <td style="padding: 8px 10px; font-size: 0.82rem; text-align: right; font-weight: 800; color: #0f172a;">${lineTot.toFixed(2)} ${discText}</td>
+                            </tr>
+                        `;
+                    });
+
+                    let paymentsHtml = '';
+                    const payRecords = res.payments || s.payments || [];
+                    payRecords.forEach(p => {
+                        const pAmt = parseFloat(p.amount) || 0;
+                        paymentsHtml += `
+                            <div style="display: flex; justify-content: space-between; align-items: center; padding: 4px 0; font-size: 0.82rem;">
+                                <span style="color: #64748b; font-weight: 600;"><i class="fa-solid fa-credit-card me-1" style="font-size: 0.75rem;"></i>${escapeHtml(p.payment_method)} (${escapeHtml(p.reference_no || 'Tendered')})</span>
+                                <span style="font-weight: 800; color: #0f172a;">LKR ${pAmt.toFixed(2)}</span>
+                            </div>
+                        `;
+                    });
+
+                    const subtotal = parseFloat(s.subtotal) || 0;
+                    const discount = parseFloat(s.discount_amount) || 0;
+                    const total = parseFloat(s.total_amount) || 0;
+
+                    if (content) {
+                        content.innerHTML = `
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 1rem; padding-bottom: 1rem; border-bottom: 1px solid #e2e8f0;">
+                                <div>
+                                    <div style="font-size: 0.7rem; font-weight: 800; text-transform: uppercase; color: #94a3b8;">Customer Information</div>
+                                    <div style="font-weight: 800; color: #0f172a; font-size: 0.95rem;">${escapeHtml(s.customer_name)}</div>
+                                    <div style="font-size: 0.78rem; color: #64748b;">Phone: ${escapeHtml(s.customer_phone || 'None')}</div>
+                                    <div style="font-size: 0.78rem; color: #64748b;">Date: ${escapeHtml(s.created_at)}</div>
+                                </div>
+                                <div style="text-align: right;">
+                                    <div style="font-size: 0.7rem; font-weight: 800; text-transform: uppercase; color: #94a3b8;">Terminal & Staff</div>
+                                    <div style="font-weight: 700; color: #0f172a; font-size: 0.85rem;">Branch: ${escapeHtml(s.branch_name || 'Main')}</div>
+                                    <div style="font-size: 0.78rem; color: #64748b;">Cashier: ${escapeHtml(s.cashier_name || 'Cashier')}</div>
+                                    ${s.sales_rep_name ? `<div style="font-size: 0.78rem; color: #0284c7; font-weight: 700;">Rep: ${escapeHtml(s.sales_rep_name)}</div>` : ''}
+                                </div>
+                            </div>
+
+                            <!-- Line items table -->
+                            <div style="border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; margin-bottom: 1rem;">
+                                <table style="width: 100%; border-collapse: collapse;">
+                                    <thead style="background: #f8fafc;">
+                                        <tr>
+                                            <th style="padding: 8px 10px; font-size: 10px; font-weight: 800; text-transform: uppercase; color: #64748b; text-align: center; width: 36px;">#</th>
+                                            <th style="padding: 8px 10px; font-size: 10px; font-weight: 800; text-transform: uppercase; color: #64748b; text-align: left;">Item Description</th>
+                                            <th style="padding: 8px 10px; font-size: 10px; font-weight: 800; text-transform: uppercase; color: #64748b; text-align: center; width: 60px;">Qty</th>
+                                            <th style="padding: 8px 10px; font-size: 10px; font-weight: 800; text-transform: uppercase; color: #64748b; text-align: right; width: 90px;">Price</th>
+                                            <th style="padding: 8px 10px; font-size: 10px; font-weight: 800; text-transform: uppercase; color: #64748b; text-align: right; width: 100px;">Total</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        ${itemsHtml}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <!-- Totals and Payment Summary -->
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1rem;">
+                                <div>
+                                    <div style="font-size: 0.7rem; font-weight: 800; text-transform: uppercase; color: #94a3b8; margin-bottom: 6px;">Payment Breakdown</div>
+                                    ${paymentsHtml || '<div style="font-size: 0.78rem; color: #94a3b8;">No payment entries found.</div>'}
+                                </div>
+                                <div style="display: flex; flex-direction: column; gap: 4px; border-left: 1px solid #e2e8f0; padding-left: 14px;">
+                                    <div style="display: flex; justify-content: space-between; font-size: 0.82rem; color: #64748b;">
+                                        <span>Subtotal:</span>
+                                        <span style="font-weight: 700; color: #0f172a;">LKR ${subtotal.toFixed(2)}</span>
+                                    </div>
+                                    <div style="display: flex; justify-content: space-between; font-size: 0.82rem; color: #dc2626;">
+                                        <span>Total Discount:</span>
+                                        <span style="font-weight: 700;">- LKR ${discount.toFixed(2)}</span>
+                                    </div>
+                                    <div style="display: flex; justify-content: space-between; font-size: 1.05rem; font-weight: 900; color: #0f172a; border-top: 1.5px dashed #cbd5e1; padding-top: 6px; margin-top: 4px; font-family: 'Outfit', sans-serif;">
+                                        <span>Total Paid:</span>
+                                        <span style="color: #047857;">LKR ${total.toFixed(2)}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    }
+                })
+                .catch(err => {
+                    console.error("Error fetching sale details", err);
+                    if (content) {
+                        content.innerHTML = `<div style="text-align: center; padding: 2rem; color: #dc2626;">Error loading sale details.</div>`;
+                    }
+                });
+        }
+
+        function closeSaleDetailsModal() {
+            closeModal('modal-sale-details');
         }
 
         // Clear & Cancel Actions
@@ -2985,506 +5603,60 @@
         let custSearchTimer = null;
         const custSearchInput = document.getElementById('cust-search-input');
 
-        function openCustomerModal() {
-            openModal('modal-customer-selector');
-            custSearchInput.value = '';
-            performCustomerSearch('');
-            setTimeout(() => {
-                custSearchInput.focus();
-                custSearchInput.select();
-            }, 100);
+        function isPaymentModalActive() {
+            const el = document.getElementById('modal-payment');
+            return el && el.classList.contains('active');
         }
 
-        function selectWalkinCustomer() {
-            fetch('pos_api.php?action=get_walkin_customer')
-                .then(r => r.json())
-                .then(res => {
-                    if (res.success && res.data) {
-                        currentCustomer = res.data;
-                    } else {
-                        currentCustomer = { id: 1, name: 'Walk-in Customer', customer_code: 'CUST-WALKIN', is_walkin: 1 };
-                    }
-                    updateCustomerDisplay();
-                    closeModal('modal-customer-selector');
-                    setTimeout(() => {
-                        openSalesRepModal();
-                    }, 60);
-                })
-                .catch(() => {
-                    currentCustomer = { id: 1, name: 'Walk-in Customer', customer_code: 'CUST-WALKIN', is_walkin: 1 };
-                    updateCustomerDisplay();
-                    closeModal('modal-customer-selector');
-                    setTimeout(() => {
-                        openSalesRepModal();
-                    }, 60);
-                });
-        }
-
-        document.getElementById('btn-change-customer').addEventListener('click', (e) => {
-            e.stopPropagation();
-            openCustomerModal();
-        });
-
-        async function performCustomerSearch(q) {
-            q = (q || '').trim();
-            try {
-                let customers = [];
-                let onlineSuccess = false;
-
-                if (navigator.onLine) {
-                    try {
-                        const res = await fetch(`pos_api.php?action=search_customers&q=${encodeURIComponent(q)}`);
-                        const data = await res.json();
-                        if (data.success && Array.isArray(data.data)) {
-                            customers = data.data;
-                            onlineSuccess = true;
-                        }
-                    } catch (e) {
-                        console.warn("Online customer search failed, falling back to cache", e);
-                    }
-                }
-
-                if (!onlineSuccess && typeof CurtissOfflinePOS !== 'undefined') {
-                    const cached = await CurtissOfflinePOS.getCachedData('customers');
-                    if (cached && cached.length > 0) {
-                        if (!q) {
-                            customers = cached.slice(0, 15);
-                        } else {
-                            const qLower = q.toLowerCase();
-                            customers = cached.filter(c => 
-                                (c.name && c.name.toLowerCase().includes(qLower)) ||
-                                (c.phone && c.phone.includes(qLower)) ||
-                                (c.customer_code && c.customer_code.toLowerCase().includes(qLower)) ||
-                                (c.card_barcode && c.card_barcode.toLowerCase().includes(qLower))
-                            );
-                        }
-                    }
-                }
-
-                currentSearchCustomers = customers;
-                selectedCustIndex = (customers.length > 0 || q.length > 0) ? 0 : -1;
-                renderCustomerSearchResults(currentSearchCustomers);
-            } catch (err) {
-                console.error("Customer search error:", err);
-            }
-        }
-
-        custSearchInput.addEventListener('input', (e) => {
-            clearTimeout(custSearchTimer);
-            const q = e.target.value;
-            custSearchTimer = setTimeout(() => {
-                performCustomerSearch(q);
-            }, 60);
-        });
-
-        custSearchInput.addEventListener('keydown', (e) => {
-            const q = custSearchInput.value.trim();
-            const hasQuery = q.length > 0;
-            const totalCount = currentSearchCustomers.length + (hasQuery ? 1 : 0);
-
-            if (totalCount > 0) {
-                if (e.key === 'ArrowDown') {
-                    e.preventDefault();
-                    selectedCustIndex = (selectedCustIndex + 1) % totalCount;
-                    updateCustomerHighlight();
-                    return;
-                } else if (e.key === 'ArrowUp') {
-                    e.preventDefault();
-                    selectedCustIndex = (selectedCustIndex - 1 + totalCount) % totalCount;
-                    updateCustomerHighlight();
-                    return;
-                } else if (e.key === 'Enter') {
-                    e.preventDefault();
-                    if (hasQuery && selectedCustIndex === currentSearchCustomers.length) {
-                        openQuickCustomerModal(q);
-                    } else if (selectedCustIndex >= 0 && currentSearchCustomers[selectedCustIndex]) {
-                        selectCustomerByIndex(selectedCustIndex);
-                    } else if (hasQuery) {
-                        openQuickCustomerModal(q);
-                    }
-                    return;
-                }
-            } else if (hasQuery && e.key === 'Enter') {
-                e.preventDefault();
-                openQuickCustomerModal(q);
-            }
-        });
-
-        function updateCustomerHighlight() {
-            const cards = document.querySelectorAll('#cust-search-results .cust-item-card');
-            cards.forEach((card, idx) => {
-                if (idx === selectedCustIndex) {
-                    card.classList.add('selected');
-                    card.scrollIntoView({ block: 'nearest' });
-                } else {
-                    card.classList.remove('selected');
-                }
-            });
-        }
-
-        function renderCustomerSearchResults(customers) {
-            const container = document.getElementById('cust-search-results');
-            const q = custSearchInput.value.trim();
-            const hasQuery = q.length > 0;
-
-            if (!customers || customers.length === 0) {
-                if (hasQuery) {
-                    selectedCustIndex = 0;
-                    container.innerHTML = `
-                        <div class="cust-item-card quick-create-card selected" data-index="0" onclick="openQuickCustomerModal('${escapeHtml(q)}')" style="border: 1.5px dashed #0284c7; background: #f0f9ff; cursor: pointer; display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border-radius: 12px; margin-bottom: 8px;">
-                            <div style="display: flex; align-items: center; gap: 12px;">
-                                <div style="width: 36px; height: 36px; border-radius: 10px; background: #e0f2fe; color: #0284c7; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; flex-shrink: 0;">
-                                    <i class="fa-solid fa-user-plus"></i>
-                                </div>
-                                <div>
-                                    <div style="font-weight: 800; color: #0369a1; font-size: 0.95rem;">
-                                        + Create New Customer "${escapeHtml(q)}"
-                                    </div>
-                                    <div style="font-size: 0.78rem; color: #0284c7; margin-top: 2px;">
-                                        No customer found. Press <kbd style="background: #fff; border: 1px solid #bae6fd; padding: 1px 5px; border-radius: 4px; font-weight: 700;">Enter</kbd> or click to quickly create.
-                                    </div>
-                                </div>
-                            </div>
-                            <button class="btn-customer-select" type="button" style="background: #0284c7; color: #fff; border: none; padding: 6px 14px; border-radius: 999px; font-weight: 700; cursor: pointer;">+ Create</button>
-                        </div>
-                    `;
-                    return;
-                } else {
-                    container.innerHTML = '<div style="text-align:center; padding:1.5rem; color: var(--pos-text-muted); font-weight: 600;">No active customers found.</div>';
-                    return;
-                }
-            }
-
-            let html = '';
-            customers.forEach((c, idx) => {
-                const isSelected = idx === selectedCustIndex ? 'selected' : '';
-                const isCurrent = currentCustomer && currentCustomer.id == c.id;
-                const isLoyalty = (c.is_loyalty == 1 || c.is_loyalty === '1');
-                const loyaltyDiscPct = (c.loyalty_discount_override && parseFloat(c.loyalty_discount_override) > 0) ? parseFloat(c.loyalty_discount_override) : DEFAULT_LOYALTY_DISCOUNT_PERCENTAGE;
-                const loyaltyBadge = isLoyalty ? `<span style="font-size:0.68rem; background:#f5f3ff; color:#7c3aed; border:1px solid #ddd6fe; padding:2px 8px; border-radius:999px; font-weight:800;">★ LOYALTY (${loyaltyDiscPct}%)</span>` : '';
-
-                html += `
-                    <div class="cust-item-card ${isSelected}" data-index="${idx}" onclick="selectCustomerByIndex(${idx})" style="border: 1px solid ${isCurrent ? '#0f172a' : 'var(--pos-border)'};">
-                        <div>
-                            <div style="font-weight: 800; color: var(--pos-text); font-size: 1rem; display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
-                                ${escapeHtml(c.name)} <span style="font-size: 0.78rem; font-weight: 700; color: #64748b;">(${escapeHtml(c.customer_code || '')})</span>
-                                ${loyaltyBadge}
-                                ${isCurrent ? '<span style="font-size:0.68rem; background:#dcfce7; color:#15803d; padding:2px 8px; border-radius:999px; font-weight:800;">CURRENT</span>' : ''}
-                            </div>
-                            <div style="font-size: 0.8rem; color: var(--pos-text-muted); margin-top: 3px;">
-                                Phone: <strong>${escapeHtml(c.phone || 'N/A')}</strong> | Card: <strong>${escapeHtml(c.card_barcode || 'N/A')}</strong>
-                                ${parseFloat(c.credit_balance || 0) > 0 ? ` | Outstanding: <span style="color:#dc2626; font-weight:700;">LKR ${parseFloat(c.credit_balance).toFixed(2)}</span>` : ''}
-                            </div>
-                        </div>
-                        <button class="btn-customer-select" type="button">Select</button>
-                    </div>
-                `;
-            });
-
-            if (hasQuery) {
-                const isCreateSelected = selectedCustIndex === customers.length ? 'selected' : '';
-                html += `
-                    <div class="cust-item-card quick-create-card ${isCreateSelected}" data-index="${customers.length}" onclick="openQuickCustomerModal('${escapeHtml(q)}')" style="border: 1.5px dashed #0284c7; background: #f0f9ff; cursor: pointer; display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border-radius: 12px; margin-top: 6px;">
-                        <div style="display: flex; align-items: center; gap: 12px;">
-                            <div style="width: 36px; height: 36px; border-radius: 10px; background: #e0f2fe; color: #0284c7; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; flex-shrink: 0;">
-                                <i class="fa-solid fa-user-plus"></i>
-                            </div>
-                            <div>
-                                <div style="font-weight: 800; color: #0369a1; font-size: 0.95rem;">
-                                    + Create New Customer "${escapeHtml(q)}"
-                                </div>
-                                <div style="font-size: 0.78rem; color: #0284c7; margin-top: 2px;">
-                                    Press <kbd style="background: #fff; border: 1px solid #bae6fd; padding: 1px 5px; border-radius: 4px; font-weight: 700;">Enter</kbd> or click to quickly create
-                                </div>
-                            </div>
-                        </div>
-                        <button class="btn-customer-select" type="button" style="background: #0284c7; color: #fff; border: none; padding: 6px 14px; border-radius: 999px; font-weight: 700; cursor: pointer;">+ Create</button>
-                    </div>
-                `;
-            }
-
-            container.innerHTML = html;
-        }
-
-        // --- QUICK CREATE CUSTOMER MODAL LOGIC & KEYBOARD INTERACTION ---
-        const quickCustNameInput = document.getElementById('quick-cust-name');
-        const quickCustPhoneInput = document.getElementById('quick-cust-phone');
-        const quickCustWaInput = document.getElementById('quick-cust-whatsapp');
-        const quickCustSameWaCheck = document.getElementById('quick-cust-same-wa');
-        const quickCustErrorEl = document.getElementById('quick-cust-error');
-        const btnSaveQuickCust = document.getElementById('btn-save-quick-cust');
-
-        function openQuickCustomerModal(query) {
-            query = (query || '').trim();
-            if (quickCustErrorEl) {
-                quickCustErrorEl.style.display = 'none';
-                quickCustErrorEl.textContent = '';
-            }
-
-            const cleanDigits = query.replace(/[^0-9]/g, '');
-            // Check if input looks like a phone number: at least 7 digits, or mostly numeric
-            const isPhone = /^[0-9+\s\-()]{7,}$/.test(query) || (cleanDigits.length >= 7 && (cleanDigits.length / Math.max(1, query.length) > 0.7));
-
-            if (isPhone) {
-                const phone10 = cleanDigits.slice(0, 10);
-                if (quickCustPhoneInput) quickCustPhoneInput.value = phone10;
-                if (quickCustWaInput) quickCustWaInput.value = phone10;
-                if (quickCustSameWaCheck) quickCustSameWaCheck.checked = true;
-                if (quickCustNameInput) quickCustNameInput.value = '';
-                openModal('modal-quick-customer');
-                setTimeout(() => {
-                    if (quickCustNameInput) quickCustNameInput.focus();
-                }, 100);
+        function focusCurrentPaymentMethodInput() {
+            if (activePaymentMethod === 'Split') {
+                const cashSplit = document.getElementById('split-cash-amount');
+                if (cashSplit) { cashSplit.focus(); cashSplit.select(); }
+            } else if (activePaymentMethod === 'Cash') {
+                const cashGiven = document.getElementById('pay-cash-given-input');
+                if (cashGiven) { cashGiven.focus(); cashGiven.select(); }
             } else {
-                if (quickCustNameInput) quickCustNameInput.value = query;
-                if (quickCustPhoneInput) quickCustPhoneInput.value = '';
-                if (quickCustWaInput) quickCustWaInput.value = '';
-                if (quickCustSameWaCheck) quickCustSameWaCheck.checked = false;
-                openModal('modal-quick-customer');
-                setTimeout(() => {
-                    if (quickCustPhoneInput) quickCustPhoneInput.focus();
-                }, 100);
+                const splitInput = document.getElementById('pay-split-amount-input');
+                if (splitInput) { splitInput.focus(); splitInput.select(); }
             }
         }
 
-        function closeQuickCustomerModal() {
-            closeModal('modal-quick-customer');
-            setTimeout(() => {
-                custSearchInput.focus();
-                custSearchInput.select();
-            }, 60);
+        function handleCustomerSelectedInPayment() {}
+        function openCustomerModal() {}
+        function openCustomerModalFromCredit() {}
+        function selectWalkinCustomer() {}
+        const btnChangeCust = document.getElementById('btn-change-customer');
+        if (btnChangeCust) {
+            btnChangeCust.addEventListener('click', (e) => { e.stopPropagation(); });
         }
 
-        if (quickCustPhoneInput) {
-            quickCustPhoneInput.addEventListener('input', () => {
-                quickCustPhoneInput.value = quickCustPhoneInput.value.replace(/[^0-9]/g, '').slice(0, 10);
-                if (quickCustSameWaCheck && quickCustSameWaCheck.checked) {
-                    quickCustWaInput.value = quickCustPhoneInput.value;
-                }
-            });
+        function performCustomerSearch(q) {}
 
-            quickCustPhoneInput.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    if (quickCustSameWaCheck && quickCustSameWaCheck.checked && !quickCustWaInput.value) {
-                        quickCustWaInput.value = quickCustPhoneInput.value;
-                    }
-                    if (quickCustWaInput) {
-                        quickCustWaInput.focus();
-                        quickCustWaInput.select();
-                    }
-                }
-            });
-        }
+        function updateCustomerHighlight() {}
 
-        if (quickCustWaInput) {
-            quickCustWaInput.addEventListener('input', () => {
-                quickCustWaInput.value = quickCustWaInput.value.replace(/[^0-9]/g, '').slice(0, 10);
-                if (quickCustSameWaCheck && quickCustPhoneInput && quickCustPhoneInput.value !== quickCustWaInput.value) {
-                    quickCustSameWaCheck.checked = false;
-                }
-            });
-
-            quickCustWaInput.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    submitQuickCustomer();
-                }
-            });
-        }
-
-        if (quickCustSameWaCheck) {
-            quickCustSameWaCheck.addEventListener('change', () => {
-                if (quickCustSameWaCheck.checked && quickCustPhoneInput && quickCustWaInput) {
-                    quickCustWaInput.value = quickCustPhoneInput.value;
-                }
-            });
-        }
-
-        if (quickCustNameInput) {
-            quickCustNameInput.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    if (!quickCustNameInput.value.trim()) {
-                        if (quickCustErrorEl) {
-                            quickCustErrorEl.textContent = 'Customer name is required.';
-                            quickCustErrorEl.style.display = 'block';
-                        }
-                        quickCustNameInput.focus();
-                        return;
-                    }
-                    if (quickCustErrorEl) quickCustErrorEl.style.display = 'none';
-                    if (quickCustPhoneInput) {
-                        quickCustPhoneInput.focus();
-                        quickCustPhoneInput.select();
-                    }
-                }
-            });
-        }
-
-        async function submitQuickCustomer() {
-            const name = quickCustNameInput ? quickCustNameInput.value.trim() : '';
-            const phone = quickCustPhoneInput ? quickCustPhoneInput.value.trim() : '';
-            const wa = quickCustWaInput ? quickCustWaInput.value.trim() : '';
-
-            if (!name) {
-                if (quickCustErrorEl) {
-                    quickCustErrorEl.textContent = 'Customer name is required.';
-                    quickCustErrorEl.style.display = 'block';
-                }
-                if (quickCustNameInput) quickCustNameInput.focus();
-                return;
-            }
-
-            if (quickCustErrorEl) quickCustErrorEl.style.display = 'none';
-            if (btnSaveQuickCust) {
-                btnSaveQuickCust.disabled = true;
-                btnSaveQuickCust.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving...';
-            }
-
-            try {
-                const response = await fetch('pos_api.php?action=quick_create_customer', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        name: name,
-                        phone: phone,
-                        whatsapp: wa
-                    })
-                });
-                const res = await response.json();
-
-                if (res.success && res.customer) {
-                    currentCustomer = res.customer;
-                    updateCustomerDisplay();
-                    closeModal('modal-quick-customer');
-                    closeModal('modal-customer-selector');
-
-                    if (btnSaveQuickCust) {
-                        btnSaveQuickCust.disabled = false;
-                        btnSaveQuickCust.innerHTML = '<i class="fa-solid fa-check"></i> Save & Select (Enter)';
-                    }
-
-                    // Auto-focus directly on Sales Rep selection popup modal search bar
-                    setTimeout(() => {
-                        openSalesRepModal();
-                    }, 100);
-                } else {
-                    if (btnSaveQuickCust) {
-                        btnSaveQuickCust.disabled = false;
-                        btnSaveQuickCust.innerHTML = '<i class="fa-solid fa-check"></i> Save & Select (Enter)';
-                    }
-                    if (quickCustErrorEl) {
-                        quickCustErrorEl.textContent = res.message || 'Failed to create customer.';
-                        quickCustErrorEl.style.display = 'block';
-                    }
-                }
-            } catch (err) {
-                console.error("Quick customer creation failed", err);
-                if (btnSaveQuickCust) {
-                    btnSaveQuickCust.disabled = false;
-                    btnSaveQuickCust.innerHTML = '<i class="fa-solid fa-check"></i> Save & Select (Enter)';
-                }
-                if (quickCustErrorEl) {
-                    quickCustErrorEl.textContent = 'Network or server error while creating customer.';
-                    quickCustErrorEl.style.display = 'block';
-                }
-            }
-        }
-
-        let pendingLoyaltyCustomer = null;
-        let pendingLoyaltyDiscountPct = 0;
-        let loyaltyChoiceIndex = 1; // 0 = Cancel, 1 = Apply
-        let lastLoyaltyModalOpenTime = 0;
-
-        function showLoyaltyPromptModal(cust, discountPct) {
-            pendingLoyaltyCustomer = cust;
-            pendingLoyaltyDiscountPct = discountPct;
-            loyaltyChoiceIndex = 1;
-            lastLoyaltyModalOpenTime = Date.now();
-
-            const nameEl = document.getElementById('loyalty-modal-cust-name');
-            const badgeEl = document.getElementById('loyalty-modal-pct-badge');
-            const descEl = document.getElementById('loyalty-modal-desc');
-            const pctTextEl = document.getElementById('loyalty-modal-pct-text');
-
-            if (nameEl) nameEl.innerText = cust.name;
-            if (badgeEl) badgeEl.innerText = `${discountPct}% OFF`;
-            if (descEl) descEl.innerHTML = `Customer "<strong>${escapeHtml(cust.name)}</strong>" is an active Loyalty Member eligible for a <strong>${discountPct}%</strong> discount.`;
-            if (pctTextEl) pctTextEl.innerText = `${discountPct}%`;
-
-            openModal('modal-loyalty-prompt');
-            setTimeout(() => {
-                updateLoyaltyChoiceHighlight();
-            }, 60);
-        }
-
-        function updateLoyaltyChoiceHighlight() {
-            const btnApply = document.getElementById('btn-loyalty-apply');
-            const btnCancel = document.getElementById('btn-loyalty-cancel');
-            if (!btnApply || !btnCancel) return;
-
-            if (loyaltyChoiceIndex === 1) {
-                btnApply.classList.add('focused');
-                btnCancel.classList.remove('focused');
-                btnApply.focus();
-            } else {
-                btnCancel.classList.add('focused');
-                btnApply.classList.remove('focused');
-                btnCancel.focus();
-            }
-        }
-
-        function confirmApplyLoyaltyDiscount() {
-            if (pendingLoyaltyDiscountPct > 0) {
-                summaryDiscountInput.value = `${pendingLoyaltyDiscountPct}%`;
-                calculateTotals();
-            }
-            closeModal('modal-loyalty-prompt');
-            pendingLoyaltyCustomer = null;
-            pendingLoyaltyDiscountPct = 0;
-            setTimeout(() => {
-                openSalesRepModal();
-            }, 60);
-        }
-
-        function cancelLoyaltyPrompt() {
-            closeModal('modal-loyalty-prompt');
-            pendingLoyaltyCustomer = null;
-            pendingLoyaltyDiscountPct = 0;
-            setTimeout(() => {
-                openSalesRepModal();
-            }, 60);
-        }
-
-        function selectCustomerByIndex(idx) {
-            if (currentSearchCustomers[idx]) {
-                const cust = currentSearchCustomers[idx];
-                currentCustomer = cust;
-                updateCustomerDisplay();
-                closeModal('modal-customer-selector');
-
-                // Loyalty member discount prompt (Modal Popup)
-                if (cust.is_loyalty == 1 || cust.is_loyalty === '1') {
-                    const discountPct = (cust.loyalty_discount_override && parseFloat(cust.loyalty_discount_override) > 0) 
-                        ? parseFloat(cust.loyalty_discount_override) 
-                        : DEFAULT_LOYALTY_DISCOUNT_PERCENTAGE;
-
-                    setTimeout(() => {
-                        showLoyaltyPromptModal(cust, discountPct);
-                    }, 80);
-                } else {
-                    setTimeout(() => {
-                        openSalesRepModal();
-                    }, 60);
-                }
-            }
-        }
+        function renderCustomerSearchResults(customers) {}
+        function toggleQuickCustCreditLimit(cb) {}
+        function openQuickCustomerModal(query) {}
+        function closeQuickCustomerModal() {}
+        function submitQuickCustomer() {}
+        function showLoyaltyPromptModal(cust, discountPct) {}
+        function updateLoyaltyChoiceHighlight() {}
+        function confirmApplyLoyaltyDiscount() {}
+        function cancelLoyaltyPrompt() {}
+        function selectCustomerByIndex(idx) {}
 
         // Dedicated Payment View & Switch Logic
         document.getElementById('btn-proceed-pay').addEventListener('click', proceedToPayment);
 
+        let isPreparingDraft = false;
         function proceedToPayment() {
+            if (isPreparingDraft) return;
+            if (Date.now() - lastModalClosedTime < 80) {
+                return;
+            }
+            if (document.querySelector('.pos-modal.active')) {
+                return;
+            }
             if (cart.length === 0) {
                 alert("Cart is empty. Please scan or select items before completing the sale.");
                 return;
@@ -3495,14 +5667,30 @@
                 return;
             }
 
+            isPreparingDraft = true;
+            const payHeroBtn = document.getElementById('btn-proceed-pay');
+            if (payHeroBtn) payHeroBtn.style.opacity = '0.6';
+
             if (navigator.onLine) {
                 const payload = {
                     action: 'prepare_draft',
                     sale_id: activeSaleId,
-                    customer_id: currentCustomer.id,
-                    sales_rep_id: currentSalesRep ? currentSalesRep.id : null,
+                    customer_id: 1,
+                    sales_rep_id: null,
                     discount_value: summaryDiscountInput.value.trim(),
-                    items: cart
+                    applied_promotions: currentAppliedPromotions,
+                    promo_discount_amount: currentPromoDiscount,
+                    items: cart.map(it => ({
+                        product_id: it.product_id,
+                        lot_id: it.lot_id,
+                        quantity: it.quantity,
+                        unit_price: it.unit_price,
+                        original_price: it.original_price || it.unit_price,
+                        discount_value: it.discount_value,
+                        promo_discount_amount: parseFloat(it.promo_discount_amount) || 0,
+                        applied_rule_id: it.applied_rule_id || null,
+                        promo_name: it.promo_name || null
+                    }))
                 };
 
                 fetch('pos_api.php', {
@@ -3512,6 +5700,8 @@
                 })
                 .then(res => res.json())
                 .then(res => {
+                    isPreparingDraft = false;
+                    if (payHeroBtn) payHeroBtn.style.opacity = '1';
                     if (res.success) {
                         activeSaleId = res.sale_id;
                         openPaymentModal(res.total_amount);
@@ -3520,35 +5710,43 @@
                     }
                 })
                 .catch(() => {
+                    isPreparingDraft = false;
+                    if (payHeroBtn) payHeroBtn.style.opacity = '1';
                     proceedToOfflinePayment();
                 });
             } else {
+                isPreparingDraft = false;
+                if (payHeroBtn) payHeroBtn.style.opacity = '1';
                 proceedToOfflinePayment();
             }
         }
 
         function proceedToOfflinePayment() {
             let subtotal = 0;
+            let eligibleSubtotal = 0;
             cart.forEach(item => {
                 const itemSubtotal = item.quantity * item.unit_price;
                 const parsedItemDisc = parseDiscountJS(item.discount_value, itemSubtotal);
-                subtotal += Math.max(0, itemSubtotal - parsedItemDisc.total_discount);
+                const lineTotal = Math.max(0, itemSubtotal - parsedItemDisc.total_discount);
+                subtotal += lineTotal;
+
+                const hasItemDisc = (parsedItemDisc.total_discount > 0 || (String(item.discount_value || '').trim() !== ''));
+                if (!hasItemDisc) {
+                    eligibleSubtotal += lineTotal;
+                }
             });
 
             const discStr = summaryDiscountInput.value.trim();
-            const parsedInvDisc = parseDiscountJS(discStr, subtotal);
+            const parsedInvDisc = parseDiscountJS(discStr, eligibleSubtotal);
             const totalDiscount = parsedInvDisc.total_discount;
             const payableTotal = Math.max(0, subtotal - totalDiscount);
             activeSaleId = 'OFFLINE_DRAFT';
             openPaymentModal(payableTotal);
         }
 
-        let currentVerifiedVoucher = null;
-
         function openPaymentModal(totalAmount) {
             paymentAllocations = [];
             currentPayableTotal = parseFloat(totalAmount);
-            currentVerifiedVoucher = null;
             
             document.getElementById('pay-modal-total').innerText = `LKR ${currentPayableTotal.toFixed(2)}`;
             document.getElementById('pay-modal-discount').innerText = `- LKR ${currentTotalDiscount.toFixed(2)}`;
@@ -3556,16 +5754,20 @@
             const addSplitBtn = document.getElementById('btn-add-split-line');
             if (addSplitBtn) addSplitBtn.disabled = false;
 
+            // Reset split fields for fresh payment
+            ['split-cash-amount', 'split-card-amount', 'split-bank-amount', 'split-cash-tendered', 'split-bank-ref-input'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.value = '';
+            });
+            const bankDet = document.getElementById('split-bank-details');
+            if (bankDet) bankDet.style.display = 'none';
+
             updatePaymentSummary();
             switchPaymentMethod('Cash');
             openModal('modal-payment');
         }
 
-        const paymentMethodsList = ['Cash', 'Card', 'Bank', 'Credit', 'Voucher', 'Koko'];
-        let activeKokoOrderId = null;
-        let activeKokoPollTimer = null;
-        let activeKokoStatus = 'pending';
-        let currentKokoChannel = 'qr';
+        const paymentMethodsList = ['Cash', 'Card', 'Bank', 'Split'];
 
         function switchPaymentMethod(method) {
             activePaymentMethod = method;
@@ -3582,6 +5784,36 @@
                 }
             });
 
+            const singleContainer = document.getElementById('single-payment-method-container');
+            const splitContainer = document.getElementById('split-multi-payment-section');
+
+            if (method === 'Split') {
+                if (singleContainer) singleContainer.style.display = 'none';
+                if (splitContainer) splitContainer.style.display = 'block';
+
+                loadBankAccounts();
+
+                const hasAnyVal = ['split-cash-amount', 'split-card-amount', 'split-bank-amount']
+                    .some(id => (parseFloat(document.getElementById(id)?.value) || 0) > 0);
+
+                if (!hasAnyVal) {
+                    const cashSplit = document.getElementById('split-cash-amount');
+                    if (cashSplit) cashSplit.value = currentPayableTotal.toFixed(2);
+                    const cashTend = document.getElementById('split-cash-tendered');
+                    if (cashTend) cashTend.value = currentPayableTotal.toFixed(2);
+                }
+                recalculateSplitSummary();
+
+                setTimeout(() => {
+                    const cashSplit = document.getElementById('split-cash-amount');
+                    if (cashSplit) { cashSplit.focus(); cashSplit.select(); }
+                }, 80);
+                return;
+            }
+
+            if (singleContainer) singleContainer.style.display = 'block';
+            if (splitContainer) splitContainer.style.display = 'none';
+
             // Update active method label in split amount prompt
             const labelEl = document.getElementById('active-method-label');
             if (labelEl) labelEl.innerText = method;
@@ -3589,41 +5821,18 @@
             const cashSection = document.getElementById('cash-payment-section');
             const cardSection = document.getElementById('card-payment-section');
             const bankSection = document.getElementById('bank-payment-section');
-            const creditSection = document.getElementById('credit-payment-section');
-            const voucherSection = document.getElementById('voucher-payment-section');
-            const kokoSection = document.getElementById('koko-payment-section');
 
             const splitInput = document.getElementById('pay-split-amount-input');
             const remDue = getRemainingDue();
             if (splitInput) {
-                if (method === 'Credit' && currentCustomer && currentCustomer.is_walkin != 1 && currentCustomer.id != 1) {
-                    const limit = parseFloat(currentCustomer.credit_limit) || 0;
-                    const bal = parseFloat(currentCustomer.credit_balance) || 0;
-                    const avail = Math.max(0, limit - bal);
-                    const existingCreditAlloc = paymentAllocations
-                        .filter(p => p.payment_method === 'Credit')
-                        .reduce((sum, p) => sum + p.amount, 0);
-                    const remainingAvail = Math.max(0, avail - existingCreditAlloc);
-                    splitInput.value = (remainingAvail > 0 ? Math.min(remDue, remainingAvail) : 0).toFixed(2);
-                } else {
-                    splitInput.value = remDue > 0 ? remDue.toFixed(2) : '0.00';
-                }
+                splitInput.value = remDue > 0 ? remDue.toFixed(2) : '0.00';
             }
             updateSplitButtonLabel();
-
-            // Clear any active Koko polling when switching away
-            if (method !== 'Koko' && activeKokoPollTimer) {
-                clearInterval(activeKokoPollTimer);
-                activeKokoPollTimer = null;
-            }
 
             // Hide all method sections first
             if (cashSection) cashSection.style.display = 'none';
             if (cardSection) cardSection.style.display = 'none';
             if (bankSection) bankSection.style.display = 'none';
-            if (creditSection) creditSection.style.display = 'none';
-            if (voucherSection) voucherSection.style.display = 'none';
-            if (kokoSection) kokoSection.style.display = 'none';
 
             if (method === 'Cash') {
                 if (cashSection) cashSection.style.display = 'block';
@@ -3645,150 +5854,84 @@
                     const bankSelect = document.getElementById('pay-bank-account-select');
                     if (bankSelect) bankSelect.focus();
                 }, 80);
-            } else if (method === 'Credit') {
-                if (creditSection) creditSection.style.display = 'block';
-                populateCreditCustomerInfo();
-                setTimeout(() => {
-                    if (splitInput) { splitInput.focus(); splitInput.select(); }
-                }, 80);
-            } else if (method === 'Voucher') {
-                if (voucherSection) voucherSection.style.display = 'block';
-                const vRes = document.getElementById('voucher-verification-result');
-                if (vRes) vRes.style.display = 'none';
-                currentVerifiedVoucher = null;
-                setTimeout(() => {
-                    const vInput = document.getElementById('pay-voucher-code-input');
-                    if (vInput) { vInput.value = ''; vInput.focus(); }
-                }, 80);
-            } else if (method === 'Koko') {
-                if (kokoSection) kokoSection.style.display = 'block';
-                initiateKokoPaymentOrder();
             }
         }
 
-        function populateCreditCustomerInfo() {
-            const nameEl = document.getElementById('credit-cust-name');
-            const phoneEl = document.getElementById('credit-cust-phone');
-            const limitEl = document.getElementById('credit-cust-limit');
-            const balEl = document.getElementById('credit-cust-balance');
-            const availEl = document.getElementById('credit-cust-available');
-            const warningEl = document.getElementById('credit-walkin-warning');
-            const addSplitBtn = document.getElementById('btn-add-split-line');
+        function populateCreditCustomerInfo() {}
 
-            if (!currentCustomer) {
-                if (warningEl) {
-                    warningEl.innerHTML = '<i class="fa-solid fa-triangle-exclamation me-1"></i> No customer selected.';
-                    warningEl.style.display = 'block';
-                }
-                if (addSplitBtn && activePaymentMethod === 'Credit') addSplitBtn.disabled = true;
-                return;
-            }
-
-            const isWalkin = currentCustomer.is_walkin == 1 || currentCustomer.id == 1;
-            if (isWalkin) {
-                if (nameEl) nameEl.innerText = 'Walk-in Customer (General)';
-                if (phoneEl) phoneEl.innerText = '-';
-                if (limitEl) limitEl.innerText = 'LKR 0.00';
-                if (balEl) balEl.innerText = 'LKR 0.00';
-                if (availEl) availEl.innerText = 'LKR 0.00';
-                if (warningEl) {
-                    warningEl.innerHTML = '<i class="fa-solid fa-triangle-exclamation me-1"></i> Credit payment is strictly prohibited for Walk-in Customers. Please assign a registered customer first.';
-                    warningEl.style.display = 'block';
-                }
-                if (addSplitBtn && activePaymentMethod === 'Credit') addSplitBtn.disabled = true;
+        function setSplitCashTendered(val) {
+            const cashAmt = parseFloat(document.getElementById('split-cash-amount')?.value) || 0;
+            const tendInput = document.getElementById('split-cash-tendered');
+            if (!tendInput) return;
+            if (val === 'exact') {
+                tendInput.value = cashAmt.toFixed(2);
             } else {
-                const limit = parseFloat(currentCustomer.credit_limit) || 0;
-                const bal = parseFloat(currentCustomer.credit_balance) || 0;
-                const avail = Math.max(0, limit - bal);
+                tendInput.value = parseFloat(val).toFixed(2);
+            }
+            recalculateSplitSummary();
+            tendInput.focus();
+        }
 
-                const existingCreditAlloc = paymentAllocations
-                    .filter(p => p.payment_method === 'Credit')
-                    .reduce((sum, p) => sum + p.amount, 0);
-
-                const remainingAvail = Math.max(0, avail - existingCreditAlloc);
-
-                if (nameEl) nameEl.innerText = currentCustomer.name;
-                if (phoneEl) phoneEl.innerText = currentCustomer.phone || '-';
-                if (limitEl) limitEl.innerText = `LKR ${limit.toFixed(2)}`;
-                if (balEl) balEl.innerText = `LKR ${bal.toFixed(2)}`;
-                if (availEl) availEl.innerText = `LKR ${avail.toFixed(2)}`;
-
-                if (limit <= 0) {
-                    if (warningEl) {
-                        warningEl.innerHTML = `<i class="fa-solid fa-triangle-exclamation me-1"></i> Customer "<strong>${escapeHtml(currentCustomer.name)}</strong>" has no credit facility (Credit Limit: LKR 0.00). Credit sales are prohibited.`;
-                        warningEl.style.display = 'block';
-                    }
-                    if (addSplitBtn && activePaymentMethod === 'Credit') addSplitBtn.disabled = true;
-                } else if (remainingAvail <= 0) {
-                    if (warningEl) {
-                        warningEl.innerHTML = `<i class="fa-solid fa-triangle-exclamation me-1"></i> Credit limit reached for "<strong>${escapeHtml(currentCustomer.name)}</strong>"! Limit: LKR ${limit.toFixed(2)}, Outstanding: LKR ${bal.toFixed(2)}. Available Credit: <strong>LKR 0.00</strong>.`;
-                        warningEl.style.display = 'block';
-                    }
-                    if (addSplitBtn && activePaymentMethod === 'Credit') addSplitBtn.disabled = true;
-                } else {
-                    if (warningEl) warningEl.style.display = 'none';
-                    if (addSplitBtn && activePaymentMethod === 'Credit') addSplitBtn.disabled = false;
+        function fillSplitField(fieldId) {
+            const fields = ['split-cash-amount', 'split-card-amount', 'split-bank-amount'];
+            let otherSum = 0;
+            fields.forEach(f => {
+                if (f !== fieldId) {
+                    otherSum += (parseFloat(document.getElementById(f)?.value) || 0);
                 }
+            });
+            const rem = Math.max(0, currentPayableTotal - otherSum);
+            const targetEl = document.getElementById(fieldId);
+            if (targetEl) {
+                targetEl.value = rem.toFixed(2);
+                if (fieldId === 'split-cash-amount') {
+                    const tendInput = document.getElementById('split-cash-tendered');
+                    if (tendInput) tendInput.value = rem.toFixed(2);
+                }
+            }
+            recalculateSplitSummary();
+            if (targetEl) {
+                targetEl.focus();
+                targetEl.select();
             }
         }
 
-        function verifyVoucherCode() {
-            const vInput = document.getElementById('pay-voucher-code-input');
-            const code = vInput ? vInput.value.trim() : '';
-            const resEl = document.getElementById('voucher-verification-result');
-            const btn = document.getElementById('btn-verify-voucher');
+        function recalculateSplitSummary() {
+            const cashAmt = parseFloat(document.getElementById('split-cash-amount')?.value) || 0;
+            const cardAmt = parseFloat(document.getElementById('split-card-amount')?.value) || 0;
+            const bankAmt = parseFloat(document.getElementById('split-bank-amount')?.value) || 0;
 
-            if (!code) {
-                alert("Please enter a gift voucher barcode or code.");
-                if (vInput) vInput.focus();
-                return;
+            const totalAllocated = cashAmt + cardAmt + bankAmt;
+            const remainingDue = Math.max(0, currentPayableTotal - totalAllocated);
+
+            const totalAllocEl = document.getElementById('lbl-total-allocated');
+            const remainingEl = document.getElementById('pay-modal-remaining');
+            if (totalAllocEl) totalAllocEl.innerText = `LKR ${totalAllocated.toFixed(2)}`;
+            if (remainingEl) {
+                remainingEl.innerText = `LKR ${remainingDue.toFixed(2)}`;
+                remainingEl.style.color = (remainingDue <= 0.001) ? '#15803d' : '#dc2626';
             }
 
-            if (btn) {
-                btn.disabled = true;
-                btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i>';
+            // Toggle Bank Details conditional visibility: ONLY show if split-bank-amount > 0
+            const bankDetails = document.getElementById('split-bank-details');
+            if (bankDetails) {
+                bankDetails.style.display = (bankAmt > 0) ? 'block' : 'none';
+                if (bankAmt > 0) loadBankAccounts();
             }
 
-            const remDue = getRemainingDue();
-            fetch(`pos_api.php?action=validate_voucher&code=${encodeURIComponent(code)}&payable=${encodeURIComponent(remDue)}`)
-                .then(r => r.json())
-                .then(res => {
-                    if (btn) {
-                        btn.disabled = false;
-                        btn.innerHTML = '<i class="fa-solid fa-magnifying-glass me-1"></i> Verify';
-                    }
-                    if (resEl) resEl.style.display = 'block';
-                    if (res.valid && res.voucher) {
-                        currentVerifiedVoucher = res.voucher;
-                        const vAmt = parseFloat(res.voucher.amount);
-                        if (resEl) {
-                            resEl.style.background = '#dcfce7';
-                            resEl.style.color = '#15803d';
-                            resEl.style.border = '1px solid #86efac';
-                            resEl.innerHTML = `<i class="fa-solid fa-circle-check me-1"></i> <strong>Valid Voucher:</strong> LKR ${vAmt.toFixed(2)} (Expires: ${res.voucher.expiry_date})`;
-                        }
-                        const splitInput = document.getElementById('pay-split-amount-input');
-                        if (splitInput) {
-                            splitInput.value = vAmt.toFixed(2);
-                            updateSplitButtonLabel();
-                        }
-                    } else {
-                        currentVerifiedVoucher = null;
-                        if (resEl) {
-                            resEl.style.background = '#fee2e2';
-                            resEl.style.color = '#991b1b';
-                            resEl.style.border = '1px solid #fca5a5';
-                            resEl.innerHTML = `<i class="fa-solid fa-circle-xmark me-1"></i> ${escapeHtml(res.message || 'Invalid voucher.')}`;
-                        }
-                    }
-                })
-                .catch(err => {
-                    if (btn) {
-                        btn.disabled = false;
-                        btn.innerHTML = '<i class="fa-solid fa-magnifying-glass me-1"></i> Verify';
-                    }
-                    alert("Error validating voucher: " + err.message);
-                });
+            // Update Split Cash Change
+            const cashTendered = parseFloat(document.getElementById('split-cash-tendered')?.value) || 0;
+            const changeBadge = document.getElementById('split-cash-change-badge');
+            if (changeBadge) {
+                if (cashAmt > 0 && cashTendered > 0) {
+                    const chg = Math.max(0, cashTendered - cashAmt);
+                    changeBadge.innerText = `Change: LKR ${chg.toFixed(2)}`;
+                    changeBadge.style.color = (cashTendered >= cashAmt) ? '#16a34a' : '#dc2626';
+                } else {
+                    changeBadge.innerText = 'Change: LKR 0.00';
+                    changeBadge.style.color = '#16a34a';
+                }
+            }
         }
 
         function setSplitExactRemaining() {
@@ -3828,280 +5971,6 @@
             }
         }
 
-        function switchKokoTab(tab) {
-            currentKokoChannel = tab;
-            document.querySelectorAll('.koko-tab-btn').forEach(btn => {
-                btn.classList.remove('active');
-                btn.style.background = 'transparent';
-                btn.style.color = '#475569';
-            });
-            const activeBtn = document.getElementById(`tab-koko-${tab}`);
-            if (activeBtn) {
-                activeBtn.classList.add('active');
-                activeBtn.style.background = '#0f172a';
-                activeBtn.style.color = '#ffffff';
-            }
-
-            document.getElementById('koko-view-qr').style.display = (tab === 'qr') ? 'block' : 'none';
-            document.getElementById('koko-view-link').style.display = (tab === 'link') ? 'block' : 'none';
-            document.getElementById('koko-view-sms').style.display = (tab === 'sms') ? 'block' : 'none';
-
-            if (tab === 'sms') {
-                const phoneInput = document.getElementById('koko-phone-input');
-                if (phoneInput && !phoneInput.value && currentCustomer && currentCustomer.phone) {
-                    phoneInput.value = currentCustomer.phone;
-                }
-                if (phoneInput) phoneInput.focus();
-            }
-        }
-
-        function initiateKokoPaymentOrder() {
-            const unallocated = currentPayableTotal - getTotalAllocated();
-            const amount = unallocated > 0 ? unallocated : currentPayableTotal;
-            const installment = (amount / 3).toFixed(2);
-
-            const instEl = document.getElementById('koko-installment-amount');
-            if (instEl) instEl.innerText = `3 x LKR ${installment}`;
-
-            const phoneInput = document.getElementById('koko-phone-input');
-            let custPhone = '';
-            if (currentCustomer && currentCustomer.phone) {
-                custPhone = currentCustomer.phone;
-                if (phoneInput && !phoneInput.value) phoneInput.value = custPhone;
-            }
-
-            // Set UI to loading state
-            document.getElementById('koko-qr-box').innerHTML = '<div style="color: #64748b; font-size: 0.85rem; padding: 40px 0;"><i class="fa-solid fa-spinner fa-spin me-1"></i> Generating Dynamic Koko QR...</div>';
-            document.getElementById('koko-link-input').value = 'Generating...';
-            document.getElementById('koko-status-indicator').style.background = '#eab308';
-            document.getElementById('koko-status-indicator').style.boxShadow = '0 0 8px #eab308';
-            document.getElementById('koko-status-label').innerText = 'Awaiting Payment...';
-            document.getElementById('koko-status-label').style.color = '#0f172a';
-            document.getElementById('koko-order-ref-lbl').innerText = 'Initiating order...';
-
-            if (activeKokoPollTimer) {
-                clearInterval(activeKokoPollTimer);
-                activeKokoPollTimer = null;
-            }
-
-            fetch('koko_api.php', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    action: 'create_order',
-                    amount: amount,
-                    invoice_no: 'INV-' + (activeSaleId || Date.now()),
-                    channel: currentKokoChannel,
-                    customer_phone: custPhone,
-                    customer_name: currentCustomer ? currentCustomer.name : 'Walk-in Customer',
-                    sale_id: activeSaleId
-                })
-            })
-            .then(res => res.json())
-            .then(res => {
-                if (res.success) {
-                    activeKokoOrderId = res.koko_order_id;
-                    activeKokoStatus = 'pending';
-                    
-                    if (res.qr_svg) {
-                        document.getElementById('koko-qr-box').innerHTML = res.qr_svg;
-                    }
-                    document.getElementById('koko-link-input').value = res.payment_url;
-                    document.getElementById('koko-link-open').href = res.payment_url;
-                    document.getElementById('koko-order-ref-lbl').innerText = `Order: ${res.koko_order_id}`;
-                    document.getElementById('pay-ref-input').value = res.koko_order_id;
-
-                    // Poll every 3 seconds for payment updates
-                    activeKokoPollTimer = setInterval(() => {
-                        pollKokoStatus(activeKokoOrderId);
-                    }, 3000);
-                } else {
-                    document.getElementById('koko-qr-box').innerHTML = `<div style="color: #dc2626; font-size: 0.85rem; padding: 20px;"><i class="fa-solid fa-circle-exclamation me-1"></i> ${escapeHtml(res.message || 'Error initiating KOKO')}</div>`;
-                }
-            })
-            .catch(err => {
-                console.error("Koko initiation error:", err);
-                document.getElementById('koko-qr-box').innerHTML = '<div style="color: #dc2626; font-size: 0.85rem; padding: 20px;">Connection failed.</div>';
-            });
-        }
-
-        function pollKokoStatus(orderId) {
-            if (!orderId || activePaymentMethod !== 'Koko') {
-                if (activeKokoPollTimer) {
-                    clearInterval(activeKokoPollTimer);
-                    activeKokoPollTimer = null;
-                }
-                return;
-            }
-
-            fetch(`koko_api.php?action=check_status&order_id=${encodeURIComponent(orderId)}`)
-                .then(res => res.json())
-                .then(res => {
-                    if (res.success && res.status === 'paid') {
-                        onKokoPaymentApproved(res);
-                    }
-                })
-                .catch(err => console.error("Koko poll error:", err));
-        }
-
-        function onKokoPaymentApproved(tx) {
-            if (activeKokoPollTimer) {
-                clearInterval(activeKokoPollTimer);
-                activeKokoPollTimer = null;
-            }
-            activeKokoStatus = 'paid';
-
-            const ind = document.getElementById('koko-status-indicator');
-            if (ind) {
-                ind.style.background = '#16a34a';
-                ind.style.boxShadow = '0 0 10px #16a34a';
-            }
-            const lbl = document.getElementById('koko-status-label');
-            if (lbl) {
-                lbl.innerText = 'Payment Verified & Approved!';
-                lbl.style.color = '#15803d';
-            }
-            const refLbl = document.getElementById('koko-order-ref-lbl');
-            if (refLbl) {
-                refLbl.innerText = `Tx: ${tx.koko_payment_id || tx.koko_order_id}`;
-            }
-
-            document.getElementById('pay-ref-input').value = tx.koko_payment_id || tx.koko_order_id;
-        }
-
-        function checkKokoStatusManual() {
-            if (!activeKokoOrderId) {
-                alert("No active KOKO order initiated.");
-                return;
-            }
-            const lbl = document.getElementById('koko-status-label');
-            if (lbl) lbl.innerText = 'Checking gateway...';
-
-            fetch(`koko_api.php?action=check_status&order_id=${encodeURIComponent(activeKokoOrderId)}`)
-                .then(res => res.json())
-                .then(res => {
-                    if (res.success) {
-                        if (res.status === 'paid') {
-                            onKokoPaymentApproved(res);
-                            alert("KOKO Payment has been verified as PAID!");
-                        } else {
-                            if (lbl) lbl.innerText = 'Awaiting Payment...';
-                            alert(`Order status: ${res.status.toUpperCase()}. Awaiting customer payment on KOKO.`);
-                        }
-                    } else {
-                        alert(res.message || "Failed to check order status.");
-                    }
-                })
-                .catch(err => alert("Connection error: " + err.message));
-        }
-
-        function verifyKokoInstant() {
-            if (!activeKokoOrderId) {
-                alert("No active KOKO order initiated.");
-                return;
-            }
-
-            const btn = document.getElementById('btn-koko-verify-instant');
-            if (btn) {
-                btn.disabled = true;
-                btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i> Verifying...';
-            }
-
-            fetch('koko_api.php', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    action: 'verify_payment',
-                    order_id: activeKokoOrderId,
-                    sale_id: activeSaleId
-                })
-            })
-            .then(res => res.json())
-            .then(res => {
-                if (btn) {
-                    btn.disabled = false;
-                    btn.innerHTML = '<i class="fa-solid fa-check-circle me-1"></i> Verify & Confirm';
-                }
-                if (res.success) {
-                    onKokoPaymentApproved(res);
-                } else {
-                    alert(res.message || "Verification failed.");
-                }
-            })
-            .catch(err => {
-                if (btn) {
-                    btn.disabled = false;
-                    btn.innerHTML = '<i class="fa-solid fa-check-circle me-1"></i> Verify & Confirm';
-                }
-                alert("Verification request error: " + err.message);
-            });
-        }
-
-        function copyKokoLink() {
-            const input = document.getElementById('koko-link-input');
-            if (!input || !input.value) return;
-            navigator.clipboard.writeText(input.value).then(() => {
-                alert("KOKO Checkout Link copied to clipboard!");
-            }).catch(() => {
-                input.select();
-                document.execCommand('copy');
-                alert("KOKO Checkout Link copied!");
-            });
-        }
-
-        function sendKokoSms() {
-            const phoneInput = document.getElementById('koko-phone-input');
-            const phone = phoneInput ? phoneInput.value.trim() : '';
-            if (!phone) {
-                alert("Please enter customer mobile phone number.");
-                if (phoneInput) phoneInput.focus();
-                return;
-            }
-            if (!activeKokoOrderId) {
-                alert("Please wait for KOKO order to initialize.");
-                return;
-            }
-
-            const btn = document.getElementById('btn-koko-send-sms');
-            if (btn) {
-                btn.disabled = true;
-                btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i> Sending...';
-            }
-
-            fetch('koko_api.php', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    action: 'resend_sms',
-                    order_id: activeKokoOrderId,
-                    phone: phone
-                })
-            })
-            .then(res => res.json())
-            .then(res => {
-                if (btn) {
-                    btn.disabled = false;
-                    btn.innerHTML = '<i class="fa-solid fa-paper-plane me-1"></i> Send Link';
-                }
-                if (res.success) {
-                    const statusEl = document.getElementById('koko-sms-status');
-                    if (statusEl) {
-                        statusEl.innerHTML = `<span style="color: #16a34a;"><i class="fa-solid fa-check-circle me-1"></i> ${escapeHtml(res.message)}</span>`;
-                    }
-                    alert(res.message);
-                } else {
-                    alert(res.message || "Failed to send SMS.");
-                }
-            })
-            .catch(err => {
-                if (btn) {
-                    btn.disabled = false;
-                    btn.innerHTML = '<i class="fa-solid fa-paper-plane me-1"></i> Send Link';
-                }
-                alert("SMS dispatch failed: " + err.message);
-            });
-        }
-
         function loadBankAccounts() {
             if (activeBankAccounts.length > 0) {
                 populateBankDropdown(activeBankAccounts);
@@ -4130,20 +5999,40 @@
 
         function populateBankDropdown(accounts) {
             const selectElem = document.getElementById('pay-bank-account-select');
-            if (!selectElem) return;
+            const splitSelect = document.getElementById('split-bank-account-select');
 
             let html = '<option value="">-- Choose Active Bank Account --</option>';
             accounts.forEach(acc => {
                 html += `<option value="${acc.id}">${escapeHtml(acc.bank_name)} - ${escapeHtml(acc.account_name)} (${escapeHtml(acc.account_number)})</option>`;
             });
-            selectElem.innerHTML = html;
 
-            if (accounts.length > 0) {
-                selectElem.value = accounts[0].id;
+            if (selectElem) {
+                selectElem.innerHTML = html;
+                if (accounts.length > 0 && !selectElem.value) {
+                    selectElem.value = accounts[0].id;
+                }
+                if (activePaymentMethod === 'Bank') {
+                    selectElem.focus();
+                }
             }
-            if (activePaymentMethod === 'Bank') {
-                selectElem.focus();
+            if (splitSelect) {
+                splitSelect.innerHTML = html;
+                if (accounts.length > 0 && !splitSelect.value) {
+                    splitSelect.value = accounts[0].id;
+                }
             }
+        }
+
+        // Attach Split card input listeners for real-time recalculation
+        ['split-cash-amount', 'split-card-amount', 'split-bank-amount'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) {
+                el.addEventListener('input', recalculateSplitSummary);
+            }
+        });
+        const splitCashTend = document.getElementById('split-cash-tendered');
+        if (splitCashTend) {
+            splitCashTend.addEventListener('input', recalculateSplitSummary);
         }
 
         const paySplitInput = document.getElementById('pay-split-amount-input');
@@ -4254,7 +6143,6 @@
 
             let refNo = '';
             let bankAccountId = null;
-            let voucherId = null;
 
             if (method === 'Card') {
                 refNo = 'Card Payment';
@@ -4268,65 +6156,6 @@
                 }
                 const bankRef = document.getElementById('pay-bank-ref-input');
                 refNo = bankRef ? bankRef.value.trim() : '';
-            } else if (method === 'Credit') {
-                if (!currentCustomer || currentCustomer.is_walkin == 1 || currentCustomer.id == 1) {
-                    alert("Credit payment requires a registered customer. Walk-in Customer cannot receive credit.");
-                    return;
-                }
-                const limit = parseFloat(currentCustomer.credit_limit) || 0;
-                const bal = parseFloat(currentCustomer.credit_balance) || 0;
-                const avail = Math.max(0, limit - bal);
-
-                if (limit <= 0) {
-                    alert(`Customer "${currentCustomer.name}" has no credit facility (Credit Limit: LKR 0.00). Credit sales are not permitted.`);
-                    return;
-                }
-
-                const existingCreditAlloc = paymentAllocations
-                    .filter(p => p.payment_method === 'Credit')
-                    .reduce((sum, p) => sum + p.amount, 0);
-
-                const remainingAvail = Math.max(0, avail - existingCreditAlloc);
-
-                if (remainingAvail <= 0) {
-                    alert(`Credit limit reached! Customer "${currentCustomer.name}" has no available credit remaining (Limit: LKR ${limit.toFixed(2)}, Outstanding: LKR ${bal.toFixed(2)}).`);
-                    return;
-                }
-
-                if (amount > remainingAvail) {
-                    alert(`Credit limit exceeded! Customer "${currentCustomer.name}" has only LKR ${remainingAvail.toFixed(2)} available credit remaining (Limit: LKR ${limit.toFixed(2)}, Outstanding: LKR ${bal.toFixed(2)}). Cannot allocate LKR ${amount.toFixed(2)}.`);
-                    const splitInput = document.getElementById('pay-split-amount-input');
-                    if (splitInput) splitInput.value = remainingAvail.toFixed(2);
-                    return;
-                }
-
-                refNo = 'Credit Account';
-            } else if (method === 'Voucher') {
-                const vInput = document.getElementById('pay-voucher-code-input');
-                const vCode = vInput ? vInput.value.trim() : '';
-                if (!vCode) {
-                    alert("Please enter or scan gift voucher barcode.");
-                    if (vInput) vInput.focus();
-                    return;
-                }
-                if (currentVerifiedVoucher && currentVerifiedVoucher.voucher_code.toLowerCase() === vCode.toLowerCase()) {
-                    refNo = currentVerifiedVoucher.voucher_code;
-                    voucherId = currentVerifiedVoucher.id;
-                    amount = parseFloat(currentVerifiedVoucher.amount);
-                } else {
-                    refNo = vCode;
-                }
-            } else if (method === 'Koko') {
-                refNo = activeKokoOrderId || '';
-            }
-
-            // Check duplicate voucher allocation
-            if (method === 'Voucher') {
-                const isDup = paymentAllocations.some(p => p.payment_method === 'Voucher' && p.reference_no.toLowerCase() === refNo.toLowerCase());
-                if (isDup) {
-                    alert(`Gift voucher ${refNo} has already been added.`);
-                    return;
-                }
             }
 
             paymentAllocations.push({
@@ -4334,7 +6163,6 @@
                 amount: amount,
                 reference_no: refNo,
                 bank_account_id: bankAccountId ? parseInt(bankAccountId) : null,
-                voucher_id: voucherId,
                 tendered: method === 'Cash' ? cashTenderedVal : amount
             });
 
@@ -4342,12 +6170,6 @@
             if (method === 'Bank') {
                 const bankRef = document.getElementById('pay-bank-ref-input');
                 if (bankRef) bankRef.value = '';
-            } else if (method === 'Voucher') {
-                const vInput = document.getElementById('pay-voucher-code-input');
-                if (vInput) vInput.value = '';
-                const vRes = document.getElementById('voucher-verification-result');
-                if (vRes) vRes.style.display = 'none';
-                currentVerifiedVoucher = null;
             }
 
             updatePaymentSummary();
@@ -4430,8 +6252,6 @@
                     if (p.payment_method === 'Card') iconClass = 'fa-credit-card';
                     else if (p.payment_method === 'Bank') iconClass = 'fa-building-columns';
                     else if (p.payment_method === 'Credit') iconClass = 'fa-handshake-angle';
-                    else if (p.payment_method === 'Voucher') iconClass = 'fa-ticket';
-                    else if (p.payment_method === 'Koko') iconClass = 'fa-qrcode';
 
                     html += `
                         <tr style="height: 38px; border-bottom: 1px solid #f1f5f9;">
@@ -4486,27 +6306,71 @@
         }
 
         // Finalize Sale Transaction
-        function finalizeSale() {
+        let isFinalizingSale = false;
+        function finalizeSale(postAction = 'print') {
+            if (isFinalizingSale) return;
             if (!activeSaleId) {
                 alert("No active sale draft.");
                 return;
             }
 
-            // Single Payment Fast Path: If no split allocations added yet
-            if (paymentAllocations.length === 0) {
+            // Gather allocations based on active method
+            if (activePaymentMethod === 'Split') {
+                paymentAllocations = [];
+                const cashAmt = parseFloat(document.getElementById('split-cash-amount')?.value) || 0;
+                const cashTendered = parseFloat(document.getElementById('split-cash-tendered')?.value) || cashAmt;
+                const cardAmt = parseFloat(document.getElementById('split-card-amount')?.value) || 0;
+                const bankAmt = parseFloat(document.getElementById('split-bank-amount')?.value) || 0;
+                const bankSelect = document.getElementById('split-bank-account-select');
+                const bankRef = document.getElementById('split-bank-ref-input')?.value?.trim() || '';
+
+                if (cashAmt > 0) {
+                    paymentAllocations.push({
+                        payment_method: 'Cash',
+                        amount: cashAmt,
+                        reference_no: '',
+                        bank_account_id: null,
+                        tendered: Math.max(cashAmt, cashTendered)
+                    });
+                }
+                if (cardAmt > 0) {
+                    paymentAllocations.push({
+                        payment_method: 'Card',
+                        amount: cardAmt,
+                        reference_no: 'Card Payment',
+                        bank_account_id: null,
+                        tendered: cardAmt
+                    });
+                }
+                if (bankAmt > 0) {
+                    const bId = bankSelect ? bankSelect.value : null;
+                    if (!bId) {
+                        alert("Please select an active destination bank account for the bank transfer portion.");
+                        if (bankSelect) bankSelect.focus();
+                        return;
+                    }
+                    paymentAllocations.push({
+                        payment_method: 'Bank',
+                        amount: bankAmt,
+                        reference_no: bankRef,
+                        bank_account_id: parseInt(bId),
+                        tendered: bankAmt
+                    });
+                }
+            } else if (paymentAllocations.length === 0) {
+                // Single Payment Fast Path: If no split allocations added yet
                 const method = activePaymentMethod;
                 const splitInput = document.getElementById('pay-split-amount-input');
                 let amount = parseFloat(splitInput ? splitInput.value : 0) || currentPayableTotal;
                 let refNo = '';
                 let bankAccountId = null;
-                let voucherId = null;
                 let cashTenderedVal = amount;
 
                 if (method === 'Cash') {
                     const cashGivenInput = document.getElementById('pay-cash-given-input');
                     cashTenderedVal = parseFloat(cashGivenInput ? cashGivenInput.value : 0) || amount;
                     if (cashTenderedVal < currentPayableTotal) {
-                        alert(`Cash Tendered (LKR ${cashTenderedVal.toFixed(2)}) is less than Payable Total (LKR ${currentPayableTotal.toFixed(2)}). Please enter full cash amount or add split payment.`);
+                        alert(`Cash Tendered (LKR ${cashTenderedVal.toFixed(2)}) is less than Payable Total (LKR ${currentPayableTotal.toFixed(2)}). Please enter full cash amount.`);
                         if (cashGivenInput) cashGivenInput.focus();
                         return;
                     }
@@ -4525,44 +6389,6 @@
                     const bankRef = document.getElementById('pay-bank-ref-input');
                     refNo = bankRef ? bankRef.value.trim() : '';
                     amount = currentPayableTotal;
-                } else if (method === 'Credit') {
-                    if (!currentCustomer || currentCustomer.is_walkin == 1 || currentCustomer.id == 1) {
-                        alert("Credit payment requires a registered customer. Walk-in Customer cannot receive credit.");
-                        return;
-                    }
-                    const limit = parseFloat(currentCustomer.credit_limit) || 0;
-                    const bal = parseFloat(currentCustomer.credit_balance) || 0;
-                    const avail = Math.max(0, limit - bal);
-
-                    if (limit <= 0) {
-                        alert(`Customer "${currentCustomer.name}" has no credit facility (Credit Limit: LKR 0.00). Credit sales are not permitted.`);
-                        return;
-                    }
-
-                    if (currentPayableTotal > avail) {
-                        alert(`Credit limit exceeded! Customer "${currentCustomer.name}" has only LKR ${avail.toFixed(2)} available credit (Limit: LKR ${limit.toFixed(2)}, Outstanding: LKR ${bal.toFixed(2)}). Total payable LKR ${currentPayableTotal.toFixed(2)} cannot be placed on credit.`);
-                        return;
-                    }
-
-                    refNo = 'Credit Account';
-                    amount = currentPayableTotal;
-                } else if (method === 'Voucher') {
-                    const vInput = document.getElementById('pay-voucher-code-input');
-                    refNo = vInput ? vInput.value.trim() : '';
-                    if (!refNo) {
-                        alert("Please enter gift voucher barcode.");
-                        if (vInput) vInput.focus();
-                        return;
-                    }
-                    if (currentVerifiedVoucher) {
-                        voucherId = currentVerifiedVoucher.id;
-                        amount = parseFloat(currentVerifiedVoucher.amount);
-                    } else {
-                        amount = currentPayableTotal;
-                    }
-                } else if (method === 'Koko') {
-                    refNo = activeKokoOrderId || '';
-                    amount = currentPayableTotal;
                 }
 
                 paymentAllocations.push({
@@ -4570,7 +6396,6 @@
                     amount: amount,
                     reference_no: refNo,
                     bank_account_id: bankAccountId ? parseInt(bankAccountId) : null,
-                    voucher_id: voucherId,
                     tendered: cashTenderedVal
                 });
             }
@@ -4578,40 +6403,46 @@
             const totalAllocated = getTotalAllocated();
             const remainingDue = getRemainingDue();
 
-            if (remainingDue > 0) {
-                alert(`Payment is incomplete. Remaining balance due: LKR ${remainingDue.toFixed(2)}. Please add remaining amount to split payment allocations before confirming.`);
-                return;
-            }
-
-            const hasVoucher = paymentAllocations.some(p => p.payment_method === 'Voucher');
-            if (hasVoucher && (!navigator.onLine || activeSaleId === 'OFFLINE_DRAFT')) {
-                alert("Gift vouchers require an online connection.");
+            if (remainingDue > 0.001) {
+                alert(`Payment is incomplete. Remaining balance due: LKR ${remainingDue.toFixed(2)}. Please allocate the full payable amount before confirming.`);
                 return;
             }
 
             const finalizeBtn = document.getElementById('btn-finalize-sale');
-            if (finalizeBtn) {
-                finalizeBtn.disabled = true;
-                finalizeBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i> PROCESSING...';
-            }
+            const printBtn = document.getElementById('btn-save-print-sale');
+            const waBtn = document.getElementById('btn-save-whatsapp-sale');
+            isFinalizingSale = true;
+            if (finalizeBtn) finalizeBtn.disabled = true;
+            if (printBtn) printBtn.disabled = true;
+            if (waBtn) waBtn.disabled = true;
 
             // Offline Mode Finalization
             if (!navigator.onLine || activeSaleId === 'OFFLINE_DRAFT') {
                 if (IS_SPECIAL_USER) {
+                    isFinalizingSale = false;
                     alert("Special User is restricted from performing offline POS billing.");
                     if (finalizeBtn) finalizeBtn.disabled = false;
+                    if (printBtn) printBtn.disabled = false;
+                    if (waBtn) waBtn.disabled = false;
                     return;
                 }
 
                 let subtotal = 0;
+                let eligibleSubtotal = 0;
                 cart.forEach(item => {
                     const itemSubtotal = item.quantity * item.unit_price;
                     const parsedItemDisc = parseDiscountJS(item.discount_value, itemSubtotal);
-                    subtotal += Math.max(0, itemSubtotal - parsedItemDisc.total_discount);
+                    const lineTotal = Math.max(0, itemSubtotal - parsedItemDisc.total_discount);
+                    subtotal += lineTotal;
+
+                    const hasItemDisc = (parsedItemDisc.total_discount > 0 || (String(item.discount_value || '').trim() !== ''));
+                    if (!hasItemDisc) {
+                        eligibleSubtotal += lineTotal;
+                    }
                 });
 
                 const discStr = summaryDiscountInput.value.trim();
-                const parsedInvDisc = parseDiscountJS(discStr, subtotal);
+                const parsedInvDisc = parseDiscountJS(discStr, eligibleSubtotal);
                 const totalDiscount = parsedInvDisc.total_discount;
                 const totalAmount = Math.max(0, subtotal - totalDiscount);
 
@@ -4621,10 +6452,10 @@
                 const offlinePayload = {
                     branch_id: CURRENT_BRANCH_ID,
                     user_id: CURRENT_USER_ID,
-                    customer_id: currentCustomer.id,
-                    customer_name: currentCustomer.name,
-                    sales_rep_id: currentSalesRep ? currentSalesRep.id : null,
-                    sales_rep_name: currentSalesRep ? currentSalesRep.full_name : null,
+                    customer_id: 1,
+                    customer_name: 'Walk-in Customer',
+                    sales_rep_id: null,
+                    sales_rep_name: null,
                     items: cart.map(item => {
                         const itemSubtotal = item.quantity * item.unit_price;
                         const parsedItemDisc = parseDiscountJS(item.discount_value, itemSubtotal);
@@ -4661,10 +6492,22 @@
                         payment_method: paymentAllocations.map(p => p.payment_method).join(', ')
                     };
 
-                    showInvoiceCompleteModal(lastCompletedSaleData);
+                    if (postAction === 'print') {
+                        triggerPrintInvoice();
+                    } else if (postAction === 'whatsapp') {
+                        triggerWhatsAppShare();
+                    }
+                    clearCartState();
                     updatePendingBadge();
-                }).catch(err => {
+                    isFinalizingSale = false;
                     if (finalizeBtn) finalizeBtn.disabled = false;
+                    if (printBtn) printBtn.disabled = false;
+                    if (waBtn) waBtn.disabled = false;
+                }).catch(err => {
+                    isFinalizingSale = false;
+                    if (finalizeBtn) finalizeBtn.disabled = false;
+                    if (printBtn) printBtn.disabled = false;
+                    if (waBtn) waBtn.disabled = false;
                     alert("Error saving offline sale: " + err.message);
                 });
                 return;
@@ -4674,11 +6517,9 @@
             const payload = {
                 action: 'finalize_sale',
                 sale_id: activeSaleId,
-                payments: paymentAllocations
+                payments: paymentAllocations,
+                applied_promotions: currentAppliedPromotions
             };
-            if (currentSalesRep) {
-                payload.payments.sales_rep_id = currentSalesRep.id;
-            }
 
             fetch('pos_api.php', {
                 method: 'POST',
@@ -4687,7 +6528,10 @@
             })
             .then(res => res.json())
             .then(res => {
+                isFinalizingSale = false;
                 if (finalizeBtn) finalizeBtn.disabled = false;
+                if (printBtn) printBtn.disabled = false;
+                if (waBtn) waBtn.disabled = false;
                 if (res.success) {
                     closeModal('modal-payment');
                     
@@ -4700,13 +6544,21 @@
                         payment_method: paymentAllocations.map(p => p.payment_method).join(', ')
                     };
 
-                    showInvoiceCompleteModal(lastCompletedSaleData);
+                    if (postAction === 'print') {
+                        triggerPrintInvoice();
+                    } else if (postAction === 'whatsapp') {
+                        triggerWhatsAppShare();
+                    }
+                    clearCartState();
                 } else {
                     alert("Finalization Error: " + res.message);
                 }
             })
             .catch(err => {
+                isFinalizingSale = false;
                 if (finalizeBtn) finalizeBtn.disabled = false;
+                if (printBtn) printBtn.disabled = false;
+                if (waBtn) waBtn.disabled = false;
                 console.error("Error finalizing sale", err);
                 alert("Finalization error: " + err.message);
             });
@@ -4762,7 +6614,7 @@
             closeModal('modal-invoice-complete');
             clearCartState();
             setTimeout(() => {
-                openCustomerModal();
+                if (searchInput) searchInput.focus();
             }, 100);
         }
 
@@ -4771,6 +6623,16 @@
             activeSaleId = null;
             lastCompletedSaleData = null;
             summaryDiscountInput.value = '';
+            activeCouponCode = '';
+            currentAppliedPromotions = [];
+            currentPromoDiscount = 0.00;
+            confirmedPromoKey = null;
+            declinedPromoKey = null;
+            pendingPromotionData = null;
+            pendingPromoKey = null;
+            const coupInput = document.getElementById('summary-coupon-input');
+            if (coupInput) coupInput.value = '';
+            updatePromoSummaryUI(0, 0, []);
             paymentAllocations = [];
             clearSalesRep();
             renderCart();
@@ -4780,9 +6642,10 @@
         // Global Modal Helpers
         function openModal(id) { document.getElementById(id).classList.add('active'); }
         function closeModal(id) { 
-            if (id === 'modal-payment' && typeof activeKokoPollTimer !== 'undefined' && activeKokoPollTimer) {
-                clearInterval(activeKokoPollTimer);
-                activeKokoPollTimer = null;
+            if (id === 'modal-payment') {
+                if (typeof isFinalizingSale !== 'undefined') {
+                    isFinalizingSale = false;
+                }
             }
             document.getElementById(id).classList.remove('active'); 
             lastModalClosedTime = Date.now();
@@ -4793,13 +6656,67 @@
             return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
         }
 
+        // Full-Screen Sales Returns & Exchanges Modal Helpers
+        function openReturnsModal() {
+            const modal = document.getElementById('modal-pos-returns');
+            const iframe = document.getElementById('pos-returns-iframe');
+            if (!modal || !iframe) return;
+
+            if (!iframe.src || iframe.src === 'about:blank' || !iframe.src.includes('returns.php')) {
+                iframe.src = 'returns.php?embedded=1';
+            }
+            openModal('modal-pos-returns');
+        }
+
+        function closeReturnsModal() {
+            closeModal('modal-pos-returns');
+            lastModalClosedTime = Date.now();
+            setTimeout(() => {
+                if (searchInput && !document.querySelector('.pos-modal.active')) {
+                    searchInput.focus();
+                }
+            }, 180);
+        }
+        window.openReturnsModal = openReturnsModal;
+        window.closeReturnsModal = closeReturnsModal;
+
         // Global Keyboard Shortcuts Handler
         document.addEventListener('keydown', (e) => {
-            const isQuickCustModalOpen = document.getElementById('modal-quick-customer') && document.getElementById('modal-quick-customer').classList.contains('active');
-            if (isQuickCustModalOpen) {
+            const isReturnsModalOpen = document.getElementById('modal-pos-returns') && document.getElementById('modal-pos-returns').classList.contains('active');
+            if (isReturnsModalOpen) {
                 if (e.key === 'Escape') {
                     e.preventDefault();
-                    closeQuickCustomerModal();
+                    closeReturnsModal();
+                }
+                return;
+            }
+
+
+
+            const isPromoModalOpen = document.getElementById('modal-promotion-confirm') && document.getElementById('modal-promotion-confirm').classList.contains('active');
+            if (isPromoModalOpen) {
+                if (e.key === 'Escape') {
+                    e.preventDefault();
+                    dismissPromotionPrompt();
+                    return;
+                }
+                if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'Tab') {
+                    e.preventDefault();
+                    promoChoiceIndex = (promoChoiceIndex === 1) ? 0 : 1;
+                    updatePromoChoiceHighlight();
+                    return;
+                }
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (Date.now() - lastPromoModalOpenTime < 200) return;
+                    if (e.repeat) return;
+                    if (promoChoiceIndex === 1) {
+                        confirmApplyPromotion();
+                    } else {
+                        dismissPromotionPrompt();
+                    }
+                    return;
                 }
                 return;
             }
@@ -4837,8 +6754,6 @@
             const isLotModalOpen = document.getElementById('modal-lot-selector').classList.contains('active');
             const isPaymentModalOpen = document.getElementById('modal-payment').classList.contains('active');
             const isCompleteModalOpen = document.getElementById('modal-invoice-complete').classList.contains('active');
-            const isCustModalOpen = document.getElementById('modal-customer-selector').classList.contains('active');
-            const isRepModalOpen = document.getElementById('modal-sales-rep-selector') ? document.getElementById('modal-sales-rep-selector').classList.contains('active') : false;
 
             if (isLotModalOpen) {
                 const cards = document.querySelectorAll('#lot-modal-body .lot-card');
@@ -4893,6 +6808,59 @@
                 return;
             }
 
+        function focusNextPaymentField(currentEl) {
+            const modal = document.getElementById('modal-payment');
+            if (!modal) return;
+
+            const allElements = Array.from(modal.querySelectorAll('input:not([type="hidden"]):not([disabled]):not([readonly]), select:not([disabled])'));
+            const visibleFields = allElements.filter(el => {
+                return (el.offsetWidth > 0 || el.offsetHeight > 0) && window.getComputedStyle(el).visibility !== 'hidden';
+            });
+
+            const currentIndex = visibleFields.indexOf(currentEl);
+            if (currentIndex !== -1 && currentIndex < visibleFields.length - 1) {
+                const nextEl = visibleFields[currentIndex + 1];
+                nextEl.focus();
+                if (typeof nextEl.select === 'function') {
+                    nextEl.select();
+                }
+            } else {
+                // On the last field, advance focus to the primary Save & Print button for rapid keyboard completion
+                const printBtn = document.getElementById('btn-save-print-sale');
+                if (printBtn) {
+                    printBtn.focus();
+                    return;
+                }
+                if (visibleFields.length > 0) {
+                    visibleFields[0].focus();
+                    if (typeof visibleFields[0].select === 'function') {
+                        visibleFields[0].select();
+                    }
+                }
+            }
+        }
+
+
+
+            const isHistModalOpen = document.getElementById('modal-sales-history') && document.getElementById('modal-sales-history').classList.contains('active');
+            if (isHistModalOpen) {
+                if (e.key === 'Escape') {
+                    e.preventDefault();
+                    closeSalesHistoryModal();
+                    if (searchInput) searchInput.focus();
+                }
+                return;
+            }
+
+            const isSaleDetailsModalOpen = document.getElementById('modal-sale-details') && document.getElementById('modal-sale-details').classList.contains('active');
+            if (isSaleDetailsModalOpen) {
+                if (e.key === 'Escape') {
+                    e.preventDefault();
+                    closeSaleDetailsModal();
+                }
+                return;
+            }
+
             if (isPaymentModalOpen) {
                 if (e.key === 'Escape') {
                     e.preventDefault();
@@ -4901,7 +6869,33 @@
                     return;
                 }
 
-                // ArrowLeft / ArrowRight navigation between payment methods
+                // Ctrl + Enter -> Save & Print Bill
+                if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                    e.preventDefault();
+                    finalizeSale('print');
+                    return;
+                }
+
+                // Alt + Enter -> Save & WhatsApp Bill
+                if (e.altKey && e.key === 'Enter') {
+                    e.preventDefault();
+                    finalizeSale('whatsapp');
+                    return;
+                }
+
+                // Alt + 1..4 Direct Payment Method Switching (Cash, Card, Bank, Split)
+                if (e.altKey && ['1', '2', '3', '4'].includes(e.key)) {
+                    e.preventDefault();
+                    const targetIdx = parseInt(e.key, 10) - 1;
+                    if (paymentMethodsList[targetIdx]) {
+                        switchPaymentMethod(paymentMethodsList[targetIdx]);
+                    }
+                    return;
+                }
+
+                const isInsideInput = e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT');
+
+                // ArrowLeft / ArrowRight navigation between payment methods (Cash, Card, Bank, Split)
                 if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
                     e.preventDefault();
                     const currentIdx = paymentMethodsList.indexOf(activePaymentMethod);
@@ -4915,80 +6909,29 @@
                     return;
                 }
 
-                // Enter Key Action inside Payment Settlement Modal
+                // Enter Key Action inside Payment Settlement Modal: Move to Next Field / Trigger Focused Button
                 if (e.key === 'Enter') {
                     e.preventDefault();
 
-                    // Ctrl+Enter or Alt+Enter to quickly add split allocation
-                    if (e.ctrlKey || e.altKey) {
-                        addSplitPaymentLine();
+                    // If user is focused on any button, click it!
+                    if (e.target && e.target.tagName === 'BUTTON') {
+                        e.target.click();
                         return;
                     }
 
-                    if (e.target.id === 'pay-voucher-code-input') {
-                        verifyVoucherCode();
-                        return;
-                    }
-
-                    if (e.target.id === 'pay-split-amount-input') {
-                        const splitAmt = parseFloat(e.target.value) || 0;
-                        const remDue = getRemainingDue();
-
-                        // If user entered a partial split amount (< remDue) or has existing allocations, add to split!
-                        if (splitAmt > 0 && splitAmt < remDue) {
-                            addSplitPaymentLine();
-                            return;
-                        }
-
-                        if (paymentAllocations.length > 0 && splitAmt > 0) {
-                            addSplitPaymentLine();
-                            return;
-                        }
-
-                        if (paymentAllocations.length === 0) {
-                            if (activePaymentMethod === 'Cash') {
-                                const cashGiven = document.getElementById('pay-cash-given-input');
-                                if (cashGiven) {
-                                    cashGiven.focus();
-                                    cashGiven.select();
-                                }
-                                return;
-                            } else {
-                                finalizeSale();
-                                return;
-                            }
-                        }
-                    }
-
-                    finalizeSale();
+                    focusNextPaymentField(e.target);
                     return;
                 }
 
                 if (e.key === 'F10') {
                     e.preventDefault();
-                    finalizeSale();
+                    finalizeSale('none');
                     return;
                 }
                 return;
             }
 
-            if (isCustModalOpen) {
-                if (e.key === 'Escape') {
-                    e.preventDefault();
-                    closeModal('modal-customer-selector');
-                    searchInput.focus();
-                }
-                return;
-            }
 
-            if (isRepModalOpen) {
-                if (e.key === 'Escape') {
-                    e.preventDefault();
-                    closeModal('modal-sales-rep-selector');
-                    searchInput.focus();
-                }
-                return;
-            }
 
             // Ctrl+D -> Focus on Total Bill Discount field (block browser bookmark)
             if ((e.ctrlKey || e.metaKey) && (e.key === 'd' || e.key === 'D')) {
@@ -5078,19 +7021,26 @@
 
             if (e.key === 'Enter') {
                 e.preventDefault();
+                if (Date.now() - lastModalClosedTime < 450) {
+                    return;
+                }
+                if (document.querySelector('.pos-modal.active')) {
+                    return;
+                }
                 document.getElementById('btn-proceed-pay').click();
                 return;
             }
 
-            if (e.key === '/' || e.key === 'F2') {
+            if (e.key === 'F1') {
+                e.preventDefault();
+                openReturnsModal();
+                return;
+            } else if (e.key === '/' || e.key === 'F2') {
                 e.preventDefault();
                 searchInput.focus();
-            } else if (e.key === 'F3') {
+            } else if (e.key === 'F5' || ((e.ctrlKey || e.metaKey) && (e.key === 'h' || e.key === 'H'))) {
                 e.preventDefault();
-                openSalesRepModal();
-            } else if (e.key === 'F4') {
-                e.preventDefault();
-                openCustomerModal();
+                openSalesHistoryModal();
             } else if (e.key === 'F6') {
                 e.preventDefault();
                 holdSale();
@@ -5109,10 +7059,10 @@
             }
         });
 
-        // Auto open Customer Selection modal on POS Terminal launch
+        // Terminal launch handler
         window.addEventListener('load', () => {
             setTimeout(() => {
-                openCustomerModal();
+                if (searchInput) searchInput.focus();
             }, 300);
         });
     </script>

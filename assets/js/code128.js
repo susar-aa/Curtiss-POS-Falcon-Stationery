@@ -31,28 +31,19 @@
     function encodeCode128(text) {
         if (!text || text.length === 0) return null;
 
+        // Determine if strictly digits of even length (Code 128 C optimization)
         const isAllDigits = /^\d+$/.test(text);
+        const useCodeC = isAllDigits && (text.length >= 4) && (text.length % 2 === 0);
+
         let symbols = [];
+        let startVal = useCodeC ? START_C : START_B;
+        symbols.push(startVal);
 
-        if (isAllDigits && text.length >= 4) {
-            // High-density Code 128 C optimization for numeric barcodes (cuts symbol count in half)
-            const isEven = (text.length % 2 === 0);
-            const pairCount = isEven ? text.length : (text.length - 1);
-
-            symbols.push(START_C);
-            for (let i = 0; i < pairCount; i += 2) {
+        if (useCodeC) {
+            for (let i = 0; i < text.length; i += 2) {
                 symbols.push(parseInt(text.substr(i, 2), 10));
             }
-
-            // If odd number of digits, switch to Code B for the single remaining digit
-            if (!isEven) {
-                symbols.push(100); // CODE_B switch inside Code C
-                const lastCode = text.charCodeAt(text.length - 1);
-                symbols.push(lastCode - 32);
-            }
         } else {
-            // Standard Code 128 B mode
-            symbols.push(START_B);
             for (let i = 0; i < text.length; i++) {
                 const code = text.charCodeAt(i);
                 if (code >= 32 && code <= 126) {
@@ -83,12 +74,11 @@
      */
     function generateSVG(text, options) {
         options = options || {};
-        const width = options.width || 1.2; // module width in pixels
-        const height = options.height || 36; // barcode height in pixels
+        const width = options.width || 1.5; // module width in mm/pixels
+        const height = options.height || 42; // barcode height in pixels
         const showText = options.showText !== false;
         const fontSize = options.fontSize || 10;
-        const quietZone = (options.quietZone !== undefined) ? options.quietZone : 8;
-        const preserveAspect = options.preserveAspectRatio || 'none';
+        const quietZone = options.quietZone !== false ? 10 : 2;
 
         const symbols = encodeCode128(String(text).trim());
         if (!symbols) return '';
@@ -121,7 +111,7 @@
             textSvg = `<text x="${(totalWidth / 2).toFixed(2)}" y="${textY}" text-anchor="middle" font-family="'Courier New', Courier, monospace" font-size="${fontSize}px" font-weight="700" fill="#000000" letter-spacing="1px">${escapeXml(text)}</text>`;
         }
 
-        return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${totalWidth.toFixed(2)} ${totalHeight}" preserveAspectRatio="${preserveAspect}" width="100%" height="100%" style="display:block; margin:0 auto; overflow:visible;">
+        return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${totalWidth.toFixed(2)} ${totalHeight}" width="100%" height="${totalHeight}" style="display:block; margin:0 auto; overflow:visible;">
             ${rects.join('\n            ')}
             ${textSvg}
         </svg>`;

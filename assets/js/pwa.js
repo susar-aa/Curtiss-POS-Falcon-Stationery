@@ -45,15 +45,27 @@
         console.log('[CurtissPOS] App was installed successfully!');
     });
 
+    function isDashboardPage() {
+        return Boolean(
+            (document.body && document.body.classList.contains('dashboard-page')) ||
+            /\/(dashboard|dashboard\.php)$/i.test(window.location.pathname.replace(/\/+$/, ''))
+        );
+    }
+
     function showInstallButton() {
-        if (isStandalone) return;
+        if (isStandalone || !isDashboardPage()) return;
         
+        if (!document.body) {
+            document.addEventListener('DOMContentLoaded', showInstallButton, { once: true });
+            return;
+        }
+
         let btn = document.getElementById('curtiss-pwa-install-btn');
         if (!btn) {
             btn = document.createElement('button');
             btn.id = 'curtiss-pwa-install-btn';
             btn.type = 'button';
-            btn.className = 'curtiss-pwa-btn';
+            btn.className = 'curtiss-pwa-btn curtiss-pwa-floating';
             btn.innerHTML = `
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
@@ -64,16 +76,7 @@
             `;
             btn.setAttribute('title', 'Install CurtissPOS Desktop / Mobile App');
             btn.onclick = installApp;
-
-            // Try mounting into floating header right or append to body
-            const headerRight = document.getElementById('curtiss-floating-header-right');
-            if (headerRight) {
-                headerRight.prepend(btn);
-            } else {
-                // Fixed top banner style if not on a view with floating right
-                btn.classList.add('curtiss-pwa-floating');
-                document.body.appendChild(btn);
-            }
+            document.body.appendChild(btn);
         }
         btn.style.display = 'inline-flex';
     }
@@ -82,6 +85,12 @@
         const btn = document.getElementById('curtiss-pwa-install-btn');
         if (btn) btn.style.display = 'none';
     }
+
+    window.addEventListener('DOMContentLoaded', () => {
+        if (deferredPrompt && isDashboardPage()) {
+            showInstallButton();
+        }
+    });
 
     function installApp() {
         if (!deferredPrompt) {

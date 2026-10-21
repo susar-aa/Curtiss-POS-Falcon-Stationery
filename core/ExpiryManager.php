@@ -29,12 +29,14 @@ class ExpiryManager
             $filterType = $filters['filter_type'] ?? 'all';
             if ($filterType === 'expired') {
                 $where[] = "pl.expiry_date < CURRENT_DATE()";
-            } elseif ($filterType === 'near_30') {
-                $where[] = "pl.expiry_date >= CURRENT_DATE() AND pl.expiry_date <= DATE_ADD(CURRENT_DATE(), INTERVAL 30 DAY)";
-            } elseif ($filterType === 'near_60') {
-                $where[] = "pl.expiry_date >= CURRENT_DATE() AND pl.expiry_date <= DATE_ADD(CURRENT_DATE(), INTERVAL 60 DAY)";
+            } elseif ($filterType === 'near_30' || $filterType === 'red') {
+                $where[] = "pl.expiry_date <= DATE_ADD(CURRENT_DATE(), INTERVAL 30 DAY)";
+            } elseif ($filterType === 'near_60' || $filterType === 'yellow') {
+                $where[] = "pl.expiry_date > DATE_ADD(CURRENT_DATE(), INTERVAL 30 DAY) AND pl.expiry_date <= DATE_ADD(CURRENT_DATE(), INTERVAL 60 DAY)";
             } elseif ($filterType === 'near_90') {
-                $where[] = "pl.expiry_date >= CURRENT_DATE() AND pl.expiry_date <= DATE_ADD(CURRENT_DATE(), INTERVAL 90 DAY)";
+                $where[] = "pl.expiry_date > DATE_ADD(CURRENT_DATE(), INTERVAL 60 DAY) AND pl.expiry_date <= DATE_ADD(CURRENT_DATE(), INTERVAL 90 DAY)";
+            } elseif ($filterType === 'safe' || $filterType === 'green' || $filterType === 'others') {
+                $where[] = "pl.expiry_date > DATE_ADD(CURRENT_DATE(), INTERVAL 60 DAY)";
             }
 
             if (!empty($filters['brand_id']) && (int)$filters['brand_id'] > 0) {
@@ -97,10 +99,15 @@ class ExpiryManager
                     pl.created_at,
                     DATEDIFF(pl.expiry_date, CURRENT_DATE()) AS days_remaining,
                     CASE 
+                        WHEN pl.expiry_date <= DATE_ADD(CURRENT_DATE(), INTERVAL 30 DAY) THEN 'red'
+                        WHEN pl.expiry_date <= DATE_ADD(CURRENT_DATE(), INTERVAL 60 DAY) THEN 'yellow'
+                        ELSE 'green'
+                    END AS color_tier,
+                    CASE 
                         WHEN pl.expiry_date < CURRENT_DATE() THEN 'expired'
                         WHEN pl.expiry_date <= DATE_ADD(CURRENT_DATE(), INTERVAL 30 DAY) THEN 'near_30'
                         WHEN pl.expiry_date <= DATE_ADD(CURRENT_DATE(), INTERVAL 60 DAY) THEN 'near_60'
-                        ELSE 'near_90'
+                        ELSE 'safe'
                     END AS expiry_stage,
                     ROUND(pl.remaining_quantity * pl.cost, 2) AS total_cost_value,
                     ROUND(pl.remaining_quantity * pl.selling_price, 2) AS total_retail_value,
@@ -109,12 +116,14 @@ class ExpiryManager
                     p.barcode,
                     b.name AS brand_name,
                     c.name AS category_name,
-                    s.name AS supplier_name
+                    s.name AS supplier_name,
+                    COALESCE(br.name, 'Main Branch') AS branch_name
                 FROM product_lots pl
                 JOIN products p ON pl.product_id = p.id
                 LEFT JOIN brands b ON p.brand_id = b.id
                 LEFT JOIN categories c ON p.category_id = c.id
                 LEFT JOIN suppliers s ON p.supplier_id = s.id
+                LEFT JOIN branches br ON pl.branch_id = br.id
                 WHERE $whereSql
                 ORDER BY pl.expiry_date ASC, pl.id ASC
                 LIMIT $limit OFFSET $offset
@@ -122,19 +131,65 @@ class ExpiryManager
 
             $totQty = 0.0;
             $totLoss = 0.0;
+            $countRed = 0;
+            $countYellow = 0;
+            $countGreen = 0;
+            $valRed = 0.0;
+            $valYellow = 0.0;
+            $valGreen = 0.0;
+
             foreach ($items as &$it) {
                 $rem = (float)$it['remaining_quantity'];
                 $c = (float)$it['cost'];
+                $daysRemaining = (int)$it['days_remaining'];
+                $lineVal = round($rem * $c, 2);
+
                 $it['current_quantity'] = $rem;
                 $it['unit_cost'] = $c;
-                $it['loss_value'] = round($rem * $c, 2);
-                $it['total_cost'] = round($rem * $c, 2);
-                $it['days_expired'] = max(0, -((int)$it['days_remaining']));
-                $it['days_until_expiry'] = (int)$it['days_remaining'];
-                $it['urgency_level'] = ($it['days_remaining'] < 0) ? 'expired' : (($it['days_remaining'] <= 15) ? 'danger' : (($it['days_remaining'] <= 30) ? 'warning' : 'normal'));
-                $it['branch_name'] = 'Main Branch - Kandy';
+                $it['loss_value'] = $lineVal;
+                $it['total_cost'] = $lineVal;
+                $it['total_valuation'] = $lineVal;
+                $it['days_expired'] = max(0, -$daysRemaining);
+                $it['days_until_expiry'] = $daysRemaining;
+
+                // 3-Color Expiry Categorization:
+                // 0–30 days (and already expired) => RED (#dc2626)
+                // 30–60 days => YELLOW (#d97706)
+                // Others (>60 days) => GREEN (#16a34a)
+                if ($daysRemaining <= 30) {
+                    $it['color_tag']     = 'red';
+                    $it['color_hex']     = '#dc2626';
+                    $it['color_bg']      = '#fee2e2';
+                    $it['color_text']    = '#b91c1c';
+                    $it['color_border']  = '#fca5a5';
+                    $it['urgency_level'] = 'danger'; // Red
+                    $it['range_label']   = ($daysRemaining < 0) ? "Expired (" . abs($daysRemaining) . "d ago)" : "0–30 Days ({$daysRemaining}d left)";
+                    $countRed++;
+                    $valRed += $lineVal;
+                } elseif ($daysRemaining <= 60) {
+                    $it['color_tag']     = 'yellow';
+                    $it['color_hex']     = '#d97706';
+                    $it['color_bg']      = '#fef3c7';
+                    $it['color_text']    = '#b45309';
+                    $it['color_border']  = '#fde68a';
+                    $it['urgency_level'] = 'warning'; // Yellow
+                    $it['range_label']   = "30–60 Days ({$daysRemaining}d left)";
+                    $countYellow++;
+                    $valYellow += $lineVal;
+                } else {
+                    $it['color_tag']     = 'green';
+                    $it['color_hex']     = '#16a34a';
+                    $it['color_bg']      = '#dcfce7';
+                    $it['color_text']    = '#15803d';
+                    $it['color_border']  = '#86efac';
+                    $it['urgency_level'] = 'safe'; // Green
+                    $it['range_label']   = "60+ Days ({$daysRemaining}d left)";
+                    $countGreen++;
+                    $valGreen += $lineVal;
+                }
+
                 $totQty += $rem;
-                $totLoss += round($rem * $c, 2);
+                $totLoss += $lineVal;
             }
             unset($it);
 
@@ -143,6 +198,12 @@ class ExpiryManager
                 'total_qty'           => $totQty,
                 'total_loss_value'    => $totLoss,
                 'total_at_risk_value' => $totLoss,
+                'count_red'           => $countRed,
+                'val_red'             => round($valRed, 2),
+                'count_yellow'        => $countYellow,
+                'val_yellow'          => round($valYellow, 2),
+                'count_green'         => $countGreen,
+                'val_green'           => round($valGreen, 2),
                 'window_days'         => 30
             ];
 
@@ -194,7 +255,18 @@ class ExpiryManager
                     COUNT(CASE WHEN pl.expiry_date >= CURRENT_DATE() AND pl.expiry_date <= DATE_ADD(CURRENT_DATE(), INTERVAL 30 DAY) THEN 1 END) AS near_30_lots_count,
                     COALESCE(SUM(CASE WHEN pl.expiry_date >= CURRENT_DATE() AND pl.expiry_date <= DATE_ADD(CURRENT_DATE(), INTERVAL 30 DAY) THEN pl.remaining_quantity ELSE 0 END), 0) AS near_30_units_count,
                     COALESCE(SUM(CASE WHEN pl.expiry_date >= CURRENT_DATE() AND pl.expiry_date <= DATE_ADD(CURRENT_DATE(), INTERVAL 30 DAY) THEN pl.remaining_quantity * pl.cost ELSE 0 END), 0) AS near_30_cost_valuation,
+                    -- Red Tier: 0–30 Days & Expired
+                    COUNT(CASE WHEN pl.expiry_date <= DATE_ADD(CURRENT_DATE(), INTERVAL 30 DAY) THEN 1 END) AS red_lots_count,
+                    COALESCE(SUM(CASE WHEN pl.expiry_date <= DATE_ADD(CURRENT_DATE(), INTERVAL 30 DAY) THEN pl.remaining_quantity ELSE 0 END), 0) AS red_units_count,
+                    COALESCE(SUM(CASE WHEN pl.expiry_date <= DATE_ADD(CURRENT_DATE(), INTERVAL 30 DAY) THEN pl.remaining_quantity * pl.cost ELSE 0 END), 0) AS red_cost_valuation,
+                    -- Yellow Tier: 30–60 Days
                     COUNT(CASE WHEN pl.expiry_date > DATE_ADD(CURRENT_DATE(), INTERVAL 30 DAY) AND pl.expiry_date <= DATE_ADD(CURRENT_DATE(), INTERVAL 60 DAY) THEN 1 END) AS near_60_lots_count,
+                    COALESCE(SUM(CASE WHEN pl.expiry_date > DATE_ADD(CURRENT_DATE(), INTERVAL 30 DAY) AND pl.expiry_date <= DATE_ADD(CURRENT_DATE(), INTERVAL 60 DAY) THEN pl.remaining_quantity ELSE 0 END), 0) AS near_60_units_count,
+                    COALESCE(SUM(CASE WHEN pl.expiry_date > DATE_ADD(CURRENT_DATE(), INTERVAL 30 DAY) AND pl.expiry_date <= DATE_ADD(CURRENT_DATE(), INTERVAL 60 DAY) THEN pl.remaining_quantity * pl.cost ELSE 0 END), 0) AS near_60_cost_valuation,
+                    -- Green Tier: Others (> 60 Days)
+                    COUNT(CASE WHEN pl.expiry_date > DATE_ADD(CURRENT_DATE(), INTERVAL 60 DAY) THEN 1 END) AS green_lots_count,
+                    COALESCE(SUM(CASE WHEN pl.expiry_date > DATE_ADD(CURRENT_DATE(), INTERVAL 60 DAY) THEN pl.remaining_quantity ELSE 0 END), 0) AS green_units_count,
+                    COALESCE(SUM(CASE WHEN pl.expiry_date > DATE_ADD(CURRENT_DATE(), INTERVAL 60 DAY) THEN pl.remaining_quantity * pl.cost ELSE 0 END), 0) AS green_cost_valuation,
                     COUNT(CASE WHEN pl.expiry_date > DATE_ADD(CURRENT_DATE(), INTERVAL 60 DAY) AND pl.expiry_date <= DATE_ADD(CURRENT_DATE(), INTERVAL 90 DAY) THEN 1 END) AS near_90_lots_count
                 FROM product_lots pl
                 JOIN products p ON pl.product_id = p.id
@@ -214,7 +286,18 @@ class ExpiryManager
                 'near_expiry_quantity'    => (float)($summary['near_30_units_count'] ?? 0),
                 'near_30_cost_valuation'  => (float)($summary['near_30_cost_valuation'] ?? 0),
                 'near_expiry_value'       => (float)($summary['near_30_cost_valuation'] ?? 0),
+                'red_lots_count'          => (int)($summary['red_lots_count'] ?? 0),
+                'red_units_count'         => (float)($summary['red_units_count'] ?? 0),
+                'red_cost_valuation'      => (float)($summary['red_cost_valuation'] ?? 0),
                 'near_60_lots_count'      => (int)($summary['near_60_lots_count'] ?? 0),
+                'near_60_units_count'     => (float)($summary['near_60_units_count'] ?? 0),
+                'near_60_cost_valuation'  => (float)($summary['near_60_cost_valuation'] ?? 0),
+                'yellow_lots_count'       => (int)($summary['near_60_lots_count'] ?? 0),
+                'yellow_units_count'      => (float)($summary['near_60_units_count'] ?? 0),
+                'yellow_cost_valuation'   => (float)($summary['near_60_cost_valuation'] ?? 0),
+                'green_lots_count'        => (int)($summary['green_lots_count'] ?? 0),
+                'green_units_count'       => (float)($summary['green_units_count'] ?? 0),
+                'green_cost_valuation'    => (float)($summary['green_cost_valuation'] ?? 0),
                 'near_90_lots_count'      => (int)($summary['near_90_lots_count'] ?? 0),
                 'alert_days_soon'         => 30
             ];
@@ -324,9 +407,19 @@ class ExpiryManager
     /**
      * 2. Near Expiry Report (Batches expiring within N days: 30, 60, or 90)
      */
-    public static function getNearExpiryReport(int $branchId, int $days = 30, array $filters = [], int $page = 1, int $limit = 25): array
+    public static function getNearExpiryReport(int $branchId, int $days = 0, array $filters = [], int $page = 1, int $limit = 25): array
     {
-        $filters['filter_type'] = ($days === 60) ? 'near_60' : (($days === 90) ? 'near_90' : 'near_30');
+        if (!empty($filters['filter_type'])) {
+            // caller explicitly set filter_type
+        } elseif ($days === 30) {
+            $filters['filter_type'] = 'near_30';
+        } elseif ($days === 60) {
+            $filters['filter_type'] = 'near_60';
+        } elseif ($days === 90) {
+            $filters['filter_type'] = 'near_90';
+        } else {
+            $filters['filter_type'] = 'all';
+        }
         return self::getExpiringLots($branchId, $filters, $page, $limit);
     }
 
@@ -410,13 +503,50 @@ class ExpiryManager
             foreach ($items as &$it) {
                 $rem = (float)$it['remaining_quantity'];
                 $c = (float)$it['cost'];
+                $daysRemaining = (int)$it['days_remaining'];
+                $lineVal = round($rem * $c, 2);
+
                 $it['current_quantity'] = $rem;
                 $it['unit_cost'] = $c;
-                $it['total_valuation'] = round($rem * $c, 2);
-                $it['status_class'] = ($it['audit_status'] === 'Expired') ? 'unbalanced' : (($it['audit_status'] === 'Depleted') ? 'closed' : 'active');
-                $it['status_label'] = $it['audit_status'];
+                $it['total_valuation'] = $lineVal;
+
+                // 3-Color Expiry Categorization
+                if ($rem <= 0) {
+                    $it['color_tag']    = 'gray';
+                    $it['color_hex']    = '#64748b';
+                    $it['color_bg']     = '#f1f5f9';
+                    $it['color_text']   = '#475569';
+                    $it['color_border'] = '#cbd5e1';
+                    $it['status_class'] = 'closed';
+                    $it['status_label'] = 'Depleted';
+                } elseif ($daysRemaining <= 30) {
+                    $it['color_tag']    = 'red';
+                    $it['color_hex']    = '#dc2626';
+                    $it['color_bg']     = '#fee2e2';
+                    $it['color_text']   = '#b91c1c';
+                    $it['color_border'] = '#fca5a5';
+                    $it['status_class'] = 'danger';
+                    $it['status_label'] = ($daysRemaining < 0) ? 'Expired (' . abs($daysRemaining) . 'd ago)' : '0–30 Days (' . $daysRemaining . 'd left)';
+                } elseif ($daysRemaining <= 60) {
+                    $it['color_tag']    = 'yellow';
+                    $it['color_hex']    = '#d97706';
+                    $it['color_bg']     = '#fef3c7';
+                    $it['color_text']   = '#b45309';
+                    $it['color_border'] = '#fde68a';
+                    $it['status_class'] = 'warning';
+                    $it['status_label'] = '30–60 Days (' . $daysRemaining . 'd left)';
+                } else {
+                    $it['color_tag']    = 'green';
+                    $it['color_hex']    = '#16a34a';
+                    $it['color_bg']     = '#dcfce7';
+                    $it['color_text']   = '#15803d';
+                    $it['color_border'] = '#86efac';
+                    $it['status_class'] = 'safe';
+                    $it['status_label'] = '60+ Days (' . $daysRemaining . 'd left)';
+                }
+
                 $totQty += $rem;
-                $totVal += round($rem * $c, 2);
+                $totVal += $lineVal;
             }
             unset($it);
 
@@ -513,7 +643,7 @@ class ExpiryManager
                 LEFT JOIN users u ON ds.logged_by = u.id
                 LEFT JOIN journal_entries je ON ds.journal_entry_id = je.id
                 WHERE $whereSql
-                ORDER BY ds.id DESC
+                ORDER BY ds.created_at DESC, ds.id DESC
                 LIMIT $limit OFFSET $offset
             ", $params);
 

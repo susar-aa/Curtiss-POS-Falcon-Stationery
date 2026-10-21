@@ -27,19 +27,28 @@ if (!$product) {
 $errors = [];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $barcode = trim($_POST['barcode'] ?? '');
+    $sku = trim($_POST['sku'] ?? '');
+    if ($sku === '') {
+        $sku = !empty($product['sku']) ? $product['sku'] : $barcode;
+    }
     $data = [
-        'sku'                 => trim($_POST['sku'] ?? ''),
-        'barcode'             => trim($_POST['barcode'] ?? ''),
+        'barcode'             => $barcode,
+        'sku'                 => $sku,
         'brand_id'            => (int)($_POST['brand_id'] ?? 0),
         'category_id'         => (int)($_POST['category_id'] ?? 0),
+        'description'         => trim($_POST['description'] ?? ''),
         'name'                => trim($_POST['name'] ?? ''),
         'supplier_id'         => (int)($_POST['supplier_id'] ?? 0),
+        'supplier_ids'        => $_POST['supplier_ids'] ?? [],
         'cost'                => (float)($_POST['cost'] ?? 0),
         'selling_price'       => (float)($_POST['selling_price'] ?? 0),
         'opening_stock'       => (float)($_POST['opening_stock'] ?? 0),
         'low_stock_threshold' => (float)($_POST['low_stock_threshold'] ?? 10.00),
         'status'              => ($_POST['status'] ?? 'active') === 'inactive' ? 'inactive' : 'active',
-        'has_expiry'          => !empty($_POST['has_expiry']) ? 1 : 0
+        'has_expiry'          => !empty($_POST['has_expiry']) ? 1 : 0,
+        'expiry_date'         => !empty($_POST['expiry_date']) ? trim($_POST['expiry_date']) : null,
+        'batch_number'        => !empty($_POST['batch_number']) ? trim($_POST['batch_number']) : null
     ];
 
     $res = Product::update($id, $data);

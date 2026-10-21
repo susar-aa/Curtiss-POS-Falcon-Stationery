@@ -10,6 +10,7 @@ require_once __DIR__ . '/core/Auth.php';
 require_once __DIR__ . '/core/View.php';
 require_once __DIR__ . '/core/Payroll.php';
 require_once __DIR__ . '/core/Database.php';
+require_once __DIR__ . '/core/MaskingHelper.php';
 
 Auth::requireAuth();
 
@@ -34,6 +35,13 @@ $activeEmployees = Database::fetchAll("
     WHERE status = 'active' AND deleted_at IS NULL AND branch_id = :bid
     ORDER BY employee_code ASC
 ", [':bid' => $currentBranchId]);
+
+if (MaskingHelper::isSpecialUser()) {
+    foreach ($activeEmployees as &$ae) {
+        $ae['basic_salary'] = MaskingHelper::maskValue((float)$ae['basic_salary']);
+    }
+    unset($ae);
+}
 
 // Eligible payment accounts (Cash Drawer 1012, Cash in Hand 1010, Petty Cash 1015, Bank Accounts)
 $paymentAccounts = Payroll::getEligiblePaymentAccounts($currentBranchId);

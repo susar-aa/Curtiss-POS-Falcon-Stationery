@@ -42,12 +42,49 @@ $isEdit = ($mode === 'edit');
                 <input type="text" name="card_barcode" class="form-control" placeholder="Scan or type customer card barcode..." value="<?= View::escape($formData['card_barcode'] ?? '') ?>">
                 <small style="color: var(--color-text-muted); display: block; margin-top: 0.25rem;">Must be unique across active customer cards if used.</small>
             </div>
+            <?php 
+            $hasLimit = $isEdit && isset($formData['credit_limit']) && $formData['credit_limit'] !== null && $formData['credit_limit'] !== '';
+            $limitVal = $hasLimit ? $formData['credit_limit'] : '';
+            ?>
             <div class="form-group">
-                <label class="form-label">Credit Limit (LKR)</label>
-                <input type="number" step="0.01" min="0" name="credit_limit" class="form-control" placeholder="0.00" value="<?= View::escape($formData['credit_limit'] ?? '0.00') ?>">
-                <small style="color: var(--color-text-muted); display: block; margin-top: 0.25rem;">Maximum allowed customer credit balance foundation.</small>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                    <label class="form-label" style="margin-bottom: 0;">Credit Limit</label>
+                    <label style="display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; color: #0284c7; cursor: pointer; user-select: none;">
+                        <input type="checkbox" id="form_has_credit_limit" name="has_credit_limit" value="1" <?= $hasLimit ? 'checked' : '' ?> onchange="toggleFormCreditLimit(this)" style="width: 14px; height: 14px; accent-color: #0284c7; cursor: pointer;">
+                        <span id="form_credit_limit_status"><?= $hasLimit ? 'Limit Enabled' : 'Off (No Limit)' ?></span>
+                    </label>
+                </div>
+                <div id="form_credit_limit_wrap" style="display: <?= $hasLimit ? 'block' : 'none' ?>;">
+                    <input type="number" step="0.01" min="0" name="credit_limit" id="form_credit_limit_input" class="form-control" placeholder="Enter Credit Limit (LKR)..." value="<?= View::escape($limitVal) ?>" <?= $hasLimit ? '' : 'disabled' ?>>
+                </div>
+                <div id="form_credit_no_limit_badge" style="display: <?= $hasLimit ? 'none' : 'flex' ?>; align-items: center; height: 40px; padding: 0 12px; background: #f8fafc; border: 1.5px dashed #cbd5e1; border-radius: 8px; font-size: 12px; font-weight: 700; color: #64748b;">
+                    <i class="fa-solid fa-infinity" style="margin-right: 6px; color: #0284c7;"></i> No Credit Limit (Unlimited)
+                </div>
+                <small style="color: var(--color-text-muted); display: block; margin-top: 0.25rem;">Toggle off for unlimited customer credit, or turn on to set a cap.</small>
             </div>
         </div>
+
+        <script>
+        function toggleFormCreditLimit(cb) {
+            const wrap = document.getElementById('form_credit_limit_wrap');
+            const input = document.getElementById('form_credit_limit_input');
+            const badge = document.getElementById('form_credit_no_limit_badge');
+            const status = document.getElementById('form_credit_limit_status');
+            if (cb.checked) {
+                wrap.style.display = 'block';
+                badge.style.display = 'none';
+                input.disabled = false;
+                input.focus();
+                status.textContent = 'Limit Enabled';
+            } else {
+                wrap.style.display = 'none';
+                badge.style.display = 'flex';
+                input.disabled = true;
+                input.value = '';
+                status.textContent = 'Off (No Limit)';
+            }
+        }
+        </script>
 
         <div class="form-group">
             <label class="form-label">Address</label>

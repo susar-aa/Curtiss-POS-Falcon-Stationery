@@ -40,10 +40,45 @@ $custCollections    = $reportData['customer_collections'] ?? [];
 $supplierPayments   = $reportData['supplier_payments'] ?? [];
 $employeeAdvances   = $reportData['employee_advances'] ?? [];
 $pettyCashExpenses  = $reportData['petty_cash_expenses'] ?? [];
+$generalExpenses    = $reportData['general_expenses'] ?? [];
 $payrollPayments    = $reportData['payroll_payments'] ?? [];
 $refunds            = $reportData['refunds'] ?? [];
 $manualMovements    = $reportData['manual_movements'] ?? [];
 $summary            = $reportData['drawer_summary'] ?? [];
+
+$closingTransfers = [];
+try {
+    $db = Database::getInstance()->getConnection();
+    if (!empty($bday['split_transfers'])) {
+        $rawSplits = is_array($bday['split_transfers']) ? $bday['split_transfers'] : json_decode($bday['split_transfers'], true);
+        if (!empty($rawSplits) && is_array($rawSplits)) {
+            $bankMap = [];
+            $bankIds = [];
+            foreach ($rawSplits as $rs) {
+                if (!empty($rs['bank_account_id'])) {
+                    $bankIds[] = (int)$rs['bank_account_id'];
+                }
+            }
+            if (!empty($bankIds)) {
+                $inClause = implode(',', array_unique($bankIds));
+                $stmtBanks = $db->query("SELECT id, bank_name, account_number FROM bank_accounts WHERE id IN ($inClause)");
+                while ($b = $stmtBanks->fetch(PDO::FETCH_ASSOC)) {
+                    $bankMap[$b['id']] = $b['bank_name'] . ' (' . $b['account_number'] . ')';
+                }
+            }
+            foreach ($rawSplits as $rs) {
+                $closingTransfers[] = [
+                    'destination_type' => $rs['type'] ?? 'safe',
+                    'amount'           => (float)($rs['amount'] ?? 0),
+                    'bank_name'        => !empty($rs['bank_account_id']) ? ($bankMap[$rs['bank_account_id']] ?? 'Bank') : '',
+                    'notes'            => $rs['notes'] ?? ''
+                ];
+            }
+        }
+    }
+} catch (Exception $e) {
+    // Graceful fallback
+}
 
 $branchInfo   = Settings::getBranchInfo((int)($bday['branch_id'] ?? 1));
 $businessName = $branchInfo['company_name'];
@@ -186,7 +221,9 @@ $cardSettlement = (float)($bday['card_settlement_amount'] ?? 0);
     $totalOrders     = (int)($salesSummary['total_sales_count'] ?? 0);
     $totalItemsSold  = (float)($salesSummary['total_items_sold'] ?? 0);
     $grossSales      = (float)($salesSummary['gross_sales'] ?? 0);
-    $totalDisc       = (float)($salesSummary['total_discount'] ?? 0);
+    $promoDisc       = (float)($salesSummary['promo_discount'] ?? 0);
+    $manualDisc      = (float)($salesSummary['manual_discount'] ?? 0);
+    $totalDisc       = (float)($salesSummary['total_discount'] ?? ($promoDisc + $manualDisc));
     $netSales        = (float)($salesSummary['net_sales'] ?? 0);
     $totalCogs       = (float)($salesSummary['total_cogs'] ?? 0);
     $grossProfit     = (float)($salesSummary['gross_profit'] ?? 0);
@@ -219,9 +256,21 @@ $cardSettlement = (float)($bday['card_settlement_amount'] ?? 0);
         <?php endif; ?>
         <?php if ($totalDisc > 0): ?>
         <tr>
-            <td>- Discounts Allowed:</td>
+            <td>- Total Discounts:</td>
             <td class="text-right">LKR <?= number_format($totalDisc, 2) ?></td>
         </tr>
+        <?php if ($promoDisc > 0): ?>
+        <tr>
+            <td style="padding-left: 8px; font-size: 10px;">• Auto / Promo Discounts:</td>
+            <td class="text-right" style="font-size: 10px;">LKR <?= number_format($promoDisc, 2) ?></td>
+        </tr>
+        <?php endif; ?>
+        <?php if ($manualDisc > 0): ?>
+        <tr>
+            <td style="padding-left: 8px; font-size: 10px;">• Manual Discounts:</td>
+            <td class="text-right" style="font-size: 10px;">LKR <?= number_format($manualDisc, 2) ?></td>
+        </tr>
+        <?php endif; ?>
         <?php endif; ?>
         <tr class="fw-bold" style="font-size: 12px; border-top: 1px dashed #000; border-bottom: 1px dashed #000;">
             <td>NET SALES:</td>
@@ -386,6 +435,69 @@ $cardSettlement = (float)($bday['card_settlement_amount'] ?? 0);
             <td class="text-right">LKR <?= number_format((float)$pi['amount'], 2) ?></td>
         </tr>
         <?php endforeach; ?>
+    </table>
+    <?php endif; ?>
+
+    <!-- 6b. CENTRALIZED BUSINESS EXPENSES -->
+    <?php 
+    $totGenExp = (float)($generalExpenses['total'] ?? 0);
+    $genExpItems = $generalExpenses['items'] ?? [];
+    $genExpDrawer = (float)($generalExpenses['cash_drawer'] ?? 0);
+    $genExpBank = (float)($generalExpenses['bank'] ?? 0);
+    $genExpPetty = (float)($generalExpenses['petty_cash'] ?? 0);
+    $genExpSafe = (float)($generalExpenses['cash_in_hand'] ?? 0);
+    $genExpUnpaid = (float)($generalExpenses['unpaid'] ?? 0);
+    $genExpCats = $generalExpenses['category_breakdown'] ?? [];
+    ?>
+    <?php if ($totGenExp > 0 || !empty($genExpItems)): ?>
+    <div class="divider"></div>
+    <div class="section-title">CENTRALIZED BUSINESS EXPENSES</div>
+    <table>
+        <tr class="fw-bold">
+            <td>TOTAL EXPENSES RECORDED:</td>
+            <td class="text-right">- LKR <?= number_format($totGenExp, 2) ?></td>
+        </tr>
+        <?php if ($genExpDrawer > 0): ?>
+        <tr>
+            <td>&bull; Paid from Cash Drawer:</td>
+            <td class="text-right">LKR <?= number_format($genExpDrawer, 2) ?></td>
+        </tr>
+        <?php endif; ?>
+        <?php if ($genExpBank > 0): ?>
+        <tr>
+            <td>&bull; Paid via Bank Account:</td>
+            <td class="text-right">LKR <?= number_format($genExpBank, 2) ?></td>
+        </tr>
+        <?php endif; ?>
+        <?php if ($genExpSafe > 0): ?>
+        <tr>
+            <td>&bull; Paid from Main Safe:</td>
+            <td class="text-right">LKR <?= number_format($genExpSafe, 2) ?></td>
+        </tr>
+        <?php endif; ?>
+        <?php if ($genExpPetty > 0): ?>
+        <tr>
+            <td>&bull; Paid from Petty Cash:</td>
+            <td class="text-right">LKR <?= number_format($genExpPetty, 2) ?></td>
+        </tr>
+        <?php endif; ?>
+        <?php if ($genExpUnpaid > 0): ?>
+        <tr>
+            <td>&bull; Accrued / Unpaid Bills:</td>
+            <td class="text-right">LKR <?= number_format($genExpUnpaid, 2) ?></td>
+        </tr>
+        <?php endif; ?>
+        <?php if (!empty($genExpCats)): ?>
+        <tr class="fw-bold" style="border-top: 1px dashed #000;">
+            <td colspan="2">Category Breakdown:</td>
+        </tr>
+        <?php foreach ($genExpCats as $cName => $cAmt): ?>
+        <tr class="item-detail-row">
+            <td>&nbsp;&nbsp;&bull; <?= htmlspecialchars(substr($cName, 0, 24)) ?>:</td>
+            <td class="text-right">LKR <?= number_format((float)$cAmt, 2) ?></td>
+        </tr>
+        <?php endforeach; ?>
+        <?php endif; ?>
     </table>
     <?php endif; ?>
 
@@ -600,9 +712,16 @@ $cardSettlement = (float)($bday['card_settlement_amount'] ?? 0);
         </tr>
         <?php endif; ?>
 
+        <?php if (($summary['drawer_expenses'] ?? 0) > 0): ?>
+        <tr>
+            <td>- Cash Drawer Expenses:</td>
+            <td class="text-right">LKR <?= number_format((float)$summary['drawer_expenses'], 2) ?></td>
+        </tr>
+        <?php endif; ?>
+
         <?php if (($summary['manual_cash_out'] ?? 0) > 0): ?>
         <tr>
-            <td>- Manual Cash Out / Expenses:</td>
+            <td>- Manual Cash Out / Sundry:</td>
             <td class="text-right">LKR <?= number_format((float)$summary['manual_cash_out'], 2) ?></td>
         </tr>
         <?php endif; ?>
@@ -664,9 +783,17 @@ $cardSettlement = (float)($bday['card_settlement_amount'] ?? 0);
 
         <?php if (($bday['cash_to_deposit'] ?? 0) > 0): ?>
         <tr class="fw-bold" style="font-size: 12px; border-top: 1px dashed #000; border-bottom: 1px dashed #000;">
-            <td>CASH TO DEPOSIT / SAFE:</td>
+            <td>CASH TO DEPOSIT / TRANSFERS:</td>
             <td class="text-right">LKR <?= number_format((float)$bday['cash_to_deposit'], 2) ?></td>
         </tr>
+        <?php if (!empty($closingTransfers)): ?>
+        <?php foreach ($closingTransfers as $ct): ?>
+        <tr class="item-detail-row">
+            <td>&bull; <?= htmlspecialchars($ct['destination_type'] === 'safe' ? 'Main Safe (1010)' : ($ct['destination_type'] === 'bank' ? ('Direct Bank (' . ($ct['bank_name'] ?: 'Bank') . ')') : 'Petty Cash (1015)')) ?>:</td>
+            <td class="text-right">LKR <?= number_format((float)$ct['amount'], 2) ?></td>
+        </tr>
+        <?php endforeach; ?>
+        <?php endif; ?>
         <?php endif; ?>
     </table>
 

@@ -1,9 +1,8 @@
 <?php
 /**
- * Curtiss POS - System Settings View
- * Includes General Business Details, Security Controls, and KOKO Payments API Gateway Config
+ * Falcon POS - System Settings View
+ * Includes General Business Details and Security Controls
  */
-$kokoWebhookUrl = (isset($_SERVER['HTTP_HOST']) ? (isset($_SERVER['HTTPS']) ? 'https://' : 'http://') . $_SERVER['HTTP_HOST'] : '') . '/POS/koko_api.php?action=webhook';
 ?>
 <div class="page-header">
     <div>
@@ -66,7 +65,7 @@ $kokoWebhookUrl = (isset($_SERVER['HTTP_HOST']) ? (isset($_SERVER['HTTPS']) ? 'h
 
                 <div class="form-group">
                     <label class="form-label">Business Name (Brand) <span style="color: #dc2626;">*</span></label>
-                    <input type="text" name="settings[business_name]" class="form-control" value="<?= View::escape(Settings::get('business_name', 'Kandy Kids')) ?>" required>
+                    <input type="text" name="settings[business_name]" class="form-control" value="<?= View::escape(Settings::get('business_name', 'Falcon Stationery')) ?>" required>
                 </div>
 
                 <div class="form-group">
@@ -95,14 +94,14 @@ $kokoWebhookUrl = (isset($_SERVER['HTTP_HOST']) ? (isset($_SERVER['HTTPS']) ? 'h
                         <label class="form-label">
                             <i class="fa-solid fa-envelope me-1" style="color: #64748b;"></i> Business Email
                         </label>
-                        <input type="email" name="settings[business_email]" class="form-control" placeholder="info@kandykids.lk" value="<?= View::escape(Settings::get('business_email', 'info@curtisspos.com')) ?>">
+                        <input type="email" name="settings[business_email]" class="form-control" placeholder="info@falconstationery.lk" value="<?= View::escape(Settings::get('business_email', 'info@falconstationery.lk')) ?>">
                     </div>
 
                     <div class="form-group">
                         <label class="form-label">
                             <i class="fa-solid fa-globe me-1" style="color: #6366f1;"></i> Website URL
                         </label>
-                        <input type="text" name="settings[business_website]" class="form-control" placeholder="www.kandykids.lk" value="<?= View::escape(Settings::get('business_website', 'www.curtisspos.com')) ?>">
+                        <input type="text" name="settings[business_website]" class="form-control" placeholder="www.falconstationery.lk" value="<?= View::escape(Settings::get('business_website', 'www.falconstationery.lk')) ?>">
                     </div>
                 </div>
 
@@ -110,7 +109,7 @@ $kokoWebhookUrl = (isset($_SERVER['HTTP_HOST']) ? (isset($_SERVER['HTTPS']) ? 'h
                     <label class="form-label">
                         <i class="fa-solid fa-location-dot me-1" style="color: #ef4444;"></i> Physical Business Address
                     </label>
-                    <textarea name="settings[business_address]" class="form-control" rows="2" placeholder="e.g. No 123, Peradeniya Road, Kandy"><?= View::escape(Settings::get('business_address', 'No 123, Peradeniya Road, Kandy')) ?></textarea>
+                    <textarea name="settings[business_address]" class="form-control" rows="2" placeholder="e.g. Falcon Stationery, Main Street"><?= View::escape(Settings::get('business_address', 'Falcon Stationery')) ?></textarea>
                     <small style="color: var(--color-text-secondary); display: block; margin-top: 0.25rem;">
                         Printed on receipts, invoices, day-closing sheets, and official company documentation.
                     </small>
@@ -176,101 +175,8 @@ $kokoWebhookUrl = (isset($_SERVER['HTTP_HOST']) ? (isset($_SERVER['HTTPS']) ? 'h
             </div>
         </div>
 
-        <!-- Right Column: KOKO Payment Gateway API Configuration -->
+        <!-- Right Column: Hardware & System Integrations -->
         <div style="display: flex; flex-direction: column; gap: 1.5rem;">
-            <div class="card" style="border: 2px solid #0284c7; background: #ffffff;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; border-bottom: 1px solid #e2e8f0; padding-bottom: 0.85rem;">
-                    <div>
-                        <div style="display: flex; align-items: center; gap: 8px;">
-                            <span style="background: #0284c7; color: #fff; font-size: 0.75rem; font-weight: 900; padding: 2px 8px; border-radius: 6px; letter-spacing: 0.5px;">BNPL</span>
-                            <h3 style="font-size: 1.15rem; font-weight: 800; color: #0f172a; margin: 0;">KOKO Payments API Gateway</h3>
-                        </div>
-                        <small style="color: #64748b; font-size: 0.8rem; display: block; margin-top: 2px;">
-                            Configure Sri Lanka Buy Now Pay Later 3-installment gateway credentials & modes
-                        </small>
-                    </div>
-                    <div>
-                        <span class="badge" style="background: <?= Settings::get('koko_enabled', '1') === '1' ? '#dcfce7; color: #15803d;' : '#fee2e2; color: #b91c1c;' ?> font-weight: 800; font-size: 0.75rem; padding: 4px 10px; border-radius: 999px;">
-                            <?= Settings::get('koko_enabled', '1') === '1' ? 'Active Gateway' : 'Disabled' ?>
-                        </span>
-                    </div>
-                </div>
-
-                <!-- Enable / Disable Toggle -->
-                <div class="form-group">
-                    <label class="form-label">Enable KOKO Payment Method in POS</label>
-                    <select name="settings[koko_enabled]" class="form-control" style="font-weight: 700;">
-                        <option value="1" <?= Settings::get('koko_enabled', '1') === '1' ? 'selected' : '' ?>>Enabled (Available in POS Settlement Modal)</option>
-                        <option value="0" <?= Settings::get('koko_enabled', '1') === '0' ? 'selected' : '' ?>>Disabled</option>
-                    </select>
-                </div>
-
-                <!-- Environment: Sandbox vs Production -->
-                <div class="form-group">
-                    <label class="form-label">Gateway Environment</label>
-                    <select name="settings[koko_environment]" class="form-control" style="font-weight: 700;">
-                        <option value="sandbox" <?= Settings::get('koko_environment', 'sandbox') === 'sandbox' ? 'selected' : '' ?>>Sandbox / Test Environment (sandbox.paykoko.com)</option>
-                        <option value="production" <?= Settings::get('koko_environment', 'sandbox') === 'production' ? 'selected' : '' ?>>Production / Live Environment (pay.kokopay.lk)</option>
-                    </select>
-                    <small style="color: #64748b; display: block; margin-top: 0.25rem;">
-                        Use Sandbox mode to test dynamic QR codes, payment links, and simulated SMS checkout.
-                    </small>
-                </div>
-
-                <!-- Merchant Name -->
-                <div class="form-group">
-                    <label class="form-label">KOKO Merchant Name (Display on SMS & Checkout)</label>
-                    <input type="text" name="settings[koko_merchant_name]" class="form-control" value="<?= View::escape(Settings::get('koko_merchant_name', 'Kandy Kids')) ?>" placeholder="e.g. Kandy Kids" required>
-                </div>
-
-                <!-- Merchant ID -->
-                <div class="form-group">
-                    <label class="form-label">KOKO Merchant ID (MID)</label>
-                    <input type="text" name="settings[koko_merchant_id]" class="form-control" value="<?= View::escape(Settings::get('koko_merchant_id', 'KOKO_MID_SAMPLE')) ?>" placeholder="Enter assigned KOKO Merchant ID" required>
-                </div>
-
-                <!-- API Key -->
-                <div class="form-group">
-                    <label class="form-label">KOKO API Key</label>
-                    <input type="text" name="settings[koko_api_key]" class="form-control" value="<?= View::escape(Settings::get('koko_api_key', 'koko_live_or_sandbox_key')) ?>" placeholder="Enter KOKO API Key" required>
-                </div>
-
-                <!-- API Secret -->
-                <div class="form-group">
-                    <label class="form-label">KOKO API Secret</label>
-                    <div style="position: relative;">
-                        <input type="password" id="koko_secret_input" name="settings[koko_api_secret]" class="form-control" value="<?= View::escape(Settings::get('koko_api_secret', 'koko_live_or_sandbox_secret')) ?>" placeholder="Enter KOKO API Secret" required style="padding-right: 45px;">
-                        <button type="button" onclick="toggleSecretVisibility()" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; color: #64748b; cursor: pointer; font-size: 0.85rem;">
-                            <i id="secret_icon" class="fa-solid fa-eye"></i>
-                        </button>
-                    </div>
-                </div>
-
-                <!-- SMS Feature Toggle -->
-                <div class="form-group">
-                    <label class="form-label">SMS Payment Link Dispatch Feature</label>
-                    <select name="settings[koko_sms_enabled]" class="form-control" style="font-weight: 700;">
-                        <option value="1" <?= Settings::get('koko_sms_enabled', '1') === '1' ? 'selected' : '' ?>>Enabled (Allow sending payment link directly to customer phone)</option>
-                        <option value="0" <?= Settings::get('koko_sms_enabled', '1') === '0' ? 'selected' : '' ?>>Disabled</option>
-                    </select>
-                </div>
-
-                <!-- Webhook URL Guide -->
-                <div style="background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 8px; padding: 0.85rem; margin-top: 0.5rem;">
-                    <div style="font-size: 0.75rem; font-weight: 800; color: #475569; text-transform: uppercase; margin-bottom: 0.25rem;">
-                        <i class="fa-solid fa-link me-1"></i> KOKO Callback / Webhook URL
-                    </div>
-                    <div style="display: flex; gap: 6px;">
-                        <input type="text" readonly class="form-control" style="font-size: 0.75rem; background: #fff; cursor: text;" value="<?= View::escape($kokoWebhookUrl) ?>">
-                        <button type="button" class="btn btn-secondary" onclick="navigator.clipboard.writeText('<?= View::escape($kokoWebhookUrl) ?>'); alert('Webhook URL copied to clipboard!');" style="font-size: 0.75rem; white-space: nowrap;">
-                            Copy
-                        </button>
-                    </div>
-                    <small style="color: #64748b; font-size: 0.75rem; display: block; margin-top: 0.35rem;">
-                        Provide this Webhook URL in your KOKO Merchant Portal under Webhook Notifications.
-                    </small>
-                </div>
-            </div>
 
             <!-- TSC TE244 Thermal Label Printer Configuration -->
             <div class="card" id="barcode_printer_settings" style="border-left: 4px solid #0f172a;">
@@ -298,7 +204,7 @@ $kokoWebhookUrl = (isset($_SERVER['HTTP_HOST']) ? (isset($_SERVER['HTTPS']) ? 'h
                     </div>
                     <div class="form-group" style="margin-bottom: 0;">
                         <label class="form-label">Shop Name on Label</label>
-                        <input type="text" name="settings[label_shop_name_custom]" class="form-control" value="<?= View::escape(Settings::get('label_shop_name_custom', Settings::get('business_name', 'Kandy Kids'))) ?>" required>
+                        <input type="text" name="settings[label_shop_name_custom]" class="form-control" value="<?= View::escape(Settings::get('label_shop_name_custom', Settings::get('business_name', 'Falcon Stationery'))) ?>" required>
                     </div>
                 </div>
 
@@ -407,18 +313,6 @@ function previewCompanyLogo(input) {
     }
 }
 
-function toggleSecretVisibility() {
-    const input = document.getElementById('koko_secret_input');
-    const icon = document.getElementById('secret_icon');
-    if (!input || !icon) return;
-    if (input.type === 'password') {
-        input.type = 'text';
-        icon.className = 'fa-solid fa-eye-slash';
-    } else {
-        input.type = 'password';
-        icon.className = 'fa-solid fa-eye';
-    }
-}
 
 function handleFormSubmit(form) {
     const btn = form.querySelector('button[type="submit"]');

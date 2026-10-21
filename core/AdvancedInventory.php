@@ -731,13 +731,13 @@ class AdvancedInventory
                 $newLotQty = round((float)$lot['remaining_quantity'] - $qty, 2);
                 $newInvQty = round($curInvQty - $qty, 2);
                 $lotStatus = $newLotQty > 0 ? 'active' : 'depleted';
-                $mvType    = 'adjustment_decrease';
+                $mvType    = 'adjustment';
                 $ledgerQty = -$qty;
             } else {
                 $newLotQty = round((float)$lot['remaining_quantity'] + $qty, 2);
                 $newInvQty = round($curInvQty + $qty, 2);
                 $lotStatus = 'active';
-                $mvType    = 'adjustment_increase';
+                $mvType    = 'adjustment';
                 $ledgerQty = $qty;
             }
 
@@ -822,8 +822,9 @@ class AdvancedInventory
 
             $jeRes = Accounting::postJournalEntry($jeHeader, $lines);
             if ($jeRes['success']) {
+                $journalId = (int)($jeRes['journal_id'] ?? $jeRes['journal_entry_id'] ?? 0);
                 $db->prepare("UPDATE stock_adjustments SET journal_entry_id = :je WHERE id = :id")
-                   ->execute([':je' => $jeRes['journal_entry_id'], ':id' => $adjId]);
+                   ->execute([':je' => $journalId, ':id' => $adjId]);
             }
 
             if (!$isNested) {
@@ -1297,7 +1298,7 @@ class AdvancedInventory
             $params = [':branch_id' => $branchId];
 
             if (!empty($filters['search'])) {
-                $where[] = "(p.barcode LIKE :search OR p.name LIKE :search)";
+                $where[] = "(p.sku LIKE :search OR p.barcode LIKE :search OR p.name LIKE :search)";
                 $params[':search'] = '%' . trim($filters['search']) . '%';
             }
 
@@ -1321,6 +1322,7 @@ class AdvancedInventory
             $items = Database::fetchAll("
                 SELECT 
                     p.id AS product_id,
+                    COALESCE(p.sku, p.barcode) AS sku,
                     p.barcode,
                     p.name AS product_name,
                     b.name AS brand_name,

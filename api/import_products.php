@@ -75,11 +75,30 @@ try {
         }
 
         $importMode = $_POST['import_mode'] ?? 'create_and_update';
+
+        $rowOverrides = [];
+        if (!empty($_POST['row_overrides'])) {
+            $decoded = is_string($_POST['row_overrides']) ? json_decode($_POST['row_overrides'], true) : $_POST['row_overrides'];
+            if (is_array($decoded)) {
+                $rowOverrides = $decoded;
+            }
+        }
+
+        $excludedIndices = [];
+        if (!empty($_POST['excluded_indices'])) {
+            $decoded = is_string($_POST['excluded_indices']) ? json_decode($_POST['excluded_indices'], true) : $_POST['excluded_indices'];
+            if (is_array($decoded)) {
+                $excludedIndices = $decoded;
+            }
+        }
+
         $options = [
             'file_name'           => $_SESSION['pending_import_file_name'] ?? 'product_import.csv',
             'ignore_blank_cells'  => isset($_POST['ignore_blank_cells']) ? (bool)$_POST['ignore_blank_cells'] : true,
             'auto_create_masters' => isset($_POST['auto_create_masters']) ? (bool)$_POST['auto_create_masters'] : true,
-            'branch_id'           => (int)($_SESSION['active_branch_id'] ?? 1)
+            'branch_id'           => (int)($_SESSION['active_branch_id'] ?? 1),
+            'row_overrides'       => $rowOverrides,
+            'excluded_indices'    => $excludedIndices
         ];
 
         $userId = (int)($_SESSION['user_id'] ?? 1);

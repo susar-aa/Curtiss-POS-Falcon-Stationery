@@ -14,6 +14,7 @@ $canPay = Auth::hasPermission('payroll.pay') || Auth::hasRole(ROLE_SUPER_ADMIN, 
 $branchName = $currentBranch['name'] ?? 'Main Branch';
 ?>
 
+<meta name="csrf-token" content="<?php echo htmlspecialchars(Auth::generateCsrfToken(), ENT_QUOTES, 'UTF-8'); ?>">
 <link rel="stylesheet" href="assets/css/curtiss_select.css">
 <script src="assets/js/curtiss_select.js"></script>
 
@@ -309,6 +310,18 @@ $branchName = $currentBranch['name'] ?? 'Main Branch';
 
         <!-- Inline Filters -->
         <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+            <?php if (Auth::hasRole(ROLE_SUPER_ADMIN)): ?>
+            <div style="display: flex; align-items: center; gap: 6px;">
+                <span style="font-size: 11px; font-weight: 800; color: #64748b; text-transform: uppercase;">Branch:</span>
+                <select id="filterAdvBranch" onchange="loadAdvances()" style="height: 34px; min-height: 34px; padding: 0 14px; border-radius: 999px; font-size: 12px; font-weight: 700; border: 1px solid #cbd5e1; outline: none;">
+                    <option value="">All Branches</option>
+                    <?php foreach ($branches as $b): ?>
+                        <option value="<?= $b['id'] ?>" <?= ($b['id'] == $currentBranchId) ? 'selected' : '' ?>><?= htmlspecialchars($b['name']) ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <?php endif; ?>
+
             <!-- Status Filter Dropdown -->
             <div style="display: flex; align-items: center; gap: 6px;">
                 <span style="font-size: 11px; font-weight: 800; color: #64748b; text-transform: uppercase;">Status:</span>
@@ -324,13 +337,36 @@ $branchName = $currentBranch['name'] ?? 'Main Branch';
             <div style="display: flex; align-items: center; gap: 6px;">
                 <span style="font-size: 11px; font-weight: 800; color: #64748b; text-transform: uppercase;">Show:</span>
                 <select id="filterAdvLimit" onchange="loadAdvances()" style="height: 34px; min-height: 34px; padding: 0 12px; border-radius: 999px; font-size: 12px; font-weight: 700; border: 1px solid #cbd5e1; outline: none;">
-                    <option value="25" selected>25</option>
-                    <option value="50">50</option>
-                    <option value="75">75</option>
-                    <option value="100">100</option>
-                    <option value="500">500</option>
+                    <option value="25" selected>25 per page</option>
+                    <option value="50">50 per page</option>
+                    <option value="75">75 per page</option>
+                    <option value="100">100 per page</option>
+                    <option value="500">500 per page</option>
                 </select>
             </div>
+        </div>
+    </div>
+
+    <!-- Summary KPI Ribbon -->
+    <div style="flex-shrink: 0; background: #f8fafc; border: 1px solid rgba(226, 232, 240, 0.9); border-radius: 12px; padding: 8px 18px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; font-size: 12px;">
+        <div style="display: flex; gap: 24px; align-items: center; flex-wrap: wrap;">
+            <div style="display: flex; align-items: center; gap: 6px;">
+                <span style="color: #64748b; font-weight: 700; text-transform: uppercase; font-size: 10px;">Total Disbursed:</span>
+                <strong id="kpiTotalDisbursed" style="color: #0f172a; font-size: 13px;">LKR 0.00</strong>
+            </div>
+            <div style="display: flex; align-items: center; gap: 6px;">
+                <span style="color: #64748b; font-weight: 700; text-transform: uppercase; font-size: 10px;">Total Recovered:</span>
+                <strong id="kpiTotalRecovered" style="color: #16a34a; font-size: 13px;">LKR 0.00</strong>
+            </div>
+            <div style="display: flex; align-items: center; gap: 6px;">
+                <span style="color: #64748b; font-weight: 700; text-transform: uppercase; font-size: 10px;">Outstanding Balance:</span>
+                <strong id="kpiTotalOutstanding" style="color: #b45309; font-size: 13px;">LKR 0.00</strong>
+            </div>
+        </div>
+        <div style="display: flex; gap: 14px; align-items: center;">
+            <span style="font-size: 11.5px; color: #475569; font-weight: 700;">
+                Active Advances: <strong id="kpiActiveCount" style="color: #0f172a; background: #e2e8f0; padding: 2px 8px; border-radius: 999px;">0</strong>
+            </span>
         </div>
     </div>
 
@@ -340,16 +376,16 @@ $branchName = $currentBranch['name'] ?? 'Main Branch';
             <table class="prod-table" id="advancesTable">
                 <thead>
                     <tr>
-                        <th style="width: 120px;">Advance #</th>
-                        <th style="width: 95px;">Date</th>
-                        <th style="width: 220px;">Employee</th>
-                        <th style="width: 150px;">Payment Source</th>
-                        <th class="col-right" style="width: 110px;">Amount</th>
-                        <th class="col-right" style="width: 110px;">Recovered</th>
-                        <th class="col-right" style="width: 110px;">Remaining</th>
-                        <th style="width: 150px;">Scheduled Period</th>
-                        <th class="col-center" style="width: 110px;">Status</th>
-                        <th class="col-right" style="width: 90px;">Actions</th>
+                        <th style="width: 120px; text-align: left;">Advance #</th>
+                        <th style="width: 95px; text-align: left;">Date</th>
+                        <th style="width: 220px; text-align: left;">Employee</th>
+                        <th style="width: 150px; text-align: left;">Payment Source</th>
+                        <th class="col-right" style="width: 110px; text-align: right;">Amount (LKR)</th>
+                        <th class="col-right" style="width: 110px; text-align: right;">Recovered (LKR)</th>
+                        <th class="col-right" style="width: 110px; text-align: right;">Remaining (LKR)</th>
+                        <th style="width: 150px; text-align: left;">Scheduled Period</th>
+                        <th class="col-center" style="width: 110px; text-align: center;">Status</th>
+                        <th class="col-right" style="width: 90px; text-align: right;">Actions</th>
                     </tr>
                 </thead>
                 <tbody id="advancesTableBody">
@@ -465,12 +501,38 @@ $branchName = $currentBranch['name'] ?? 'Main Branch';
     </div>
 </div>
 
+<!-- Modal: Advance Details View -->
+<div class="curtiss-modal" id="modalAdvanceDetails">
+    <div class="curtiss-modal-content" style="max-width: 620px;">
+        <div class="curtiss-modal-header">
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <span id="detAdvNo" style="font-weight: 800; font-size: 1.15rem; color: #0f172a;">Advance Details</span>
+                <span id="detStatusBadge"></span>
+            </div>
+            <button type="button" onclick="closeModal('modalAdvanceDetails')" style="background:none; border:none; font-size:1.5rem; color:#64748b; cursor:pointer;">&times;</button>
+        </div>
+        <div class="curtiss-modal-body" id="detModalBody" style="padding: 1.5rem;">
+            <div style="text-align: center; color: #64748b; padding: 2rem;">Loading advance details...</div>
+        </div>
+        <div class="curtiss-modal-footer">
+            <div id="detActionFooter" style="margin-right: auto;"></div>
+            <button type="button" class="inv-btn inv-btn-ghost" onclick="closeModal('modalAdvanceDetails')">Close</button>
+        </div>
+    </div>
+</div>
+
 <script>
 let currentAdvPage = 1;
 let currentAdvLimit = 25;
 let currentSearchTerm = '';
 let currentMainTab = 'register';
 const currentBranchId = <?= (int)$currentBranchId ?>;
+
+function getCsrfToken() {
+    return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+}
+
+let advSearchDebounceTimer = null;
 
 document.addEventListener('DOMContentLoaded', () => {
     // Enhance searchable selects
@@ -482,15 +544,30 @@ document.addEventListener('DOMContentLoaded', () => {
     if (accSelect && window.CurtissSearchableSelect) {
         CurtissSearchableSelect.attach(accSelect);
     }
+    const recSelect = document.getElementById('advRecoveryPeriodSelect');
+    if (recSelect && window.CurtissSearchableSelect) {
+        CurtissSearchableSelect.attach(recSelect);
+    }
+    const statusSelect = document.getElementById('filterAdvStatus');
+    if (statusSelect && window.CurtissSearchableSelect) {
+        CurtissSearchableSelect.attach(statusSelect);
+    }
+    const branchSelect = document.getElementById('filterAdvBranch');
+    if (branchSelect && window.CurtissSearchableSelect) {
+        CurtissSearchableSelect.attach(branchSelect);
+    }
 
     loadAdvances();
 
-    // Attach CurtissNav page search if available
+    // Attach CurtissNav page search if available with 300ms debounce
     if (window.CurtissNav && typeof CurtissNav.enablePageSearch === 'function') {
         CurtissNav.enablePageSearch((term) => {
-            currentSearchTerm = term;
-            currentAdvPage = 1;
-            loadAdvances();
+            clearTimeout(advSearchDebounceTimer);
+            advSearchDebounceTimer = setTimeout(() => {
+                currentSearchTerm = term;
+                currentAdvPage = 1;
+                loadAdvances();
+            }, 300);
         });
     }
 });
@@ -498,13 +575,18 @@ document.addEventListener('DOMContentLoaded', () => {
 async function loadAdvances() {
     const status = document.getElementById('filterAdvStatus').value;
     const limit = parseInt(document.getElementById('filterAdvLimit').value) || 25;
+    const branchVal = document.getElementById('filterAdvBranch') ? document.getElementById('filterAdvBranch').value : currentBranchId;
     currentAdvLimit = limit;
 
     const tbody = document.getElementById('advancesTableBody');
     tbody.innerHTML = '<tr><td colspan="10" style="text-align: center; color: #94a3b8; padding: 32px;">Loading advances...</td></tr>';
 
     try {
-        const url = `payroll_api.php?action=list_advances&branch_id=${currentBranchId}&status=${encodeURIComponent(status)}&search=${encodeURIComponent(currentSearchTerm)}&page=${currentAdvPage}&limit=${currentAdvLimit}`;
+        let url = `payroll_api.php?action=list_advances&status=${encodeURIComponent(status)}&search=${encodeURIComponent(currentSearchTerm)}&page=${currentAdvPage}&limit=${currentAdvLimit}`;
+        if (branchVal) {
+            url += `&branch_id=${encodeURIComponent(branchVal)}`;
+        }
+
         const res = await fetch(url);
         const json = await res.json();
 
@@ -513,8 +595,32 @@ async function loadAdvances() {
         const totalPages = json.total_pages || (json.data && json.data.total_pages) || 1;
         const page = json.page || (json.data && json.data.page) || 1;
 
+        // Recompute KPI Summary Ribbon
+        let totalDisb = 0;
+        let totalRec = 0;
+        let totalRem = 0;
+        let activeCount = 0;
+        items.forEach(adv => {
+            if (adv.status !== 'cancelled') {
+                totalDisb += parseFloat(adv.amount) || 0;
+                totalRec += parseFloat(adv.recovered_amount) || 0;
+                totalRem += parseFloat(adv.remaining_amount) || 0;
+                if (adv.status === 'active' && (parseFloat(adv.remaining_amount) || 0) > 0) {
+                    activeCount++;
+                }
+            }
+        });
+        const dEl = document.getElementById('kpiTotalDisbursed');
+        const rEl = document.getElementById('kpiTotalRecovered');
+        const oEl = document.getElementById('kpiTotalOutstanding');
+        const cEl = document.getElementById('kpiActiveCount');
+        if (dEl) dEl.innerText = `LKR ${totalDisb.toLocaleString('en-US', {minimumFractionDigits: 2})}`;
+        if (rEl) rEl.innerText = `LKR ${totalRec.toLocaleString('en-US', {minimumFractionDigits: 2})}`;
+        if (oEl) oEl.innerText = `LKR ${totalRem.toLocaleString('en-US', {minimumFractionDigits: 2})}`;
+        if (cEl) cEl.innerText = activeCount;
+
         if (items.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="10" style="text-align: center; color: #94a3b8; padding: 32px;">No salary advances found.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="10" style="text-align: center; color: #94a3b8; padding: 32px; font-weight: 600;">No salary advances found.</td></tr>';
             renderPagination(0, 0, 1);
             return;
         }
@@ -556,25 +662,25 @@ function renderAdvancesList(items) {
         }
 
         html += `
-            <tr>
-                <td style="font-weight: 800; font-family: monospace;">${escapeHtml(adv.advance_no)}</td>
-                <td style="color: #64748b;">${escapeHtml(adv.disbursement_date)}</td>
-                <td>
+            <tr onclick="viewAdvanceDetails(${adv.id})" style="cursor: pointer;">
+                <td style="font-weight: 800; font-family: monospace; text-align: left;">${escapeHtml(adv.advance_no)}</td>
+                <td style="color: #64748b; text-align: left;">${escapeHtml(adv.disbursement_date)}</td>
+                <td style="text-align: left;">
                     <div style="font-weight: 800; color: #0f172a;">${escapeHtml(adv.employee_name)}</div>
                     <div style="font-size: 11px; color: #64748b;">${escapeHtml(adv.employee_code)}</div>
                 </td>
-                <td>
+                <td style="text-align: left;">
                     <div style="font-weight: 700; color: #334155;">${escapeHtml(adv.payment_method)}</div>
                     <div style="font-size: 10.5px; color: #64748b;">${escapeHtml(adv.source_account_name || '')}</div>
                 </td>
                 <td class="col-right" style="font-weight: 800;">${amt.toLocaleString('en-US', {minimumFractionDigits: 2})}</td>
                 <td class="col-right" style="color: #16a34a; font-weight: 700;">${rec.toLocaleString('en-US', {minimumFractionDigits: 2})}</td>
                 <td class="col-right" style="font-weight: 800; color: ${rem > 0 ? '#b45309' : '#64748b'};">${rem.toLocaleString('en-US', {minimumFractionDigits: 2})}</td>
-                <td style="font-size: 11.5px; color: #475569;">${escapeHtml(adv.recovery_period_name || 'Next Regular')}</td>
+                <td style="font-size: 11.5px; color: #475569; text-align: left;">${escapeHtml(adv.recovery_period_name || 'Next Regular')}</td>
                 <td class="col-center">
                     <span class="prod-badge ${badgeClass}"><span class="dot"></span>${badgeLabel}</span>
                 </td>
-                <td class="col-right">${cancelBtn}</td>
+                <td class="col-right" onclick="event.stopPropagation();">${cancelBtn}</td>
             </tr>
         `;
     });
@@ -656,6 +762,7 @@ async function handleDisburseAdvance(e) {
     try {
         const form = document.getElementById('disburseAdvanceForm');
         const formData = new FormData(form);
+        formData.append('csrf_token', getCsrfToken());
 
         const res = await fetch('payroll_api.php?action=disburse_advance', {
             method: 'POST',
@@ -686,6 +793,7 @@ async function promptCancelAdvance(advId, advNo, empName) {
         const formData = new FormData();
         formData.append('advance_id', advId);
         formData.append('reason', reason.trim());
+        formData.append('csrf_token', getCsrfToken());
 
         const res = await fetch('payroll_api.php?action=cancel_advance', {
             method: 'POST',
@@ -696,7 +804,9 @@ async function promptCancelAdvance(advId, advNo, empName) {
         if (json.success) {
             alert(json.message || "Salary advance cancelled and reversed.");
             loadAdvances();
-            loadAnalytics();
+            if (typeof loadAnalytics === 'function') {
+                loadAnalytics();
+            }
         } else {
             alert(json.message || "Failed to cancel salary advance.");
         }
@@ -704,6 +814,181 @@ async function promptCancelAdvance(advId, advNo, empName) {
         alert("Server error cancelling salary advance.");
     }
 }
+
+async function viewAdvanceDetails(advId) {
+    const modal = document.getElementById('modalAdvanceDetails');
+    const body = document.getElementById('detModalBody');
+    const title = document.getElementById('detAdvNo');
+    const badge = document.getElementById('detStatusBadge');
+    const footer = document.getElementById('detActionFooter');
+
+    title.innerText = 'Advance Details';
+    badge.innerHTML = '';
+    footer.innerHTML = '';
+    body.innerHTML = `
+        <div style="text-align: center; color: #64748b; padding: 2.5rem;">
+            <div style="display: inline-block; width: 24px; height: 24px; border: 3px solid #e2e8f0; border-top-color: #0f172a; border-radius: 50%; animation: spin 0.8s linear infinite;"></div>
+            <div style="margin-top: 10px; font-size: 13px; font-weight: 600;">Loading advance details...</div>
+        </div>
+    `;
+    modal.classList.add('active');
+
+    try {
+        const res = await fetch(`payroll_api.php?action=get_advance_details&id=${advId}`);
+        const json = await res.json();
+
+        if (!json.success || !json.advance) {
+            body.innerHTML = `<div style="text-align: center; color: #ef4444; padding: 2rem; font-weight: 700;">${json.message || 'Advance record not found.'}</div>`;
+            return;
+        }
+
+        const adv = json.advance;
+        title.innerText = `Advance #${adv.advance_number}`;
+
+        let badgeClass = 'prod-badge-active';
+        let badgeLabel = 'Active';
+        if (adv.status === 'Fully Recovered') {
+            badgeClass = 'prod-badge-confirmed';
+            badgeLabel = 'Fully Recovered';
+        } else if (adv.status === 'Cancelled') {
+            badgeClass = 'prod-badge-danger';
+            badgeLabel = 'Cancelled';
+        } else if (adv.status === 'Partially Recovered') {
+            badgeClass = 'prod-badge-warning';
+            badgeLabel = 'Partially Recovered';
+        }
+        badge.innerHTML = `<span class="prod-badge ${badgeClass}"><span class="dot"></span>${badgeLabel}</span>`;
+
+        const amount = parseFloat(adv.amount || 0);
+        const rec = parseFloat(adv.recovered_amount || 0);
+        const rem = parseFloat(adv.remaining_amount || 0);
+        const pct = amount > 0 ? Math.min(100, Math.round((rec / amount) * 100)) : 0;
+
+        let bankInfo = '';
+        if (adv.bank_name) {
+            bankInfo = `<div style="font-size: 11px; color: #64748b; margin-top: 2px;">Bank: ${escapeHtml(adv.bank_name)} (${escapeHtml(adv.account_number || '')})</div>`;
+        }
+
+        let refInfo = '';
+        if (adv.reference_no) {
+            refInfo = `<div style="font-size: 11px; color: #64748b; margin-top: 2px;">Ref / Cheque: ${escapeHtml(adv.reference_no)}</div>`;
+        }
+
+        let recoveryPeriod = adv.recovery_period_name 
+            ? `${escapeHtml(adv.recovery_period_name)} (${escapeHtml(adv.recovery_period_code || '')})`
+            : 'Next Regular Payroll Period';
+
+        body.innerHTML = `
+            <!-- Staff Header -->
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; padding: 14px 16px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; margin-bottom: 1.25rem;">
+                <div>
+                    <div style="font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b;">Staff Member</div>
+                    <div style="font-size: 15px; font-weight: 800; color: #0f172a; margin-top: 2px;">${escapeHtml(adv.employee_name)}</div>
+                    <div style="font-size: 12px; color: #64748b; margin-top: 2px;">
+                        <span>Code: <strong>${escapeHtml(adv.employee_code)}</strong></span>
+                        ${adv.job_role ? ` • <span>${escapeHtml(adv.job_role)}</span>` : ''}
+                        ${adv.employee_phone ? ` • <span>${escapeHtml(adv.employee_phone)}</span>` : ''}
+                    </div>
+                </div>
+                <div style="text-align: right;">
+                    <div style="font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b;">Branch</div>
+                    <div style="font-size: 13.5px; font-weight: 700; color: #0f172a; margin-top: 2px;">${escapeHtml(adv.branch_name || 'Main')}</div>
+                    ${adv.basic_salary ? `<div style="font-size: 11px; color: #64748b; margin-top: 2px;">Basic: LKR ${parseFloat(adv.basic_salary).toLocaleString('en-US', {minimumFractionDigits: 2})}</div>` : ''}
+                </div>
+            </div>
+
+            <!-- Financial Breakdown & Progress -->
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 1.25rem;">
+                <div style="padding: 12px 14px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px;">
+                    <span style="font-size: 10.5px; font-weight: 800; text-transform: uppercase; color: #64748b;">Disbursed Amount</span>
+                    <div style="font-size: 16px; font-weight: 900; color: #0f172a; margin-top: 4px;">LKR ${amount.toLocaleString('en-US', {minimumFractionDigits: 2})}</div>
+                </div>
+                <div style="padding: 12px 14px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px;">
+                    <span style="font-size: 10.5px; font-weight: 800; text-transform: uppercase; color: #16a34a;">Recovered Amount</span>
+                    <div style="font-size: 16px; font-weight: 900; color: #16a34a; margin-top: 4px;">LKR ${rec.toLocaleString('en-US', {minimumFractionDigits: 2})}</div>
+                </div>
+                <div style="padding: 12px 14px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px;">
+                    <span style="font-size: 10.5px; font-weight: 800; text-transform: uppercase; color: ${rem > 0 ? '#b45309' : '#64748b'};">Remaining Balance</span>
+                    <div style="font-size: 16px; font-weight: 900; color: ${rem > 0 ? '#b45309' : '#64748b'}; margin-top: 4px;">LKR ${rem.toLocaleString('en-US', {minimumFractionDigits: 2})}</div>
+                </div>
+            </div>
+
+            <!-- Recovery Progress Bar -->
+            <div style="margin-bottom: 1.25rem;">
+                <div style="display: flex; justify-content: space-between; font-size: 11.5px; font-weight: 700; color: #475569; margin-bottom: 6px;">
+                    <span>Recovery Progress</span>
+                    <span>${pct}% (${rec.toLocaleString('en-US', {minimumFractionDigits: 2})} / ${amount.toLocaleString('en-US', {minimumFractionDigits: 2})})</span>
+                </div>
+                <div style="width: 100%; height: 8px; background: #e2e8f0; border-radius: 999px; overflow: hidden;">
+                    <div style="width: ${pct}%; height: 100%; background: ${pct >= 100 ? '#16a34a' : '#0284c7'}; transition: width 0.3s ease;"></div>
+                </div>
+            </div>
+
+            <!-- Disbursement & Recovery Details -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; font-size: 12px; margin-bottom: 1.25rem; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px 16px;">
+                <div>
+                    <span style="font-size: 10.5px; font-weight: 800; text-transform: uppercase; color: #64748b;">Disbursement Method</span>
+                    <div style="font-weight: 800; color: #0f172a; margin-top: 2px;">${escapeHtml(adv.payment_method)}</div>
+                    <div style="font-size: 11.5px; color: #475569; margin-top: 2px;">Source Account: <strong>${escapeHtml(adv.source_account_name || 'N/A')}</strong></div>
+                    ${bankInfo}
+                    ${refInfo}
+                </div>
+                <div>
+                    <span style="font-size: 10.5px; font-weight: 800; text-transform: uppercase; color: #64748b;">Schedule & Timing</span>
+                    <div style="font-weight: 700; color: #0f172a; margin-top: 2px;">Disbursed: <strong>${escapeHtml(adv.disbursement_date)}</strong></div>
+                    <div style="font-size: 11.5px; color: #475569; margin-top: 2px;">Recovery Target: <strong>${recoveryPeriod}</strong></div>
+                    <div style="font-size: 11px; color: #64748b; margin-top: 2px;">Disbursed By: ${escapeHtml(adv.created_by_name || 'System')}</div>
+                </div>
+            </div>
+
+            ${adv.notes ? `
+                <div style="padding: 10px 14px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 12px; margin-bottom: 1rem;">
+                    <span style="font-weight: 800; color: #64748b; font-size: 10.5px; text-transform: uppercase;">Remarks / Reason:</span>
+                    <div style="color: #334155; margin-top: 2px;">${escapeHtml(adv.notes)}</div>
+                </div>
+            ` : ''}
+
+            ${adv.status === 'Cancelled' ? `
+                <div style="padding: 10px 14px; background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; font-size: 12px; color: #991b1b;">
+                    <span style="font-weight: 800; font-size: 10.5px; text-transform: uppercase;">Cancelled Record:</span>
+                    <div style="margin-top: 2px;">Reason: <strong>${escapeHtml(adv.cancel_reason || 'N/A')}</strong></div>
+                    <div style="font-size: 11px; margin-top: 2px;">Cancelled by: ${escapeHtml(adv.cancelled_by_name || 'N/A')} on ${escapeHtml(adv.cancelled_at || '')}</div>
+                </div>
+            ` : ''}
+        `;
+
+        if (adv.status === 'Active' || adv.status === 'Partially Recovered') {
+            footer.innerHTML = `
+                <button type="button" class="inv-btn inv-btn-danger" style="color: #dc2626; background: #fef2f2; border-color: #fca5a5;" onclick="closeModal('modalAdvanceDetails'); promptCancelAdvance(${adv.id}, '${escapeHtml(adv.advance_number)}', '${escapeHtml(adv.employee_name)}');">
+                    Cancel & Reverse Advance
+                </button>
+            `;
+        }
+    } catch (err) {
+        body.innerHTML = `<div style="text-align: center; color: #ef4444; padding: 2rem; font-weight: 700;">Error loading advance details.</div>`;
+    }
+}
+
+// Full keyboard Enter key navigation for form
+document.addEventListener('DOMContentLoaded', () => {
+    const form = document.getElementById('disburseAdvanceForm');
+    if (form) {
+        const inputs = Array.from(form.querySelectorAll('input:not([type="hidden"]), select, textarea'));
+        inputs.forEach((input, idx) => {
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA') {
+                    e.preventDefault();
+                    if (idx < inputs.length - 1) {
+                        inputs[idx + 1].focus();
+                        if (inputs[idx + 1].select) inputs[idx + 1].select();
+                    } else {
+                        form.requestSubmit();
+                    }
+                }
+            });
+        });
+    }
+});
 
 function escapeHtml(str) {
     if (!str) return '';

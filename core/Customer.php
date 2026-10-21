@@ -6,27 +6,66 @@
 require_once __DIR__ . '/Database.php';
 require_once __DIR__ . '/Logger.php';
 require_once __DIR__ . '/Audit.php';
+require_once __DIR__ . '/MaskingHelper.php';
 
 class Customer
 {
     /**
      * Get Paginated Customer List with Search & Filters
      */
-    public static function all(array $filters = [], int $page = 1, int $limit = 15): array
+    public static function all(array $filters = [], int $page = 1, int $limit = 25): array
     {
         try {
-            $where = ["deleted_at IS NULL"];
+            $allowedLimits = [25, 50, 75, 100, 500];
+            if (!in_array($limit, $allowedLimits, true)) {
+                $limit = 25;
+            }
+            $page = max(1, $page);
+
+            $isTrashView = !empty($filters['view']) && $filters['view'] === 'deleted';
+            $where = [$isTrashView ? "deleted_at IS NOT NULL" : "deleted_at IS NULL"];
             $params = [];
 
             if (!empty($filters['search'])) {
-                $search = '%' . trim($filters['search']) . '%';
-                $where[] = "(name LIKE :s1 OR phone LIKE :s2 OR whatsapp LIKE :s3 OR card_barcode LIKE :s4 OR customer_code LIKE :s5 OR id = :exact_id)";
-                $params[':s1'] = $search;
-                $params[':s2'] = $search;
-                $params[':s3'] = $search;
-                $params[':s4'] = $search;
-                $params[':s5'] = $search;
-                $params[':exact_id'] = is_numeric($filters['search']) ? (int)$filters['search'] : 0;
+                $search = trim($filters['search']);
+                $cleanNum = preg_replace('/[^0-9.]/', '', $search);
+                $cleanInv = ltrim($search, '#');
+                $like = '%' . $search . '%';
+                $likeInv = '%' . $cleanInv . '%';
+                $likeNum = !empty($cleanNum) ? '%' . $cleanNum . '%' : '';
+
+                $where[] = "(
+                    name LIKE :s1
+                    OR phone LIKE :s2
+                    OR whatsapp LIKE :s3
+                    OR card_barcode LIKE :s4
+                    OR customer_code LIKE :s5
+                    OR id LIKE :s6
+                    OR id LIKE :s7
+                    OR address LIKE :s8
+                    OR status LIKE :s9
+                    OR CAST(credit_limit AS CHAR) LIKE :s10
+                    OR CONCAT('LKR ', FORMAT(credit_limit, 2)) LIKE :s11
+                    OR FORMAT(credit_limit, 2) LIKE :s12
+                    OR CAST(credit_balance AS CHAR) LIKE :s13
+                    OR CONCAT('LKR ', FORMAT(credit_balance, 2)) LIKE :s14
+                    OR FORMAT(credit_balance, 2) LIKE :s15
+                )";
+                $params[':s1']  = $like;
+                $params[':s2']  = $like;
+                $params[':s3']  = $like;
+                $params[':s4']  = $like;
+                $params[':s5']  = $like;
+                $params[':s6']  = $like;
+                $params[':s7']  = $likeInv;
+                $params[':s8']  = $like;
+                $params[':s9']  = $like;
+                $params[':s10'] = $likeNum ?: $like;
+                $params[':s11'] = $like;
+                $params[':s12'] = $like;
+                $params[':s13'] = $likeNum ?: $like;
+                $params[':s14'] = $like;
+                $params[':s15'] = $like;
             }
 
             if (!empty($filters['status']) && in_array($filters['status'], ['active', 'inactive'])) {
@@ -47,12 +86,24 @@ class Customer
                 LIMIT $limit OFFSET $offset
             ", $params);
 
+            if (MaskingHelper::isSpecialUser()) {
+                foreach ($items as &$item) {
+                    if (isset($item['credit_balance'])) {
+                        $item['credit_balance'] = MaskingHelper::maskValue((float)$item['credit_balance']);
+                    }
+                    if (isset($item['credit_limit'])) {
+                        $item['credit_limit'] = MaskingHelper::maskValue((float)$item['credit_limit']);
+                    }
+                }
+                unset($item);
+            }
+
             return [
                 'items'      => $items,
                 'totalItems' => $totalItems,
                 'page'       => $page,
                 'limit'      => $limit,
-                'totalPages' => max(1, ceil($totalItems / $limit))
+                'totalPages' => max(1, (int)ceil($totalItems / $limit))
             ];
         } catch (Throwable $e) {
             Logger::error("Failed to fetch customer list: " . $e->getMessage(), $e);
@@ -192,7 +243,20 @@ class Customer
         $whatsapp = trim($data['whatsapp'] ?? '') ?: null;
         $address = trim($data['address'] ?? '') ?: null;
         $cardBarcode = trim($data['card_barcode'] ?? '') ?: null;
-        $creditLimit = (float)($data['credit_limit'] ?? 0.00);
+        $hasCreditLimit = !empty($data['has_credit_limit']);
+        $creditLimit = null;
+        if ($hasCreditLimit && isset($data['credit_limit']) && $data['credit_limit'] !== '') {
+            $creditLimit = (float)$data['credit_limit'];
+            if ($creditLimit < 0) {
+                return ['success' => false, 'message' => 'Credit limit cannot be negative.'];
+            }
+        } elseif (!isset($data['has_credit_limit']) && isset($data['credit_limit']) && $data['credit_limit'] !== '' && $data['credit_limit'] !== null) {
+            $creditLimit = (float)$data['credit_limit'];
+            if ($creditLimit < 0) {
+                return ['success' => false, 'message' => 'Credit limit cannot be negative.'];
+            }
+        }
+
         $status = ($data['status'] ?? 'active') === 'inactive' ? 'inactive' : 'active';
         $customerCode = !empty($data['customer_code']) ? trim($data['customer_code']) : self::generateCustomerCode();
         $isLoyalty = !empty($data['is_loyalty']) ? 1 : 0;
@@ -200,10 +264,6 @@ class Customer
 
         if (empty($name)) {
             return ['success' => false, 'message' => 'Customer name is required.'];
-        }
-
-        if ($creditLimit < 0) {
-            return ['success' => false, 'message' => 'Credit limit cannot be negative.'];
         }
 
         // Validate unique customer code
@@ -244,7 +304,7 @@ class Customer
                 'customer_code' => $customerCode, 'name' => $name, 'phone' => $phone, 'card_barcode' => $cardBarcode, 'credit_limit' => $creditLimit, 'is_loyalty' => $isLoyalty, 'loyalty_discount_override' => $loyaltyDiscountOverride
             ]);
 
-            return ['success' => true, 'id' => $id, 'customer_code' => $customerCode, 'message' => "Customer '$name' created successfully."];
+            return ['success' => true, 'id' => $id, 'customer_id' => $id, 'customer_code' => $customerCode, 'message' => "Customer '$name' created successfully."];
         } catch (Throwable $e) {
             Logger::error("Failed to create customer: " . $e->getMessage(), $e);
             return ['success' => false, 'message' => 'Database error while creating customer: ' . $e->getMessage()];
@@ -272,7 +332,24 @@ class Customer
         $whatsapp = isset($data['whatsapp']) ? (trim($data['whatsapp']) ?: null) : $customer['whatsapp'];
         $address = isset($data['address']) ? (trim($data['address']) ?: null) : $customer['address'];
         $cardBarcode = isset($data['card_barcode']) ? (trim($data['card_barcode']) ?: null) : $customer['card_barcode'];
-        $creditLimit = isset($data['credit_limit']) ? (float)$data['credit_limit'] : (float)$customer['credit_limit'];
+
+        if (array_key_exists('has_credit_limit', $data)) {
+            if (!empty($data['has_credit_limit']) && isset($data['credit_limit']) && $data['credit_limit'] !== '') {
+                $creditLimit = (float)$data['credit_limit'];
+                if ($creditLimit < 0) {
+                    return ['success' => false, 'message' => 'Credit limit cannot be negative.'];
+                }
+            } else {
+                $creditLimit = null;
+            }
+        } elseif (array_key_exists('credit_limit', $data)) {
+            $creditLimit = ($data['credit_limit'] !== '' && $data['credit_limit'] !== null) ? (float)$data['credit_limit'] : null;
+            if ($creditLimit !== null && $creditLimit < 0) {
+                return ['success' => false, 'message' => 'Credit limit cannot be negative.'];
+            }
+        } else {
+            $creditLimit = $customer['credit_limit'] !== null ? (float)$customer['credit_limit'] : null;
+        }
         $status = ($data['status'] ?? $customer['status']) === 'inactive' ? 'inactive' : 'active';
         $customerCode = !empty($data['customer_code']) ? trim($data['customer_code']) : $customer['customer_code'];
         $isLoyalty = isset($data['is_loyalty']) ? (!empty($data['is_loyalty']) ? 1 : 0) : (int)($customer['is_loyalty'] ?? 0);
@@ -401,10 +478,33 @@ class Customer
             ]);
 
             Audit::log('CUSTOMER_STATUS_TOGGLED', 'customers', (string)$id, ['status' => $customer['status']], ['status' => $newStatus]);
-            return ['success' => true, 'message' => "Customer status updated to '$newStatus'."];
+            return ['success' => true, 'status' => $newStatus, 'new_status' => $newStatus, 'message' => "Customer status updated to '$newStatus'."];
         } catch (Throwable $e) {
             Logger::error("Failed to toggle customer status #$id: " . $e->getMessage(), $e);
             return ['success' => false, 'message' => 'Database error while updating customer status.'];
+        }
+    }
+
+    /**
+     * Restore Soft-Deleted Customer Record
+     */
+    public static function restore(int $id): array
+    {
+        try {
+            $customer = Database::fetchOne("SELECT * FROM customers WHERE id = :id AND deleted_at IS NOT NULL", [':id' => $id]);
+            if (!$customer) {
+                return ['success' => false, 'message' => 'Deleted customer record not found.'];
+            }
+
+            Database::execute("UPDATE customers SET deleted_at = NULL, status = 'active', updated_at = NOW() WHERE id = :id", [
+                ':id' => $id
+            ]);
+
+            Audit::log('CUSTOMER_RESTORED', 'customers', (string)$id, ['deleted_at' => $customer['deleted_at']], ['deleted_at' => null, 'status' => 'active']);
+            return ['success' => true, 'message' => "Customer '{$customer['name']}' restored successfully."];
+        } catch (Throwable $e) {
+            Logger::error("Failed to restore customer #$id: " . $e->getMessage(), $e);
+            return ['success' => false, 'message' => 'Database error while restoring customer: ' . $e->getMessage()];
         }
     }
 
@@ -428,9 +528,9 @@ class Customer
                 ORDER BY ccl.id DESC
             ", [':customer_id' => $customerId]);
 
-            $limit = (float)$customer['credit_limit'];
+            $limit = $customer['credit_limit'] !== null ? (float)$customer['credit_limit'] : null;
             $balance = (float)$customer['credit_balance'];
-            $available = max(0.00, $limit - $balance);
+            $available = ($limit !== null) ? max(0.00, $limit - $balance) : null;
 
             return [
                 'credit_limit'     => $limit,
@@ -496,11 +596,15 @@ class Customer
             return null;
         }
 
+        $limit = $customer['credit_limit'] !== null ? (float)$customer['credit_limit'] : null;
+        $balance = (float)$customer['credit_balance'];
+        $available = ($limit !== null) ? max(0.00, $limit - $balance) : null;
+
         return [
             'master'             => $customer,
-            'current_outstanding'=> (float)$customer['credit_balance'],
-            'credit_limit'      => (float)$customer['credit_limit'],
-            'available_credit'  => max(0.00, (float)$customer['credit_limit'] - (float)$customer['credit_balance']),
+            'current_outstanding'=> $balance,
+            'credit_limit'      => $limit,
+            'available_credit'  => $available,
             'purchase_history'  => self::getPurchaseHistory($customerId),
             'credit_history'    => self::getCreditHistory($customerId),
             'activity_timeline' => self::getActivityTimeline($customerId)

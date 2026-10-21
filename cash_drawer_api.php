@@ -10,16 +10,30 @@ require_once __DIR__ . '/config/config.php';
 require_once __DIR__ . '/core/Auth.php';
 require_once __DIR__ . '/core/BusinessDay.php';
 
+defined('ROLE_SUPER_ADMIN') or define('ROLE_SUPER_ADMIN', 1);
+defined('ROLE_ADMIN') or define('ROLE_ADMIN', 2);
+defined('ROLE_MANAGER') or define('ROLE_MANAGER', 3);
+defined('ROLE_CASHIER') or define('ROLE_CASHIER', 4);
+defined('ROLE_ACCOUNTANT') or define('ROLE_ACCOUNTANT', 5);
+defined('ROLE_SPECIAL_USER') or define('ROLE_SPECIAL_USER', 6);
+
 Auth::requireLogin();
-if (Auth::isSpecialUser()) {
+
+$user = Auth::user();
+$userId = (int)($user['id'] ?? 1);
+$isSuperAdmin = Auth::hasRole('superadmin') || Auth::isSuperAdmin();
+$branchId = (int)($_SESSION['branch_id'] ?? $_SESSION['active_branch_id'] ?? $user['active_branch_id'] ?? 1);
+if ($isSuperAdmin && !empty($_GET['branch_id'])) {
+    $branchId = (int)$_GET['branch_id'];
+}
+
+$action = $_GET['action'] ?? $_POST['action'] ?? '';
+$mutationActions = ['start_day', 'close_day', 'manual_cash_movement'];
+
+if (Auth::isSpecialUser() && in_array($action, $mutationActions, true)) {
     echo json_encode(['success' => false, 'message' => 'Permission denied: Special User is view-only.']);
     exit;
 }
-$user = Auth::user();
-$userId = (int)$user['id'];
-$branchId = (int)($_SESSION['branch_id'] ?? 1);
-
-$action = $_GET['action'] ?? $_POST['action'] ?? '';
 
 try {
     switch ($action) {
@@ -79,6 +93,20 @@ try {
             echo json_encode($res);
             break;
 
+        case 'get_comprehensive_summary':
+            $bDayId = (int)($_GET['business_day_id'] ?? $_POST['business_day_id'] ?? 0);
+            if ($bDayId <= 0) {
+                $active = BusinessDay::getOrCreateActiveDay($branchId, $userId);
+                $bDayId = $active ? (int)$active['id'] : 0;
+            }
+            if ($bDayId <= 0) {
+                echo json_encode(['success' => false, 'message' => 'Valid business day ID is required.']);
+                exit;
+            }
+            $res = BusinessDay::getDayComprehensiveSummary($bDayId);
+            echo json_encode($res);
+            break;
+
         case 'close_day':
             if (!Auth::hasPermission('close_business_day')) {
                 echo json_encode(['success' => false, 'message' => 'Permission denied to close business day.']);
@@ -91,13 +119,15 @@ try {
             $retainedCash         = isset($input['retained_cash']) ? (float)$input['retained_cash'] : BusinessDay::DEFAULT_RETAINED_CASH;
             $notes                = $input['notes'] ?? null;
             $cashDenominations    = $input['cash_denominations'] ?? null;
+            $splitTransfers       = $input['split_transfers'] ?? [];
 
             if ($bDayId <= 0) {
                 echo json_encode(['success' => false, 'message' => 'Valid business day ID is required.']);
                 exit;
             }
 
-            $res = BusinessDay::closeDay($bDayId, $actualCountedCash, $retainedCash, $userId, $notes, [], $cashDenominations, $cardSettlementAmount);
+            $options = ['split_transfers' => $splitTransfers];
+            $res = BusinessDay::closeDay($bDayId, $actualCountedCash, $retainedCash, $userId, $notes, $options, $cashDenominations, $cardSettlementAmount);
             echo json_encode($res);
             break;
 
@@ -107,8 +137,16 @@ try {
                 exit;
             }
             $page  = max(1, (int)($_GET['page'] ?? 1));
-            $limit = max(1, min(100, (int)($_GET['limit'] ?? 15)));
-            $res = BusinessDay::getClosedDaysList($branchId, $page, $limit);
+            $limit = (int)($_GET['limit'] ?? 25);
+            $filters = [
+                'search'    => trim($_GET['search'] ?? ''),
+                'date_from' => trim($_GET['date_from'] ?? ''),
+                'date_to'   => trim($_GET['date_to'] ?? '')
+            ];
+            if ($isSuperAdmin && !empty($_GET['all_branches'])) {
+                $filters['all_branches'] = true;
+            }
+            $res = BusinessDay::getClosedDaysList($branchId, $page, $limit, $filters);
             echo json_encode(['success' => true, 'data' => $res]);
             break;
 
@@ -126,6 +164,7 @@ try {
             echo json_encode(['success' => false, 'message' => 'Invalid action parameter.']);
             break;
     }
+
 } catch (Throwable $e) {
     Logger::error("Cash Drawer API Exception: " . $e->getMessage(), $e);
     echo json_encode(['success' => false, 'message' => 'API Error: ' . $e->getMessage()]);

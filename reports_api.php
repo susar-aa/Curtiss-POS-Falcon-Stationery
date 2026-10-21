@@ -97,7 +97,7 @@ try {
             break;
 
         case 'trial_balance':
-            if (!Auth::hasPermission('view_financial_statements')) {
+            if (!Auth::hasPermission('view_financial_statements') || Auth::isSpecialUser()) {
                 echo json_encode(['success' => false, 'message' => 'Permission denied: view_financial_statements required.']);
                 exit;
             }
@@ -106,7 +106,7 @@ try {
             break;
 
         case 'profit_and_loss':
-            if (!Auth::hasPermission('view_financial_statements')) {
+            if (!Auth::hasPermission('view_financial_statements') || Auth::isSpecialUser()) {
                 echo json_encode(['success' => false, 'message' => 'Permission denied: view_financial_statements required.']);
                 exit;
             }
@@ -115,7 +115,7 @@ try {
             break;
 
         case 'balance_sheet':
-            if (!Auth::hasPermission('view_financial_statements')) {
+            if (!Auth::hasPermission('view_financial_statements') || Auth::isSpecialUser()) {
                 echo json_encode(['success' => false, 'message' => 'Permission denied: view_financial_statements required.']);
                 exit;
             }
@@ -123,10 +123,6 @@ try {
             echo json_encode(['success' => true, 'data' => $data]);
             break;
 
-        case 'customer_outstanding':
-            $data = ReportsEngine::getCustomerOutstandingReport($filters);
-            echo json_encode(['success' => true, 'data' => $data]);
-            break;
 
         case 'damaged_stock':
             $data = ReportsEngine::getDamagedStockReport($filters);
@@ -143,13 +139,18 @@ try {
             echo json_encode(['success' => true, 'data' => $data]);
             break;
 
-        case 'bank_register':
-            $data = ReportsEngine::getBankRegisterReport($filters);
+        case 'expense_register':
+            $data = ReportsEngine::getExpenseRegisterReport($filters);
             echo json_encode(['success' => true, 'data' => $data]);
             break;
 
-        case 'customer_cheques':
-            $data = ReportsEngine::getCustomerChequeReport($filters);
+        case 'expenses_by_category':
+            $data = ReportsEngine::getExpensesByCategoryReport($filters);
+            echo json_encode(['success' => true, 'data' => $data]);
+            break;
+
+        case 'bank_register':
+            $data = ReportsEngine::getBankRegisterReport($filters);
             echo json_encode(['success' => true, 'data' => $data]);
             break;
 
@@ -193,7 +194,7 @@ try {
         case 'near_expiry':
             require_once __DIR__ . '/core/ExpiryManager.php';
             $bId = (int)(!empty($filters['branch_id']) && $filters['branch_id'] !== 'all' ? $filters['branch_id'] : ($_SESSION['branch_id'] ?? 1));
-            $days = (int)($_GET['days'] ?? 30);
+            $days = isset($_GET['days']) ? (int)$_GET['days'] : 0;
             $data = ExpiryManager::getNearExpiryReport($bId, $days, $filters, 1, 500);
             echo json_encode(['success' => true, 'data' => $data]);
             break;
@@ -217,6 +218,18 @@ try {
             $bId = (int)(!empty($filters['branch_id']) && $filters['branch_id'] !== 'all' ? $filters['branch_id'] : ($_SESSION['branch_id'] ?? 1));
             $data = ExpiryManager::getSupplierExpiryPerformanceReport($bId);
             echo json_encode(['success' => true, 'data' => ['items' => $data]]);
+            break;
+
+        case 'discount_usage':
+            $page  = (int)($_GET['page'] ?? $_POST['page'] ?? 1);
+            $limit = (int)($_GET['limit'] ?? $_POST['limit'] ?? 25);
+            $data = ReportsEngine::getDiscountUsageReport($filters, $page, $limit);
+            echo json_encode(['success' => true, 'data' => $data]);
+            break;
+
+        case 'promotion_performance':
+            $data = ReportsEngine::getPromotionPerformanceReport($filters);
+            echo json_encode(['success' => true, 'data' => $data]);
             break;
 
         case 'export':
@@ -276,12 +289,14 @@ try {
                     ];
                 }
             } elseif ($reportType === 'purchase_summary') {
-                $headers = ['GRN Count', 'Total GRN Amount (LKR)', 'Total Payments Paid (LKR)'];
+                $headers = ['GRN Count', 'Total GRN Amount (LKR)', 'Total Payments Paid (LKR)', 'Total Returns (LKR)', 'Outstanding Due (LKR)'];
                 $summary = ReportsEngine::getPurchaseSummary($filters);
                 $rows[] = [
                     $summary['grn_count'],
                     number_format($summary['total_grn_amount'], 2, '.', ''),
-                    number_format($summary['total_payments_paid'], 2, '.', '')
+                    number_format($summary['total_payments_paid'], 2, '.', ''),
+                    number_format($summary['total_returns'], 2, '.', ''),
+                    number_format($summary['outstanding_due'], 2, '.', '')
                 ];
             } elseif ($reportType === 'supplier_outstanding') {
                 $headers = ['Supplier Name', 'Phone', 'Total Purchases (LKR)', 'Total Paid (LKR)', 'Outstanding Balance (LKR)'];
@@ -349,15 +364,6 @@ try {
                         number_format($r['total_value'], 2, '.', ''), $r['reason'], $r['adjusted_by']
                     ];
                 }
-            } elseif ($reportType === 'customer_outstanding') {
-                $headers = ['Customer Code', 'Customer Name', 'Phone', 'Outstanding AR Balance (LKR)'];
-                $data = ReportsEngine::getCustomerOutstandingReport($filters);
-                foreach (($data['customers'] ?? []) as $r) {
-                    $rows[] = [
-                        $r['customer_code'], $r['customer_name'], $r['phone'] ?? '-',
-                        number_format($r['outstanding_balance'], 2, '.', '')
-                    ];
-                }
             } elseif ($reportType === 'damaged_stock') {
                 $headers = ['SKU', 'Product Name', 'Branch', 'Stock Type', 'Quantity', 'Cost Price (LKR)', 'Total Cost Loss (LKR)', 'Reason', 'Logged Date'];
                 $data = ReportsEngine::getDamagedStockReport($filters);
@@ -396,15 +402,6 @@ try {
                         $r['entry_number'], $r['entry_date'], $bankDesc, $r['description'],
                         number_format($r['debit'], 2, '.', ''), number_format($r['credit'], 2, '.', ''),
                         number_format($r['running_balance'], 2, '.', '')
-                    ];
-                }
-            } elseif ($reportType === 'customer_cheques') {
-                $headers = ['Cheque #', 'Customer Name', 'Bank', 'Cheque Date', 'Amount (LKR)', 'Branch', 'Status'];
-                $data = ReportsEngine::getCustomerChequeReport($filters);
-                foreach (($data['items'] ?? []) as $r) {
-                    $rows[] = [
-                        $r['cheque_number'], $r['customer_name'], $r['bank_name'], $r['cheque_date'],
-                        number_format($r['amount'], 2, '.', ''), $r['branch_name'], strtoupper($r['status'])
                     ];
                 }
             } elseif ($reportType === 'supplier_cheques') {

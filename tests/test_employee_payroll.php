@@ -459,10 +459,16 @@ try {
     // Delete employee
     Database::execute("DELETE FROM employees WHERE id = :id", [':id' => $empId]);
 
-    // Delete isolated journal entries
-    Database::execute("DELETE FROM journal_entries WHERE source_type IN ('employee_advance', 'payroll_period', 'payroll_payment', 'epf_etf_remittance') AND branch_id = :b AND entry_date = :d", [
-        ':b' => $branchId,
-        ':d' => date('Y-m-d')
+    // Delete isolated journal lines and entries
+    if (!empty($periodResult['journal_entry_id'])) {
+        Database::execute("DELETE FROM journal_lines WHERE journal_entry_id = :je_id", [':je_id' => $periodResult['journal_entry_id']]);
+        Database::execute("DELETE FROM journal_entries WHERE id = :je_id", [':je_id' => $periodResult['journal_entry_id']]);
+    }
+    Database::execute("DELETE jl FROM journal_lines jl JOIN journal_entries je ON jl.journal_entry_id = je.id WHERE je.source_type IN ('employee_advance', 'payroll', 'payroll_period', 'payroll_payment', 'epf_etf_remittance') AND je.branch_id = :b", [
+        ':b' => $branchId
+    ]);
+    Database::execute("DELETE FROM journal_entries WHERE source_type IN ('employee_advance', 'payroll', 'payroll_period', 'payroll_payment', 'epf_etf_remittance') AND branch_id = :b", [
+        ':b' => $branchId
     ]);
 
     echo "Cleanup complete: Isolated test artifacts removed safely.\n";

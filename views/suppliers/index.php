@@ -5,6 +5,8 @@
 $isDeletedView = ($viewMode === 'deleted');
 $deletedCount = (int)($deletedCount ?? 0);
 ?>
+<link rel="stylesheet" href="assets/css/curtiss_select.css">
+<script src="assets/js/curtiss_select.js"></script>
 
 <!-- Floating Top-Right Action Pill -->
 <div id="curtiss-floating-header-right" class="no-print" style="position: fixed; top: 16px; right: 20px; z-index: 1050; display: flex; align-items: center; gap: 8px;">
@@ -649,13 +651,29 @@ $deletedCount = (int)($deletedCount ?? 0);
 </style>
 
 <div style="width: 100%; max-width: 100%; height: calc(100vh - 110px); display: flex; flex-direction: column; box-sizing: border-box; overflow: hidden; padding-bottom: 8px;">
-    <!-- Page Header -->
+    <!-- Page Header & Inline Filter Controls (Height: 34px) -->
     <div class="prod-header" style="flex-shrink: 0; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 0.85rem;">
         <div>
             <div style="display: flex; align-items: center; gap: 8px;">
                 <div style="width: 8px; height: 8px; border-radius: 50%; background: #0f172a;"></div>
                 <h1 class="prod-title"><?= $isDeletedView ? 'Suppliers (Trash Bin)' : 'Supplier Master' ?></h1>
             </div>
+        </div>
+
+        <!-- Inline Filter Controls (Height: 34px) -->
+        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+            <?php if (!empty($branches) && count($branches) > 1): ?>
+            <div style="display: flex; align-items: center; gap: 6px;">
+                <span style="font-size: 11px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;">Branch:</span>
+                <select id="filterSupplierBranch" onchange="switchSupplierBranch(this.value)" class="curtiss-select-enhance" style="height: 34px; min-height: 34px; padding: 0 14px; border-radius: 999px; font-size: 12px; font-weight: 700; border: 1px solid #cbd5e1; background: #fff; color: #0f172a; min-width: 180px;">
+                    <?php foreach ($branches as $br): ?>
+                        <option value="<?= (int)$br['id'] ?>" <?= ((int)$branchId === (int)$br['id']) ? 'selected' : '' ?>>
+                            <?= View::escape($br['name']) ?> (<?= View::escape($br['code']) ?>)
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <?php endif; ?>
         </div>
     </div>
 
@@ -929,10 +947,17 @@ $deletedCount = (int)($deletedCount ?? 0);
         <form method="POST" action="suppliers" onsubmit="handleFormSubmit(this)">
             <input type="hidden" name="action" value="post_opening_balance">
             <input type="hidden" name="supplier_id" id="obSupplierId" value="">
+            <input type="hidden" name="branch_id" value="<?= (int)$branchId ?>">
 
-            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px; margin-bottom: 14px;">
-                <div style="font-size: 0.72rem; font-weight: 800; color: #64748b; text-transform: uppercase;">Target Supplier</div>
-                <div id="obSupplierName" style="font-size: 0.95rem; font-weight: 800; color: #0f172a; margin-top: 2px;"></div>
+            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px; margin-bottom: 14px; display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <div style="font-size: 0.72rem; font-weight: 800; color: #64748b; text-transform: uppercase;">Target Supplier</div>
+                    <div id="obSupplierName" style="font-size: 0.95rem; font-weight: 800; color: #0f172a; margin-top: 2px;"></div>
+                </div>
+                <div style="text-align: right;">
+                    <div style="font-size: 0.72rem; font-weight: 800; color: #64748b; text-transform: uppercase;">Branch Scope</div>
+                    <div style="font-size: 0.85rem; font-weight: 800; color: #0284c7; margin-top: 2px;"><?= htmlspecialchars($branchName ?? 'Active Branch', ENT_QUOTES, 'UTF-8') ?></div>
+                </div>
             </div>
 
             <div style="margin-bottom: 14px;">
@@ -985,10 +1010,14 @@ $deletedCount = (int)($deletedCount ?? 0);
         <form method="POST" action="suppliers" onsubmit="handleFormSubmit(this)">
             <input type="hidden" name="action" value="reverse_opening_balance">
             <input type="hidden" name="opening_balance_id" id="revObId" value="">
+            <input type="hidden" name="branch_id" value="<?= (int)$branchId ?>">
 
             <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 10px; padding: 12px; margin-bottom: 14px;">
-                <div style="font-size: 0.72rem; font-weight: 800; color: #991b1b; text-transform: uppercase;">Active Opening Balance</div>
-                <div id="revObSummaryText" style="font-size: 0.88rem; font-weight: 700; color: #7f1d1d; margin-top: 2px;"></div>
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div style="font-size: 0.72rem; font-weight: 800; color: #991b1b; text-transform: uppercase;">Active Opening Balance</div>
+                    <div id="revObBranchBadge" style="font-size: 0.72rem; font-weight: 800; color: #0284c7; background: #e0f2fe; padding: 2px 8px; border-radius: 999px;"></div>
+                </div>
+                <div id="revObSummaryText" style="font-size: 0.88rem; font-weight: 700; color: #7f1d1d; margin-top: 4px;"></div>
             </div>
 
             <div style="margin-bottom: 20px;">
@@ -1004,130 +1033,139 @@ $deletedCount = (int)($deletedCount ?? 0);
     </div>
 </div>
 
-<!-- Modal for Supplier Payment Collection -->
+<!-- Modal for Supplier Payment (Multi-Account / Splits) -->
 <div id="paySupplierModal" class="curtiss-modal-backdrop">
-    <div class="curtiss-modal-card" style="max-width: 650px;">
-        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; padding-bottom: 10px; border-bottom: 1px solid #f1f5f9;">
-            <div style="display: flex; align-items: center; gap: 8px;">
-                <div style="width: 8px; height: 8px; border-radius: 50%; background: #16a34a;"></div>
-                <h3 style="font-size: 1.1rem; font-weight: 800; color: #0f172a; margin: 0;">Make Supplier Payment</h3>
+    <div class="curtiss-modal-card" style="max-width: 720px; width: 95vw; max-height: 90vh; display: flex; flex-direction: column; overflow: hidden; padding: 0;">
+        <div style="display: flex; align-items: center; justify-content: space-between; padding: 16px 20px 14px; border-bottom: 1px solid #f1f5f9; background: #ffffff;">
+            <div>
+                <span style="font-size: 10px; font-weight: 800; color: #0284c7; text-transform: uppercase; letter-spacing: 0.06em; display: block; margin-bottom: 2px;">Make Supplier Payment &bull; <?= htmlspecialchars($branchName ?? 'Active Branch', ENT_QUOTES, 'UTF-8') ?></span>
+                <h3 id="paySupplierName" style="font-size: 1.15rem; font-weight: 800; color: #0f172a; margin: 0;">Supplier Payment</h3>
             </div>
-            <button type="button" onclick="closePaySupplierModal()" style="background: none; border: none; color: #94a3b8; cursor: pointer; padding: 4px;">✕</button>
+            <button type="button" onclick="closePaySupplierModal()" style="background: none; border: none; color: #94a3b8; cursor: pointer; padding: 4px; font-size: 16px; border-radius: 6px;">✕</button>
         </div>
 
-        <form method="POST" action="suppliers" onsubmit="handleFormSubmit(this)" id="paySupplierForm">
+        <form id="paySupplierForm" onsubmit="handlePaySupplierSubmit(event)" style="display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; margin: 0;">
             <input type="hidden" name="action" value="process_supplier_payment">
             <input type="hidden" name="supplier_id" id="paySupplierId" value="">
+            <input type="hidden" name="branch_id" value="<?= (int)$branchId ?>">
 
-            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center;">
-                <div>
-                    <div style="font-size: 0.72rem; font-weight: 800; color: #64748b; text-transform: uppercase;">Target Supplier</div>
-                    <div id="paySupplierName" style="font-size: 1.05rem; font-weight: 800; color: #0f172a; margin-top: 2px;"></div>
-                </div>
-                <div style="text-align: right;">
-                    <div style="font-size: 0.72rem; font-weight: 800; color: #991b1b; text-transform: uppercase;">Total Outstanding</div>
-                    <div id="paySupplierOutstanding" style="font-size: 1.15rem; font-weight: 800; font-family: monospace; color: #dc2626;">LKR 0.00</div>
-                </div>
-            </div>
-
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px;">
-                <div>
-                    <label style="display: block; font-size: 12px; font-weight: 700; color: #334155; margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.05em;">Payment Method <span style="color: #ef4444;">*</span></label>
-                    <select name="payment_method" id="payMethodSelect" onchange="toggleSupplierPayFields()" style="width: 100%; height: 38px; border: 1px solid #cbd5e1; border-radius: 10px; padding: 0 12px; font-size: 13px; font-weight: 700; color: #0f172a; outline: none; box-sizing: border-box;" required>
-                        <option value="Cash Drawer">Cash Drawer (POS Register)</option>
-                        <option value="Cash in Hand" selected>Cash in Hand (Main Safe)</option>
-                        <option value="Petty Cash">Petty Cash Account</option>
-                        <?php if (!empty($bankAccounts)): ?>
-                            <?php foreach ($bankAccounts as $ba): ?>
-                                <option value="Bank:<?= $ba['id'] ?>">Bank Transfer: <?= View::escape($ba['bank_name']) ?> - <?= View::escape($ba['account_name']) ?> (<?= View::escape($ba['account_number']) ?>)</option>
-                            <?php endforeach; ?>
-                        <?php endif; ?>
-                        <option value="Cheque">Cheque Issued</option>
-                    </select>
-                </div>
-
-                <div>
-                    <label style="display: block; font-size: 12px; font-weight: 700; color: #334155; margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.05em;">Payment Amount (LKR) <span style="color: #ef4444;">*</span></label>
-                    <input type="number" step="0.01" min="0.01" name="amount" id="payAmountInput" style="width: 100%; height: 38px; border: 1px solid #cbd5e1; border-radius: 10px; padding: 0 12px; font-size: 14px; font-weight: 800; font-family: monospace; color: #166534; outline: none; box-sizing: border-box;" placeholder="e.g. 25000.00" required>
-                </div>
-            </div>
-
-            <!-- Dynamic Bank Account Group -->
-            <div id="payBankGroup" style="margin-bottom: 14px; display: none;">
-                <label style="display: block; font-size: 12px; font-weight: 700; color: #334155; margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.05em;">Source Bank Account <span style="color: #ef4444;">*</span></label>
-                <select name="bank_account_id" id="payBankAccountSelect" style="width: 100%; height: 38px; border: 1px solid #cbd5e1; border-radius: 10px; padding: 0 12px; font-size: 13px; font-weight: 700; color: #0f172a; outline: none; box-sizing: border-box;">
-                    <?php if (!empty($bankAccounts)): ?>
-                        <?php foreach ($bankAccounts as $ba): ?>
-                            <option value="<?= $ba['id'] ?>"><?= View::escape($ba['bank_name']) ?> - <?= View::escape($ba['account_name']) ?> (<?= View::escape($ba['account_number']) ?>)</option>
-                        <?php endforeach; ?>
-                    <?php else: ?>
-                        <option value="">No Active Bank Accounts Found</option>
-                    <?php endif; ?>
-                </select>
-            </div>
-
-            <!-- Dynamic Cheque Details Group -->
-            <div id="payChequeGroup" style="display: none; background: #fffbeb; border: 1px solid #fde68a; border-radius: 12px; padding: 12px; margin-bottom: 14px;">
-                <div style="font-size: 0.75rem; font-weight: 800; color: #b45309; text-transform: uppercase; margin-bottom: 8px;">Cheque Issued Details</div>
-                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;">
-                    <div>
-                        <label style="display: block; font-size: 11px; font-weight: 700; color: #475569; margin-bottom: 4px;">Cheque No *</label>
-                        <input type="text" name="cheque[cheque_number]" id="payChequeNo" style="width: 100%; height: 34px; border: 1px solid #cbd5e1; border-radius: 8px; padding: 0 10px; font-size: 12px; color: #0f172a; outline: none; box-sizing: border-box;" placeholder="e.g. CHQ-99102">
+            <div class="curtiss-modal-body" style="padding: 16px 20px; display: flex; flex-direction: column; gap: 12px; flex: 1; min-height: 0; overflow-y: auto;">
+                
+                <!-- Top Summary: Total Outstanding, Paying Now Input, Remaining Balance -->
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px;">
+                    <!-- Total Outstanding Card -->
+                    <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 12px; padding: 10px 14px; display: flex; flex-direction: column; justify-content: center;">
+                        <span style="font-size: 0.68rem; font-weight: 800; color: #991b1b; text-transform: uppercase; letter-spacing: 0.04em;">Total Outstanding</span>
+                        <div id="paySupplierOutstanding" style="font-size: 1.35rem; font-weight: 800; font-family: ui-monospace, monospace; color: #dc2626; margin-top: 2px;">LKR 0.00</div>
+                        <div id="paySupplierObligationInfo" style="font-size: 0.72rem; color: #64748b; margin-top: 2px;">Unpaid GRNs & Opening Balance</div>
                     </div>
-                    <div>
-                        <label style="display: block; font-size: 11px; font-weight: 700; color: #475569; margin-bottom: 4px;">Cheque Date *</label>
-                        <input type="date" name="cheque[cheque_date]" id="payChequeDate" value="<?= date('Y-m-d') ?>" style="width: 100%; height: 34px; border: 1px solid #cbd5e1; border-radius: 8px; padding: 0 10px; font-size: 12px; color: #0f172a; outline: none; box-sizing: border-box;">
+
+                    <!-- Paying Now Input Card -->
+                    <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 12px; padding: 10px 14px; display: flex; flex-direction: column; justify-content: center;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <label style="font-size: 0.68rem; font-weight: 800; color: #166534; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 0;">Paying Now (LKR) *</label>
+                            <button type="button" onclick="setSupplierPayToFull()" style="background: #dcfce7; border: 1px solid #86efac; color: #15803d; font-size: 10px; font-weight: 800; padding: 2px 8px; border-radius: 999px; cursor: pointer;" title="Set paying amount to full balance">
+                                Pay Full
+                            </button>
+                        </div>
+                        <input type="number" step="0.01" min="0.01" id="payAmountInput" oninput="onSupplierTotalAmountChanged(this.value)" style="font-size: 1.25rem; font-weight: 800; font-family: ui-monospace, monospace; color: #14532d; background: #ffffff; border: 1px solid #86efac; border-radius: 8px; padding: 0 10px; margin-top: 4px; height: 38px; width: 100%; box-sizing: border-box; outline: none;" placeholder="0.00" required>
+                        <div style="font-size: 0.70rem; color: #15803d; margin-top: 2px;">Full or partial payment allowed</div>
                     </div>
-                    <div>
-                        <label style="display: block; font-size: 11px; font-weight: 700; color: #475569; margin-bottom: 4px;">Payer Bank *</label>
-                        <input type="text" name="cheque[bank_name]" id="payChequeBank" style="width: 100%; height: 34px; border: 1px solid #cbd5e1; border-radius: 8px; padding: 0 10px; font-size: 12px; color: #0f172a; outline: none; box-sizing: border-box;" placeholder="e.g. Commercial Bank">
+
+                    <!-- Remaining Balance Card -->
+                    <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 12px; padding: 10px 14px; display: flex; flex-direction: column; justify-content: center;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <span style="font-size: 0.68rem; font-weight: 800; color: #1e40af; text-transform: uppercase; letter-spacing: 0.04em;">Remaining Balance</span>
+                            <span id="payModalRemainingBadge" class="prod-badge" style="background: #dbeafe; color: #1e40af; font-size: 9.5px; padding: 2px 6px;">Remaining Due</span>
+                        </div>
+                        <div id="payModalRemainingDueVal" style="font-size: 1.35rem; font-weight: 800; font-family: ui-monospace, monospace; color: #2563eb; margin-top: 2px;">LKR 0.00</div>
+                        <div style="font-size: 0.72rem; color: #64748b; margin-top: 2px;">Payable balance after this payment</div>
                     </div>
                 </div>
-            </div>
 
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px;">
-                <div>
-                    <label style="display: block; font-size: 12px; font-weight: 700; color: #334155; margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.05em;">Payment Date</label>
-                    <input type="date" name="payment_date" id="payDateInput" value="<?= date('Y-m-d') ?>" style="width: 100%; height: 38px; border: 1px solid #cbd5e1; border-radius: 10px; padding: 0 12px; font-size: 13px; color: #0f172a; outline: none; box-sizing: border-box;">
+                <!-- Collapsible Unpaid Obligations Drawer / Accordion -->
+                <div style="border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden; background: #ffffff;">
+                    <div onclick="toggleSupplierGrnsPreview()" style="display: flex; justify-content: space-between; align-items: center; padding: 7px 12px; background: #f8fafc; cursor: pointer; user-select: none;">
+                        <span style="font-size: 11px; font-weight: 800; color: #475569; text-transform: uppercase; letter-spacing: 0.04em;">
+                            Unpaid Obligations (GRNs & Opening Balance) (<span id="payModalGrnsCount">0</span>)
+                        </span>
+                        <span id="payModalGrnsToggleText" style="font-size: 11px; font-weight: 700; color: #0284c7;">
+                            Show Obligations ▼
+                        </span>
+                    </div>
+                    <div id="payModalGrnsContainer" style="display: none; max-height: 130px; overflow-y: auto; padding: 4px 8px; background: #ffffff; border-top: 1px solid #f1f5f9;">
+                        <table style="width: 100%; border-collapse: collapse; font-size: 0.78rem;">
+                            <thead>
+                                <tr style="border-bottom: 1px solid #e2e8f0; text-align: left; color: #64748b; font-size: 0.68rem; text-transform: uppercase;">
+                                    <th style="padding: 4px 6px;">Obligation / GRN No</th>
+                                    <th style="padding: 4px 6px;">Invoice / Ref</th>
+                                    <th style="padding: 4px 6px;">Date</th>
+                                    <th style="padding: 4px 6px; text-align: right;">Due Amount</th>
+                                </tr>
+                            </thead>
+                            <tbody id="payModalGrnsTbody">
+                                <tr>
+                                    <td colspan="4" style="text-align: center; color: #94a3b8; padding: 1rem;">No unpaid obligations</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
 
-                <div>
-                    <label style="display: block; font-size: 12px; font-weight: 700; color: #334155; margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.05em;">Ref / Transaction No</label>
-                    <input type="text" name="reference_no" id="payRefInput" style="width: 100%; height: 38px; border: 1px solid #cbd5e1; border-radius: 10px; padding: 0 12px; font-size: 13px; color: #0f172a; outline: none; box-sizing: border-box;" placeholder="e.g. TRX-889102">
+                <!-- Split Payments Section -->
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span style="font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: #334155;">
+                            Payment Account Allocation (Multi-Account / Splits)
+                        </span>
+                        <button type="button" class="inv-btn" style="height: 28px; padding: 0 10px; font-size: 11px; font-weight: 700; color: #0284c7; background: #e0f2fe; border: 1px solid #bae6fd; border-radius: 999px; cursor: pointer;" onclick="addSupplierSplitRow()">
+                            + Add Account Split
+                        </button>
+                    </div>
+
+                    <div style="background: #ffffff; border: 1px solid #cbd5e1; border-radius: 10px; overflow: hidden;">
+                        <table style="width: 100%; border-collapse: collapse; font-size: 12px;" id="supplierSplitsTable">
+                            <thead>
+                                <tr style="background: #f8fafc; border-bottom: 1px solid #e2e8f0; height: 34px; color: #64748b; font-size: 10.5px; font-weight: 800; text-transform: uppercase;">
+                                    <th style="padding: 0 10px; text-align: left;">Payment Account / Method</th>
+                                    <th style="padding: 0 10px; text-align: right; width: 140px;">Amount (LKR)</th>
+                                    <th style="padding: 0 10px; text-align: left; width: 150px;">Cheque / Ref / Tx No</th>
+                                    <th style="padding: 0 10px; text-align: left; width: 125px;">Banking Date</th>
+                                    <th style="padding: 0 8px; text-align: center; width: 36px;"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="supplierSplitsBody">
+                                <!-- Dynamic rows generated by JS -->
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Allocation Balance Bar -->
+                    <div id="supplierSplitSummaryBar" style="display: flex; justify-content: space-between; align-items: center; padding: 7px 12px; background: #f1f5f9; border-radius: 8px; font-size: 12px; font-weight: 700;">
+                        <span id="supplierSplitAllocatedText">Allocated: LKR 0.00 / Total: LKR 0.00</span>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <button id="syncSupplierTotalToSplitsBtn" type="button" onclick="syncSupplierTotalToSplits()" style="display: none; background: #e0f2fe; border: 1px solid #bae6fd; color: #0369a1; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 6px; cursor: pointer;">
+                                Set Total to Splits
+                            </button>
+                            <span id="supplierSplitDifferenceBadge" class="prod-badge prod-badge-active" style="background: #dcfce7; color: #15803d; font-size: 11px; padding: 3px 10px;">✓ Balanced (100%)</span>
+                        </div>
+                    </div>
                 </div>
-            </div>
 
-            <div style="margin-bottom: 16px;">
-                <label style="display: block; font-size: 12px; font-weight: 700; color: #334155; margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.05em;">Notes / Remarks</label>
-                <textarea name="notes" id="payNotesInput" rows="2" style="width: 100%; border: 1px solid #cbd5e1; border-radius: 10px; padding: 8px 12px; font-size: 13px; color: #0f172a; outline: none; box-sizing: border-box; font-family: inherit;" placeholder="Optional payment notes..."></textarea>
-            </div>
-
-            <!-- Approved Unpaid GRNs Summary List -->
-            <div style="margin-bottom: 18px;">
-                <label style="display: block; font-size: 11px; font-weight: 800; color: #64748b; text-transform: uppercase; margin-bottom: 6px;">Unpaid Approved GRNs (FIFO Allocation)</label>
-                <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; max-height: 140px; overflow-y: auto;">
-                    <table style="width: 100%; border-collapse: collapse; font-size: 0.78rem;">
-                        <thead>
-                            <tr style="border-bottom: 1px solid #cbd5e1; text-align: left; color: #64748b; font-size: 0.68rem; text-transform: uppercase;">
-                                <th style="padding: 6px 10px;">GRN No</th>
-                                <th style="padding: 6px 10px;">Invoice No</th>
-                                <th style="padding: 6px 10px;">Date</th>
-                                <th style="padding: 6px 10px; text-align: right;">Due Amount</th>
-                            </tr>
-                        </thead>
-                        <tbody id="payModalGrnsTbody">
-                            <tr>
-                                <td colspan="4" style="text-align: center; color: #94a3b8; padding: 1.5rem;">Loading approved GRNs...</td>
-                            </tr>
-                        </tbody>
-                    </table>
+                <!-- Remarks / Notes -->
+                <div style="margin-top: 2px;">
+                    <label style="display: block; font-size: 11px; font-weight: 700; color: #334155; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.04em;">Remarks / Notes</label>
+                    <input type="text" id="payNotesInput" class="form-input" placeholder="Optional payment notes (e.g. Paid by Cheque, Bank transfer ref)..." style="width: 100%; height: 34px; font-size: 12px; border: 1px solid #cbd5e1; border-radius: 8px; padding: 0 10px; box-sizing: border-box;">
                 </div>
+
             </div>
 
-            <div style="display: flex; justify-content: flex-end; gap: 10px; padding-top: 14px; border-top: 1px solid #f1f5f9;">
-                <button type="button" class="prod-btn prod-btn-ghost" onclick="closePaySupplierModal()">Cancel</button>
-                <button type="submit" class="prod-btn" style="background: #166534; color: #ffffff; border: none; padding: 8px 18px; font-size: 12.5px; font-weight: 700; border-radius: 999px; cursor: pointer;">
-                    💳 Process Payment
+            <!-- Sticky Modal Footer -->
+            <div style="display: flex; justify-content: flex-end; gap: 10px; padding: 12px 20px; border-top: 1px solid #f1f5f9; background: #ffffff;">
+                <button type="button" class="prod-btn prod-btn-ghost" onclick="closePaySupplierModal()" style="height: 34px; padding: 0 16px; border-radius: 999px;">Cancel</button>
+                <button type="submit" class="prod-btn" id="submitSupplierPaymentBtn" style="height: 34px; background: #166534; color: #ffffff; border: none; padding: 0 20px; font-size: 12px; font-weight: 700; border-radius: 999px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                    <span>Process Payment</span>
                 </button>
             </div>
         </form>
@@ -1237,6 +1275,7 @@ function renderSupplierPanel(s) {
                     LKR ${parseFloat(activeOb.amount).toLocaleString('en-US', {minimumFractionDigits: 2})}
                 </div>
                 <div style="font-size: 0.78rem; color: #475569; margin-top: 6px; display: flex; flex-direction: column; gap: 2px;">
+                    <div><strong>Branch:</strong> <span style="color: #0284c7; font-weight: 700;">${esc(activeOb.branch_name || 'Active Branch')}</span></div>
                     <div><strong>Date:</strong> ${esc(activeOb.entry_date)}</div>
                     <div><strong>Journal #:</strong> <code style="font-size: 0.78rem; font-weight: 700; color: #2563eb;">${esc(activeOb.journal_number || 'N/A')}</code></div>
                     <div><strong>Posted By:</strong> ${esc(activeOb.created_by_name || 'System')} (${esc(activeOb.created_at)})</div>
@@ -1383,7 +1422,7 @@ function onLedgerSearchInput(val) {
 
 function loadSupplierLedger(supplierId) {
     if (!supplierId) return;
-    fetch(`supplier_payments_api.php?action=get_supplier_activity_ledger&supplier_id=${supplierId}`)
+    fetch(`supplier_payments_api.php?action=get_supplier_activity_ledger&supplier_id=${supplierId}&branch_id=<?= (int)$branchId ?>`)
         .then(res => res.json())
         .then(data => {
             if (data && data.success && Array.isArray(data.activity_ledger)) {
@@ -1739,7 +1778,10 @@ function closeObModal() {
 function openReverseObModal(ob) {
     document.getElementById('revObId').value = ob.id;
     const typeText = (ob.balance_type === 'owe_supplier') ? 'We Owe Supplier (Payable)' : 'Supplier Owes Us (Credit)';
+    const brName = ob.branch_name || 'Branch #<?= (int)$branchId ?>';
     document.getElementById('revObSummaryText').innerText = `LKR ${parseFloat(ob.amount).toFixed(2)} [${typeText}] - Journal #${ob.journal_number || 'N/A'}`;
+    const badge = document.getElementById('revObBranchBadge');
+    if (badge) badge.innerText = brName;
     document.getElementById('revReason').value = '';
     document.getElementById('reverseObModal').classList.add('active');
     setTimeout(() => {
@@ -1748,8 +1790,299 @@ function openReverseObModal(ob) {
     }, 50);
 }
 
+function switchSupplierBranch(bId) {
+    if (!bId) return;
+    window.location.href = 'suppliers?branch_id=' + encodeURIComponent(bId);
+}
+
 function closeReverseObModal() {
     document.getElementById('reverseObModal').classList.remove('active');
+}
+
+function round2(num) {
+    return Math.round((parseFloat(num) || 0) * 100) / 100;
+}
+
+window.supplierBankAccounts = <?= json_encode($bankAccounts) ?>;
+window.supplierCashAccounts = <?= json_encode($cashAccounts ?? []) ?>;
+let currentSupplierOutstanding = 0;
+let supplierSplitRows = [];
+
+function toggleSupplierGrnsPreview() {
+    const container = document.getElementById('payModalGrnsContainer');
+    const toggleText = document.getElementById('payModalGrnsToggleText');
+    if (!container || !toggleText) return;
+    if (container.style.display === 'none' || !container.style.display) {
+        container.style.display = 'block';
+        toggleText.textContent = 'Hide Obligations ▲';
+    } else {
+        container.style.display = 'none';
+        toggleText.textContent = 'Show Obligations ▼';
+    }
+}
+
+function getSupplierPaymentMethodOptions(selectedKey) {
+    let html = '';
+    const methods = [];
+
+    if (window.supplierCashAccounts && window.supplierCashAccounts.length > 0) {
+        window.supplierCashAccounts.forEach(ca => {
+            const isMain = (ca.account_code === '1010');
+            methods.push({
+                key: isMain ? 'Cash in Hand' : ca.account_name,
+                label: isMain ? 'Cash in Hand (Main Safe)' : `${ca.account_name} (${ca.account_code})`
+            });
+        });
+    } else {
+        methods.push({ key: 'Cash in Hand', label: 'Cash in Hand (Main Safe)' });
+    }
+
+    methods.push({ key: 'Cash Drawer', label: 'Cash Drawer (POS Register)' });
+    methods.push({ key: 'Petty Cash', label: 'Petty Cash Account' });
+
+    if (window.supplierBankAccounts && window.supplierBankAccounts.length > 0) {
+        window.supplierBankAccounts.forEach(ba => {
+            methods.push({
+                key: `Bank:${ba.id}`,
+                label: `Bank Transfer: ${ba.bank_name} - ${ba.account_name} (${ba.account_number})`
+            });
+        });
+        window.supplierBankAccounts.forEach(ba => {
+            methods.push({
+                key: `Cheque:${ba.id}`,
+                label: `Cheque Issued: ${ba.bank_name} - ${ba.account_name} (${ba.account_number})`
+            });
+        });
+    } else {
+        methods.push({ key: 'Cheque', label: 'Cheque Issued' });
+    }
+
+    methods.forEach(m => {
+        const sel = (m.key === selectedKey) ? 'selected' : '';
+        html += `<option value="${m.key}" ${sel}>${m.label}</option>`;
+    });
+
+    return html;
+}
+
+function renderSupplierSplitRows() {
+    const tbody = document.getElementById('supplierSplitsBody');
+    if (!tbody) return;
+
+    let html = '';
+    supplierSplitRows.forEach((row, idx) => {
+        const isCheque = (row.method === 'Cheque' || (row.method && row.method.startsWith('Cheque:')));
+        const isBank = (row.method && row.method.startsWith('Bank:'));
+
+        let refPlaceholder = 'Optional Ref / Tx #';
+        if (isCheque) refPlaceholder = 'Cheque No *';
+        else if (isBank) refPlaceholder = 'Bank Ref / Tx No';
+
+        html += `
+            <tr style="border-bottom: 1px solid #f1f5f9; height: 40px;">
+                <td style="padding: 5px 10px;">
+                    <select class="form-input" onchange="updateSupplierSplitMethod(${idx}, this.value)" style="height: 32px; font-size: 11.5px; font-weight: 700; width: 100%; border: 1px solid #cbd5e1; border-radius: 6px; padding: 0 6px;">
+                        ${getSupplierPaymentMethodOptions(row.method)}
+                    </select>
+                </td>
+                <td style="padding: 5px 10px;">
+                    <input type="number" step="0.01" min="0" class="form-input" value="${row.amount > 0 ? parseFloat(row.amount).toFixed(2) : ''}" placeholder="0.00" oninput="updateSupplierSplitAmount(${idx}, this.value)" style="height: 32px; font-size: 12px; font-weight: 800; font-family: monospace; text-align: right; width: 100%; border: 1px solid #cbd5e1; border-radius: 6px; padding: 0 6px; color: #166534;">
+                </td>
+                <td style="padding: 5px 10px;">
+                    <input type="text" class="form-input" value="${esc(row.ref || '')}" placeholder="${refPlaceholder}" oninput="updateSupplierSplitRef(${idx}, this.value)" style="height: 32px; font-size: 11.5px; width: 100%; border: 1px solid #cbd5e1; border-radius: 6px; padding: 0 6px;">
+                </td>
+                <td style="padding: 5px 10px;">
+                    <input type="date" class="form-input" value="${row.cheque_date || '<?= date('Y-m-d') ?>'}" onchange="updateSupplierSplitChequeDate(${idx}, this.value)" ${isCheque ? '' : 'disabled style="height: 32px; font-size: 11px; opacity: 0.4; width: 100%;"'} style="height: 32px; font-size: 11px; width: 100%; border: 1px solid #cbd5e1; border-radius: 6px; padding: 0 6px;">
+                </td>
+                <td style="padding: 5px 8px; text-align: center;">
+                    ${supplierSplitRows.length > 1 ? `
+                        <button type="button" onclick="removeSupplierSplitRow(${idx})" style="background: none; border: none; color: #ef4444; cursor: pointer; padding: 4px; display: inline-flex; align-items: center; justify-content: center; border-radius: 4px;" title="Remove split">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                        </button>
+                    ` : `
+                        <span style="color: #cbd5e1; font-size: 14px;">-</span>
+                    `}
+                </td>
+            </tr>
+        `;
+    });
+
+    tbody.innerHTML = html;
+    recalcSupplierSplits();
+}
+
+function addSupplierSplitRow() {
+    const totalToPay = parseFloat(document.getElementById('payAmountInput').value) || 0;
+    const currentAlloc = supplierSplitRows.reduce((sum, r) => sum + (parseFloat(r.amount) || 0), 0);
+    const rem = Math.max(0, round2(totalToPay - currentAlloc));
+
+    let defaultMethod = 'Cash in Hand';
+    if (supplierSplitRows.length === 1 && supplierSplitRows[0].method === 'Cash in Hand') {
+        if (window.supplierBankAccounts && window.supplierBankAccounts.length > 0) {
+            defaultMethod = `Bank:${window.supplierBankAccounts[0].id}`;
+        } else {
+            defaultMethod = 'Cheque';
+        }
+    }
+
+    const todayStr = '<?= date('Y-m-d') ?>';
+
+    supplierSplitRows.push({
+        method: defaultMethod,
+        amount: rem,
+        ref: '',
+        cheque_date: todayStr
+    });
+
+    renderSupplierSplitRows();
+}
+
+function removeSupplierSplitRow(idx) {
+    if (supplierSplitRows.length <= 1) return;
+    supplierSplitRows.splice(idx, 1);
+    renderSupplierSplitRows();
+}
+
+function updateSupplierSplitMethod(idx, val) {
+    supplierSplitRows[idx].method = val;
+    renderSupplierSplitRows();
+}
+
+function updateSupplierSplitAmount(idx, val) {
+    const amt = Math.max(0, parseFloat(val) || 0);
+    supplierSplitRows[idx].amount = amt;
+    if (supplierSplitRows.length === 1) {
+        const input = document.getElementById('payAmountInput');
+        if (input) {
+            input.value = amt > 0 ? amt.toFixed(2) : '';
+        }
+    }
+    recalcSupplierSplits();
+}
+
+function updateSupplierSplitRef(idx, val) {
+    supplierSplitRows[idx].ref = val;
+}
+
+function updateSupplierSplitChequeDate(idx, val) {
+    supplierSplitRows[idx].cheque_date = val;
+}
+
+function onSupplierTotalAmountChanged(val) {
+    const totalAmt = Math.max(0, parseFloat(val) || 0);
+    if (supplierSplitRows.length === 1) {
+        supplierSplitRows[0].amount = totalAmt;
+        const tbody = document.getElementById('supplierSplitsBody');
+        const firstAmtInput = tbody ? tbody.querySelector('tr:first-child input[type="number"]') : null;
+        if (firstAmtInput) {
+            firstAmtInput.value = totalAmt > 0 ? totalAmt.toFixed(2) : '';
+        }
+    }
+    recalcSupplierSplits();
+}
+
+function setSupplierPayToFull() {
+    const totalOut = round2(currentSupplierOutstanding);
+    const input = document.getElementById('payAmountInput');
+    if (input) {
+        input.value = totalOut > 0 ? totalOut.toFixed(2) : '';
+        onSupplierTotalAmountChanged(input.value);
+    }
+}
+
+function syncSupplierTotalToSplits() {
+    const allocTot = round2(supplierSplitRows.reduce((sum, r) => sum + (parseFloat(r.amount) || 0), 0));
+    const input = document.getElementById('payAmountInput');
+    if (input) {
+        input.value = allocTot > 0 ? allocTot.toFixed(2) : '';
+    }
+    recalcSupplierSplits();
+}
+
+function recalcSupplierSplits() {
+    const targetTot = round2(parseFloat(document.getElementById('payAmountInput').value) || 0);
+    const allocTot = round2(supplierSplitRows.reduce((sum, r) => sum + (parseFloat(r.amount) || 0), 0));
+    const diff = round2(targetTot - allocTot);
+
+    const outstanding = round2(currentSupplierOutstanding);
+    const remainingDue = Math.max(0, round2(outstanding - targetTot));
+
+    const remDueEl = document.getElementById('payModalRemainingDueVal');
+    const remBadgeEl = document.getElementById('payModalRemainingBadge');
+    if (remDueEl) {
+        remDueEl.innerText = `LKR ${remainingDue.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+    }
+    if (remBadgeEl) {
+        if (targetTot <= 0) {
+            remBadgeEl.className = 'prod-badge';
+            remBadgeEl.style.background = '#f1f5f9';
+            remBadgeEl.style.color = '#64748b';
+            remBadgeEl.innerText = 'No Payment';
+        } else if (remainingDue === 0 && targetTot <= (outstanding + 0.01)) {
+            remBadgeEl.className = 'prod-badge prod-badge-active';
+            remBadgeEl.style.background = '#dcfce7';
+            remBadgeEl.style.color = '#15803d';
+            remBadgeEl.innerText = '✓ Fully Settled';
+        } else if (targetTot > (outstanding + 0.01)) {
+            remBadgeEl.className = 'prod-badge';
+            remBadgeEl.style.background = '#fee2e2';
+            remBadgeEl.style.color = '#b91c1c';
+            remBadgeEl.innerText = '⚠️ Overpaying';
+        } else {
+            remBadgeEl.className = 'prod-badge';
+            remBadgeEl.style.background = '#eff6ff';
+            remBadgeEl.style.color = '#1d4ed8';
+            remBadgeEl.innerText = 'Remaining Due';
+        }
+    }
+
+    const allocText = document.getElementById('supplierSplitAllocatedText');
+    if (allocText) {
+        allocText.innerText = `Splits: LKR ${allocTot.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})} / Paying: LKR ${targetTot.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+    }
+
+    const badge = document.getElementById('supplierSplitDifferenceBadge');
+    const syncBtn = document.getElementById('syncSupplierTotalToSplitsBtn');
+    const submitBtn = document.getElementById('submitSupplierPaymentBtn');
+
+    const isSplitsBalanced = (Math.abs(diff) < 0.01 && targetTot > 0);
+
+    if (syncBtn) {
+        if (!isSplitsBalanced && allocTot > 0 && supplierSplitRows.length > 1) {
+            syncBtn.style.display = 'inline-block';
+            syncBtn.innerText = `Set Paying to LKR ${allocTot.toFixed(2)}`;
+        } else {
+            syncBtn.style.display = 'none';
+        }
+    }
+
+    if (targetTot > (outstanding + 0.01)) {
+        if (badge) {
+            badge.className = 'prod-badge';
+            badge.style.background = '#fee2e2';
+            badge.style.color = '#b91c1c';
+            badge.innerText = `Cannot exceed debt (LKR ${outstanding.toFixed(2)})`;
+        }
+        if (submitBtn) submitBtn.disabled = true;
+    } else if (isSplitsBalanced) {
+        if (badge) {
+            badge.className = 'prod-badge prod-badge-active';
+            badge.style.background = '#dcfce7';
+            badge.style.color = '#15803d';
+            badge.innerText = '✓ Balanced (100%)';
+        }
+        if (submitBtn) submitBtn.disabled = false;
+    } else {
+        if (badge) {
+            badge.className = 'prod-badge';
+            badge.style.background = '#fee2e2';
+            badge.style.color = '#b91c1c';
+            badge.innerText = (diff > 0) 
+                ? `Remaining to allocate: LKR ${diff.toFixed(2)}` 
+                : `Over-allocated: LKR ${Math.abs(diff).toFixed(2)}`;
+        }
+        if (submitBtn) submitBtn.disabled = true;
+    }
 }
 
 async function openPaySupplierModal(s) {
@@ -1757,26 +2090,46 @@ async function openPaySupplierModal(s) {
     document.getElementById('paySupplierName').innerText = `${s.name} (${s.supplier_code || ('SUP-' + s.id)})`;
     
     const totalOut = parseFloat(s.total_outstanding || 0);
+    currentSupplierOutstanding = totalOut;
     document.getElementById('paySupplierOutstanding').innerText = `LKR ${totalOut.toLocaleString('en-US', {minimumFractionDigits: 2})}`;
+    document.getElementById('payModalRemainingDueVal').innerText = 'LKR 0.00';
     
     const amtInput = document.getElementById('payAmountInput');
     amtInput.value = totalOut > 0 ? totalOut.toFixed(2) : '';
+    document.getElementById('payNotesInput').value = '';
     
-    document.getElementById('payMethodSelect').value = 'Cash in Hand';
-    toggleSupplierPayFields();
+    document.getElementById('payModalGrnsCount').textContent = '0';
+    document.getElementById('payModalGrnsContainer').style.display = 'none';
+    document.getElementById('payModalGrnsToggleText').textContent = 'Show Obligations ▼';
     
     const tbody = document.getElementById('payModalGrnsTbody');
     tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: #94a3b8; padding: 1rem;">Loading unpaid obligations...</td></tr>`;
+    
+    // Initialize single default split row
+    const todayStr = '<?= date('Y-m-d') ?>';
+    supplierSplitRows = [{
+        method: 'Cash in Hand',
+        amount: totalOut,
+        ref: '',
+        cheque_date: todayStr
+    }];
+    renderSupplierSplitRows();
     
     document.getElementById('paySupplierModal').classList.add('active');
     setTimeout(() => { amtInput.focus(); amtInput.select(); }, 50);
 
     try {
-        const res = await fetch(`supplier_payments_api.php?action=get_supplier_outstanding&supplier_id=${s.id}`);
+        const res = await fetch(`supplier_payments_api.php?action=get_supplier_outstanding&supplier_id=${s.id}&branch_id=<?= (int)$branchId ?>`);
         const data = await res.json();
         if (data.success) {
+            const actualOut = parseFloat(data.total_outstanding || 0);
+            currentSupplierOutstanding = actualOut;
+            document.getElementById('paySupplierOutstanding').innerText = `LKR ${actualOut.toLocaleString('en-US', {minimumFractionDigits: 2})}`;
+            
+            let obCount = 0;
             let html = '';
             if (data.active_opening_balance && parseFloat(data.ob_outstanding || 0) > 0) {
+                obCount = 1;
                 const obAmt = parseFloat(data.ob_outstanding);
                 html += `
                     <tr style="border-bottom: 1px solid #f1f5f9; background: #fffbeb;">
@@ -1787,10 +2140,12 @@ async function openPaySupplierModal(s) {
                     </tr>
                 `;
             }
+            let grnCount = 0;
             if (data.approved_grns && data.approved_grns.length) {
                 data.approved_grns.forEach(g => {
                     const due = parseFloat(g.due_amount || 0);
                     if (due > 0) {
+                        grnCount++;
                         html += `
                             <tr style="border-bottom: 1px solid #f1f5f9;">
                                 <td style="padding: 6px 10px; font-weight: 700; color: #0f172a;">${esc(g.grn_number)}</td>
@@ -1802,10 +2157,13 @@ async function openPaySupplierModal(s) {
                     }
                 });
             }
+            document.getElementById('payModalGrnsCount').textContent = obCount + grnCount;
             tbody.innerHTML = html || `<tr><td colspan="4" style="text-align: center; color: #16a34a; padding: 1rem; font-weight: 700;">All supplier obligations fully settled.</td></tr>`;
+            
+            recalcSupplierSplits();
         }
     } catch (e) {
-        tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: #ef4444; padding: 1rem;">Failed to load GRN list.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: #ef4444; padding: 1rem;">Failed to load obligations.</td></tr>`;
     }
 }
 
@@ -1813,20 +2171,99 @@ function closePaySupplierModal() {
     document.getElementById('paySupplierModal').classList.remove('active');
 }
 
-function toggleSupplierPayFields() {
-    const method = document.getElementById('payMethodSelect').value;
-    const bankGroup = document.getElementById('payBankGroup');
-    const chequeGroup = document.getElementById('payChequeGroup');
+async function handlePaySupplierSubmit(e) {
+    e.preventDefault();
+    const btn = document.getElementById('submitSupplierPaymentBtn');
+    if (!btn || btn.disabled) return;
+    btn.disabled = true;
 
-    if (method.startsWith('Bank')) {
-        bankGroup.style.display = 'none';
-        chequeGroup.style.display = 'none';
-    } else if (method === 'Cheque') {
-        bankGroup.style.display = 'block';
-        chequeGroup.style.display = 'block';
-    } else {
-        bankGroup.style.display = 'none';
-        chequeGroup.style.display = 'none';
+    const supplierId = parseInt(document.getElementById('paySupplierId').value);
+    const targetTot = round2(parseFloat(document.getElementById('payAmountInput').value) || 0);
+    const allocTot = round2(supplierSplitRows.reduce((sum, r) => sum + (parseFloat(r.amount) || 0), 0));
+    const notes = document.getElementById('payNotesInput').value.trim();
+
+    if (!supplierId || targetTot <= 0) {
+        alert('Please enter a valid payment amount.');
+        btn.disabled = false;
+        return;
+    }
+
+    if (targetTot > (currentSupplierOutstanding + 0.01)) {
+        alert(`Payment amount (LKR ${targetTot.toFixed(2)}) cannot exceed total outstanding of LKR ${currentSupplierOutstanding.toFixed(2)}.`);
+        btn.disabled = false;
+        return;
+    }
+
+    if (Math.abs(targetTot - allocTot) > 0.01) {
+        alert(`Payment splits (LKR ${allocTot.toFixed(2)}) must exactly match the total paying amount (LKR ${targetTot.toFixed(2)}).`);
+        btn.disabled = false;
+        return;
+    }
+
+    for (let i = 0; i < supplierSplitRows.length; i++) {
+        const row = supplierSplitRows[i];
+        const rowAmt = parseFloat(row.amount) || 0;
+        if (rowAmt <= 0) {
+            alert(`Split #${i + 1} has an invalid or zero amount.`);
+            btn.disabled = false;
+            return;
+        }
+
+        const isRowCheque = (row.method === 'Cheque' || (row.method && row.method.startsWith('Cheque:')));
+        if (isRowCheque && !row.ref) {
+            alert(`Please enter the Cheque Number for Split #${i + 1}.`);
+            btn.disabled = false;
+            return;
+        }
+    }
+
+    const splitsPayload = supplierSplitRows.map(r => {
+        let m = r.method;
+        let bankId = null;
+        if (m.startsWith('Bank:')) {
+            bankId = parseInt(m.replace('Bank:', ''));
+            m = 'Bank Transfer';
+        } else if (m.startsWith('Cheque:')) {
+            bankId = parseInt(m.replace('Cheque:', ''));
+            m = 'Cheque';
+        }
+        return {
+            payment_method: m,
+            bank_account_id: bankId,
+            amount: parseFloat(r.amount) || 0,
+            reference_no: r.ref || '',
+            cheque_no: (m === 'Cheque') ? (r.ref || '') : '',
+            cheque_date: (m === 'Cheque') ? (r.cheque_date || '<?= date('Y-m-d') ?>') : ''
+        };
+    });
+
+    const payload = {
+        action: 'process_supplier_payment',
+        supplier_id: supplierId,
+        amount: targetTot,
+        splits: splitsPayload,
+        notes: notes
+    };
+
+    try {
+        const res = await fetch('supplier_payments_api.php?action=process_supplier_payment', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+
+        if (data.success) {
+            alert(`SUCCESS: ${data.message}`);
+            closePaySupplierModal();
+            window.location.reload();
+        } else {
+            alert(`ERROR: ${data.message || 'Payment processing failed.'}`);
+            btn.disabled = false;
+        }
+    } catch (err) {
+        alert(`NETWORK ERROR: ${err.message}`);
+        btn.disabled = false;
     }
 }
 
@@ -2113,4 +2550,12 @@ function closeExportModal() {
     document.getElementById('expBackdrop').classList.remove('active');
     document.getElementById('expModal').classList.remove('active');
 }
+
+// Enhance filter selects with CurtissSearchableSelect combobox
+document.addEventListener('DOMContentLoaded', () => {
+    const brFilter = document.getElementById('filterSupplierBranch');
+    if (brFilter && typeof CurtissSearchableSelect !== 'undefined') {
+        CurtissSearchableSelect.attach(brFilter);
+    }
+});
 </script>
