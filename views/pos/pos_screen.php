@@ -2521,6 +2521,17 @@
             transform: translateY(0);
         }
 
+        .btn-pay-save {
+            background: linear-gradient(135deg, #0f766e 0%, #0d9488 100%);
+            color: #ffffff;
+            box-shadow: 0 4px 14px rgba(15, 118, 110, 0.28);
+        }
+
+        .btn-pay-save:hover {
+            box-shadow: 0 6px 20px rgba(15, 118, 110, 0.42);
+            filter: brightness(1.08);
+        }
+
         .btn-pay-whatsapp {
             background: linear-gradient(135deg, #059669 0%, #047857 100%);
             color: #ffffff;
@@ -3403,6 +3414,11 @@
                 </button>
 
                 <div style="display: flex; align-items: center; gap: 10px;">
+                    <button type="button" class="btn-pay-action btn-pay-save" id="btn-save-sale-only" onclick="finalizeSale('none')" title="Save Bill only without printing or WhatsApp (F10 or Shift + Enter)">
+                        <i class="fa-solid fa-floppy-disk" style="font-size: 1.15rem;"></i>
+                        <span>Save Only</span>
+                    </button>
+
                     <button type="button" class="btn-pay-action btn-pay-whatsapp" id="btn-save-whatsapp-sale" onclick="finalizeSale('whatsapp')" title="Save Bill and send via WhatsApp (Alt + Enter)">
                         <i class="fa-brands fa-whatsapp" style="font-size: 1.2rem;"></i>
                         <span>Save & WhatsApp</span>
@@ -6411,10 +6427,12 @@
             const finalizeBtn = document.getElementById('btn-finalize-sale');
             const printBtn = document.getElementById('btn-save-print-sale');
             const waBtn = document.getElementById('btn-save-whatsapp-sale');
+            const saveBtn = document.getElementById('btn-save-sale-only');
             isFinalizingSale = true;
             if (finalizeBtn) finalizeBtn.disabled = true;
             if (printBtn) printBtn.disabled = true;
             if (waBtn) waBtn.disabled = true;
+            if (saveBtn) saveBtn.disabled = true;
 
             // Offline Mode Finalization
             if (!navigator.onLine || activeSaleId === 'OFFLINE_DRAFT') {
@@ -6424,6 +6442,7 @@
                     if (finalizeBtn) finalizeBtn.disabled = false;
                     if (printBtn) printBtn.disabled = false;
                     if (waBtn) waBtn.disabled = false;
+                    if (saveBtn) saveBtn.disabled = false;
                     return;
                 }
 
@@ -6496,6 +6515,8 @@
                         triggerPrintInvoice();
                     } else if (postAction === 'whatsapp') {
                         triggerWhatsAppShare();
+                    } else {
+                        showPosToast(`Sale saved successfully! Invoice #${lastCompletedSaleData.invoice_no}`, 'success');
                     }
                     clearCartState();
                     updatePendingBadge();
@@ -6503,11 +6524,13 @@
                     if (finalizeBtn) finalizeBtn.disabled = false;
                     if (printBtn) printBtn.disabled = false;
                     if (waBtn) waBtn.disabled = false;
+                    if (saveBtn) saveBtn.disabled = false;
                 }).catch(err => {
                     isFinalizingSale = false;
                     if (finalizeBtn) finalizeBtn.disabled = false;
                     if (printBtn) printBtn.disabled = false;
                     if (waBtn) waBtn.disabled = false;
+                    if (saveBtn) saveBtn.disabled = false;
                     alert("Error saving offline sale: " + err.message);
                 });
                 return;
@@ -6532,6 +6555,7 @@
                 if (finalizeBtn) finalizeBtn.disabled = false;
                 if (printBtn) printBtn.disabled = false;
                 if (waBtn) waBtn.disabled = false;
+                if (saveBtn) saveBtn.disabled = false;
                 if (res.success) {
                     closeModal('modal-payment');
                     
@@ -6548,6 +6572,8 @@
                         triggerPrintInvoice();
                     } else if (postAction === 'whatsapp') {
                         triggerWhatsAppShare();
+                    } else {
+                        showPosToast(`Sale saved successfully! Invoice #${res.invoice_no}`, 'success');
                     }
                     clearCartState();
                 } else {
@@ -6559,6 +6585,7 @@
                 if (finalizeBtn) finalizeBtn.disabled = false;
                 if (printBtn) printBtn.disabled = false;
                 if (waBtn) waBtn.disabled = false;
+                if (saveBtn) saveBtn.disabled = false;
                 console.error("Error finalizing sale", err);
                 alert("Finalization error: " + err.message);
             });
@@ -6616,6 +6643,27 @@
             setTimeout(() => {
                 if (searchInput) searchInput.focus();
             }, 100);
+        }
+
+        function showPosToast(message, type = 'success') {
+            let toast = document.getElementById('pos-toast-notification');
+            if (!toast) {
+                toast = document.createElement('div');
+                toast.id = 'pos-toast-notification';
+                toast.style.cssText = 'position: fixed; top: 22px; right: 24px; z-index: 99999; padding: 12px 22px; border-radius: 14px; font-weight: 800; font-size: 0.95rem; box-shadow: 0 12px 30px rgba(0,0,0,0.3); display: flex; align-items: center; gap: 10px; transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1); transform: translateY(-20px); opacity: 0; pointer-events: none;';
+                document.body.appendChild(toast);
+            }
+            toast.style.background = (type === 'success') ? 'linear-gradient(135deg, #065f46 0%, #047857 100%)' : '#1e293b';
+            toast.style.color = '#ffffff';
+            toast.innerHTML = `<i class="fa-solid fa-circle-check" style="font-size: 1.25rem; color: #34d399;"></i> <span>${escapeHtml(message)}</span>`;
+            toast.style.transform = 'translateY(0)';
+            toast.style.opacity = '1';
+
+            clearTimeout(toast._timer);
+            toast._timer = setTimeout(() => {
+                toast.style.transform = 'translateY(-20px)';
+                toast.style.opacity = '0';
+            }, 3500);
         }
 
         function clearCartState() {
@@ -6880,6 +6928,13 @@
                 if (e.altKey && e.key === 'Enter') {
                     e.preventDefault();
                     finalizeSale('whatsapp');
+                    return;
+                }
+
+                // Shift + Enter -> Save Only (no print, no WhatsApp)
+                if (e.shiftKey && e.key === 'Enter') {
+                    e.preventDefault();
+                    finalizeSale('none');
                     return;
                 }
 
