@@ -1151,7 +1151,7 @@ class Accounting
 
             foreach ($items as $item) {
                 $qty = (float)$item['quantity'];
-                $unitPrice = (float)($item['original_price'] > 0 ? $item['original_price'] : $item['unit_price']);
+                $unitPrice = (float)$item['unit_price'];
                 $unitCost = (float)$item['unit_cost'];
                 $lineDisc = (float)($item['discount_amount'] ?? 0) + (float)($item['promo_discount_amount'] ?? 0);
                 $lineGross = ($unitPrice * $qty);
@@ -1175,7 +1175,12 @@ class Accounting
 
             // Precision balance guarantee
             if (abs(($grossSales - $totalDiscount) - $grandTotal) > 0.001) {
-                $totalDiscount = round(max(0.00, $grossSales - $grandTotal), 2);
+                if ($grossSales >= $grandTotal) {
+                    $totalDiscount = round($grossSales - $grandTotal, 2);
+                } else {
+                    $grossSales = round($grandTotal + $totalDiscount, 2);
+                    $productRevenue = $grossSales;
+                }
             }
 
             $journalLines = [];
