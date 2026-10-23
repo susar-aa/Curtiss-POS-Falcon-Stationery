@@ -142,52 +142,6 @@
             margin: 0 2px;
         }
 
-        .badge-status-online {
-            color: #34d399;
-            font-size: 0.8rem;
-            font-weight: 700;
-            cursor: pointer;
-            display: inline-flex;
-            align-items: center;
-            gap: 0.38rem;
-            padding: 4px 8px;
-            border-radius: 6px;
-            transition: all 0.15s ease;
-            user-select: none;
-        }
-
-        .badge-status-online:hover {
-            color: #6ee7b7;
-            background: rgba(52, 211, 153, 0.08);
-        }
-
-        .badge-status-offline {
-            color: #f87171;
-            font-size: 0.8rem;
-            font-weight: 700;
-            cursor: pointer;
-            display: inline-flex;
-            align-items: center;
-            gap: 0.38rem;
-            padding: 4px 8px;
-            border-radius: 6px;
-            user-select: none;
-        }
-
-        .pulse-dot {
-            width: 7px;
-            height: 7px;
-            border-radius: 50%;
-            background-color: #10b981;
-            display: inline-block;
-            animation: pulse 1.8s infinite;
-        }
-
-        @keyframes pulse {
-            0% { opacity: 1; transform: scale(1); }
-            50% { opacity: 0.3; transform: scale(0.85); }
-            100% { opacity: 1; transform: scale(1); }
-        }
 
         .header-ghost-btn {
             background: transparent;
@@ -2685,15 +2639,7 @@
             </div>
 
             <div class="pos-info-bar">
-                <div id="pos-network-status" class="badge-status-online" onclick="openOfflineSyncModal()" title="Network status - Click for sync details">
-                    <span class="pulse-dot"></span> <i class="fa-solid fa-wifi"></i> Online
-                </div>
 
-                <button type="button" class="header-ghost-btn" id="btn-sync-offline" onclick="triggerManualSync()" title="Synchronize pending offline sales">
-                    <i class="fa-solid fa-rotate"></i> Sync <span id="sync-pending-badge" class="header-pending-pill" style="display:none;">0</span>
-                </button>
-
-                <span class="header-divider"></span>
 
                 <?php if (!empty($allActiveBranches) && count($allActiveBranches) > 1): ?>
                 <div class="header-meta-item" title="Active Branch">
@@ -3067,28 +3013,7 @@
         </div>
     </div>
 
-    <!-- Offline Sales Sync Queue Modal -->
-    <div class="pos-modal" id="modal-offline-sync-queue">
-        <div class="pos-modal-content" style="max-width: 800px;">
-            <div class="pos-modal-header">
-                <span><i class="fa-solid fa-cloud-arrow-up me-2"></i> Offline Sales Synchronization Queue</span>
-                <button type="button" style="background: none; border: none; color: var(--pos-text); cursor: pointer; font-size: 1.2rem;" onclick="closeModal('modal-offline-sync-queue')">&times;</button>
-            </div>
-            <div class="pos-modal-body">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                    <div style="font-size: 0.9rem; color: var(--pos-text-muted);">
-                        Sales recorded locally while offline are stored safely in IndexedDB and synchronized idempotently.
-                    </div>
-                    <button type="button" class="btn-header-action" onclick="triggerManualSync()" style="background: var(--pos-primary); color: #fff; font-weight: 700;">
-                        <i class="fa-solid fa-rotate me-1"></i> Sync Now
-                    </button>
-                </div>
-                <div id="offline-sales-list">
-                    <!-- JS Populated -->
-                </div>
-            </div>
-        </div>
-    </div>
+
 
 
 
@@ -3480,9 +3405,24 @@
     </div>
 
     <!-- JS POS Billing Engine -->
-    <script src="assets/js/offline_pos.js"></script>
     <script src="assets/js/qrcode.min.js"></script>
     <script>
+        // Ensure no stale Service Workers or browser cache intercept realtime requests
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then(registrations => {
+                for (const reg of registrations) {
+                    reg.unregister();
+                }
+            }).catch(() => {});
+        }
+        if ('caches' in window) {
+            caches.keys().then(names => {
+                for (const name of names) {
+                    caches.delete(name);
+                }
+            }).catch(() => {});
+        }
+
         const DEFAULT_LOYALTY_DISCOUNT_PERCENTAGE = <?= json_encode((float)Settings::get('loyalty_discount_percentage', '5.00')) ?>;
 
         // State variables
@@ -3514,122 +3454,6 @@
         const CURRENT_USER_ID = <?= (int)$currentUser['id'] ?>;
         const CURRENT_BRANCH_ID = <?= (int)$currentBranch['id'] ?>;
         const IS_SPECIAL_USER = <?= Auth::isSpecialUser() ? 'true' : 'false' ?>;
-
-        function updateNetworkStatusUI() {
-            const statusElem = document.getElementById('pos-network-status');
-            if (!statusElem) return;
-            if (navigator.onLine) {
-                statusElem.className = 'badge-status-online';
-                statusElem.innerHTML = '<span class="pulse-dot"></span> <i class="fa-solid fa-wifi"></i> Online';
-            } else {
-                statusElem.className = 'badge-status-offline';
-                statusElem.innerHTML = '<i class="fa-solid fa-wifi-slash"></i> Offline';
-            }
-            updatePendingBadge();
-        }
-
-        // Synchronize & refresh offline cache on load
-        if (typeof CurtissOfflinePOS !== 'undefined') {
-            CurtissOfflinePOS.refreshBillingCache();
-        }
-
-        window.addEventListener('online', () => {
-            updateNetworkStatusUI();
-            if (typeof CurtissOfflinePOS !== 'undefined') {
-                CurtissOfflinePOS.refreshBillingCache();
-                CurtissOfflinePOS.syncAllPendingSales(() => updatePendingBadge());
-            }
-        });
-        window.addEventListener('offline', () => {
-            updateNetworkStatusUI();
-        });
-
-        async function updatePendingBadge() {
-            if (typeof CurtissOfflinePOS !== 'undefined') {
-                const sales = await CurtissOfflinePOS.getAllOfflineSales();
-                const pending = sales.filter(s => s.sync_status === 'Pending Sync' || s.sync_status === 'Failed');
-                const badge = document.getElementById('sync-pending-badge');
-                if (badge) {
-                    if (pending.length > 0) {
-                        badge.innerText = pending.length;
-                        badge.style.display = 'inline-block';
-                    } else {
-                        badge.style.display = 'none';
-                    }
-                }
-            }
-        }
-
-        async function triggerManualSync() {
-            if (!navigator.onLine) {
-                alert("Device is offline. Cannot sync until internet connection is restored.");
-                return;
-            }
-            if (typeof CurtissOfflinePOS !== 'undefined') {
-                const btn = document.getElementById('btn-sync-offline');
-                if (btn) btn.disabled = true;
-                const res = await CurtissOfflinePOS.syncAllPendingSales();
-                if (btn) btn.disabled = false;
-                alert(`Sync Operation Completed:\n• Synced: ${res.syncedCount || 0}\n• Conflicts: ${res.conflictCount || 0}\n• Failures: ${res.failedCount || 0}`);
-                updatePendingBadge();
-                renderOfflineSalesQueueModal();
-            }
-        }
-
-        async function openOfflineSyncModal() {
-            await renderOfflineSalesQueueModal();
-            openModal('modal-offline-sync-queue');
-        }
-
-        async function renderOfflineSalesQueueModal() {
-            if (typeof CurtissOfflinePOS === 'undefined') return;
-            const sales = await CurtissOfflinePOS.getAllOfflineSales();
-            const container = document.getElementById('offline-sales-list');
-            if (!container) return;
-
-            if (sales.length === 0) {
-                container.innerHTML = '<div style="text-align:center; padding:2rem; color: var(--pos-text-muted);">No offline sales recorded on this device.</div>';
-                return;
-            }
-
-            let html = `
-                <table class="cart-table">
-                    <thead>
-                        <tr>
-                            <th>Temp Ref</th>
-                            <th>Date / Time</th>
-                            <th>Customer</th>
-                            <th>Total (LKR)</th>
-                            <th>Status</th>
-                            <th>Server Invoice / Message</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-            `;
-
-            sales.slice().reverse().forEach(s => {
-                let badgeStyle = 'background:#fef3c7; color:#b45309;';
-                if (s.sync_status === 'Synced') badgeStyle = 'background:#dcfce7; color:#15803d;';
-                else if (s.sync_status === 'Conflict') badgeStyle = 'background:#fee2e2; color:#b91c1c;';
-                else if (s.sync_status === 'Failed') badgeStyle = 'background:#f3f4f6; color:#374151;';
-
-                const detail = s.server_invoice_no ? `Invoice #${s.server_invoice_no}` : (s.error_message || s.conflict_details ? escapeHtml(s.error_message || JSON.stringify(s.conflict_details)) : '-');
-
-                html += `
-                    <tr>
-                        <td style="font-weight:700;">${escapeHtml(s.temp_ref)}</td>
-                        <td style="font-size:0.8rem;">${escapeHtml(s.created_at)}</td>
-                        <td>${escapeHtml(s.customer_name)}</td>
-                        <td style="font-weight:700; text-align:right;">${parseFloat(s.total_amount).toFixed(2)}</td>
-                        <td><span style="padding:0.2rem 0.5rem; border-radius:4px; font-weight:600; font-size:0.75rem; ${badgeStyle}">${escapeHtml(s.sync_status)}</span></td>
-                        <td style="font-size:0.8rem; color:var(--pos-text-muted);">${detail}</td>
-                    </tr>
-                `;
-            });
-
-            html += `</tbody></table>`;
-            container.innerHTML = html;
-        }
 
         // DOM Elements
         let lastModalClosedTime = 0;
@@ -3679,25 +3503,9 @@
         function updateSalesRepHighlight() {}
         function renderSalesRepSearchResults(reps) {}
 
-        // --- HIGH-SPEED ONLINE/OFFLINE REAL-TIME PRODUCT SEARCH ENGINE ---
+        // --- REAL-TIME SERVER PRODUCT SEARCH ENGINE ---
         let productSearchTimer = null;
         let activeProductSearchId = 0;
-        const productSearchCache = new Map();
-
-        function getCachedProductSearch(q) {
-            const key = String(q || '').trim().toLowerCase();
-            return productSearchCache.has(key) ? productSearchCache.get(key) : null;
-        }
-
-        function setCachedProductSearch(q, products) {
-            const key = String(q || '').trim().toLowerCase();
-            if (!key) return;
-            if (productSearchCache.size > 250) {
-                const first = productSearchCache.keys().next().value;
-                productSearchCache.delete(first);
-            }
-            productSearchCache.set(key, products);
-        }
 
         async function performProductSearch(val) {
             val = val.trim();
@@ -3710,84 +3518,16 @@
 
             const searchId = ++activeProductSearchId;
 
-            // Instant in-memory cache hit (0ms round-trip)
-            const cachedMatch = getCachedProductSearch(val);
-            if (cachedMatch) {
-                currentSearchProducts = cachedMatch;
-                selectedSearchIndex = cachedMatch.length > 0 ? 0 : -1;
-                renderSearchResults(currentSearchProducts);
-                return;
-            }
-
             try {
+                const res = await fetch(`pos_api.php?action=search_products&q=${encodeURIComponent(val)}`);
+                const data = await res.json();
+                if (searchId !== activeProductSearchId) return; // Stale response discarded
+
                 let products = [];
-                let onlineSuccess = false;
-
-                if (navigator.onLine) {
-                    try {
-                        const res = await fetch(`pos_api.php?action=search_products&q=${encodeURIComponent(val)}`);
-                        const data = await res.json();
-                        if (searchId !== activeProductSearchId) return; // Stale response discarded
-                        if (data.success && Array.isArray(data.data)) {
-                            products = data.data;
-                            onlineSuccess = true;
-                            setCachedProductSearch(val, products);
-                        }
-                    } catch (e) {
-                        console.warn("Online search failed, using local offline cache", e);
-                    }
+                if (data.success && Array.isArray(data.data)) {
+                    products = data.data;
                 }
 
-                // Fallback to local IndexedDB cache ONLY if offline / network fetch failed
-                if (!onlineSuccess && typeof CurtissOfflinePOS !== 'undefined') {
-                    if (searchId !== activeProductSearchId) return;
-                    const cached = await CurtissOfflinePOS.getCachedData('products');
-                    const cachedLots = await CurtissOfflinePOS.getCachedData('lots') || [];
-                    if (cached && cached.length > 0) {
-                        const qLower = val.toLowerCase();
-                        const matched = cached.filter(p => 
-                            (p.name && p.name.toLowerCase().includes(qLower)) || 
-                            (p.barcode && p.barcode.toLowerCase().includes(qLower)) ||
-                            (p.sku && p.sku.toLowerCase().includes(qLower))
-                        );
-
-                        if (matched.length > 0) {
-                            products = matched.map(p => {
-                                const prodLots = cachedLots.filter(l => l.product_id == p.id);
-                                const totalStock = prodLots.reduce((sum, l) => sum + parseFloat(l.remaining_quantity || 0), 0);
-                                const defaultLots = prodLots.length > 0 ? prodLots.map(l => ({
-                                    lot_id: parseInt(l.id),
-                                    lot_number: l.lot_number,
-                                    product_id: parseInt(l.product_id),
-                                    selling_price: parseFloat(l.selling_price),
-                                    remaining_quantity: parseFloat(l.remaining_quantity)
-                                })) : [{
-                                    lot_id: 0,
-                                    lot_number: 'LOT-AUTO',
-                                    product_id: parseInt(p.id),
-                                    selling_price: parseFloat(p.selling_price || 0),
-                                    remaining_quantity: 0
-                                }];
-                                return {
-                                    product_id: parseInt(p.id),
-                                    sku: p.sku,
-                                    barcode: p.barcode,
-                                    product_name: p.name,
-                                    default_cost: parseFloat(p.cost || 0),
-                                    default_price: parseFloat(p.selling_price || 0),
-                                    brand_name: 'Store Product',
-                                    category_name: 'General',
-                                    total_branch_stock: totalStock,
-                                    lots: defaultLots,
-                                    active_lots_count: defaultLots.length,
-                                    auto_selected_lot: defaultLots[0]
-                                };
-                            });
-                        }
-                    }
-                }
-
-                if (searchId !== activeProductSearchId) return;
                 currentSearchProducts = products;
                 selectedSearchIndex = products.length > 0 ? 0 : -1;
                 renderSearchResults(currentSearchProducts);
@@ -3962,67 +3702,10 @@
 
             try {
                 let products = [];
-
-                let onlineSuccess = false;
-                if (navigator.onLine) {
-                    try {
-                        const res = await fetch(`pos_api.php?action=search_products&q=${encodeURIComponent(val)}`);
-                        const data = await res.json();
-                        if (data.success && Array.isArray(data.data)) {
-                            products = data.data;
-                            onlineSuccess = true;
-                        }
-                    } catch (e) {
-                        console.warn("Online barcode search failed, using local offline cache", e);
-                    }
-                }
-
-                if (!onlineSuccess && typeof CurtissOfflinePOS !== 'undefined') {
-                    const cached = await CurtissOfflinePOS.getCachedData('products');
-                    const cachedLots = await CurtissOfflinePOS.getCachedData('lots') || [];
-                    if (cached && cached.length > 0) {
-                        const qLower = val.toLowerCase();
-                        const matched = cached.filter(p => {
-                            const bc = String(p.barcode || '').trim().toLowerCase();
-                            const sku = String(p.sku || '').trim().toLowerCase();
-                            const name = String(p.name || '').trim().toLowerCase();
-                            return bc === qLower || sku === qLower || name.includes(qLower);
-                        });
-
-                        if (matched.length > 0) {
-                            products = matched.map(p => {
-                                const prodLots = cachedLots.filter(l => l.product_id == p.id);
-                                const totalStock = prodLots.reduce((sum, l) => sum + parseFloat(l.remaining_quantity || 0), 0);
-                                const defaultLots = prodLots.length > 0 ? prodLots.map(l => ({
-                                    lot_id: parseInt(l.id),
-                                    lot_number: l.lot_number,
-                                    product_id: parseInt(l.product_id),
-                                    selling_price: parseFloat(l.selling_price),
-                                    remaining_quantity: parseFloat(l.remaining_quantity)
-                                })) : [{
-                                    lot_id: 0,
-                                    lot_number: 'LOT-AUTO',
-                                    product_id: parseInt(p.id),
-                                    selling_price: parseFloat(p.selling_price || 0),
-                                    remaining_quantity: 0
-                                }];
-                                return {
-                                    product_id: parseInt(p.id),
-                                    sku: p.sku,
-                                    barcode: p.barcode,
-                                    product_name: p.name,
-                                    default_cost: parseFloat(p.cost || 0),
-                                    default_price: parseFloat(p.selling_price || 0),
-                                    brand_name: 'Store Product',
-                                    category_name: 'General',
-                                    total_branch_stock: totalStock,
-                                    lots: defaultLots,
-                                    active_lots_count: defaultLots.length,
-                                    auto_selected_lot: defaultLots[0]
-                                };
-                            });
-                        }
-                    }
+                const res = await fetch(`pos_api.php?action=search_products&q=${encodeURIComponent(val)}`);
+                const data = await res.json();
+                if (data.success && Array.isArray(data.data)) {
+                    products = data.data;
                 }
 
                 if (!products || products.length === 0) {
@@ -5678,86 +5361,52 @@
                 return;
             }
 
-            if (IS_SPECIAL_USER && !navigator.onLine) {
-                alert("Special User is restricted from performing offline POS billing.");
-                return;
-            }
-
             isPreparingDraft = true;
             const payHeroBtn = document.getElementById('btn-proceed-pay');
             if (payHeroBtn) payHeroBtn.style.opacity = '0.6';
 
-            if (navigator.onLine) {
-                const payload = {
-                    action: 'prepare_draft',
-                    sale_id: activeSaleId,
-                    customer_id: 1,
-                    sales_rep_id: null,
-                    discount_value: summaryDiscountInput.value.trim(),
-                    applied_promotions: currentAppliedPromotions,
-                    promo_discount_amount: currentPromoDiscount,
-                    items: cart.map(it => ({
-                        product_id: it.product_id,
-                        lot_id: it.lot_id,
-                        quantity: it.quantity,
-                        unit_price: it.unit_price,
-                        original_price: it.original_price || it.unit_price,
-                        discount_value: it.discount_value,
-                        promo_discount_amount: parseFloat(it.promo_discount_amount) || 0,
-                        applied_rule_id: it.applied_rule_id || null,
-                        promo_name: it.promo_name || null
-                    }))
-                };
+            const payload = {
+                action: 'prepare_draft',
+                sale_id: activeSaleId,
+                customer_id: currentCustomer && currentCustomer.id ? currentCustomer.id : 1,
+                sales_rep_id: currentSalesRep ? currentSalesRep.id : null,
+                discount_value: summaryDiscountInput.value.trim(),
+                applied_promotions: currentAppliedPromotions,
+                promo_discount_amount: currentPromoDiscount,
+                items: cart.map(it => ({
+                    product_id: it.product_id,
+                    lot_id: it.lot_id,
+                    quantity: it.quantity,
+                    unit_price: it.unit_price,
+                    original_price: it.original_price || it.unit_price,
+                    discount_value: it.discount_value,
+                    promo_discount_amount: parseFloat(it.promo_discount_amount) || 0,
+                    applied_rule_id: it.applied_rule_id || null,
+                    promo_name: it.promo_name || null
+                }))
+            };
 
-                fetch('pos_api.php', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                })
-                .then(res => res.json())
-                .then(res => {
-                    isPreparingDraft = false;
-                    if (payHeroBtn) payHeroBtn.style.opacity = '1';
-                    if (res.success) {
-                        activeSaleId = res.sale_id;
-                        openPaymentModal(res.total_amount);
-                    } else {
-                        alert("Error preparing payment draft: " + res.message);
-                    }
-                })
-                .catch(() => {
-                    isPreparingDraft = false;
-                    if (payHeroBtn) payHeroBtn.style.opacity = '1';
-                    proceedToOfflinePayment();
-                });
-            } else {
+            fetch('pos_api.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            })
+            .then(res => res.json())
+            .then(res => {
                 isPreparingDraft = false;
                 if (payHeroBtn) payHeroBtn.style.opacity = '1';
-                proceedToOfflinePayment();
-            }
-        }
-
-        function proceedToOfflinePayment() {
-            let subtotal = 0;
-            let eligibleSubtotal = 0;
-            cart.forEach(item => {
-                const itemSubtotal = item.quantity * item.unit_price;
-                const parsedItemDisc = parseDiscountJS(item.discount_value, itemSubtotal);
-                const lineTotal = Math.max(0, itemSubtotal - parsedItemDisc.total_discount);
-                subtotal += lineTotal;
-
-                const hasItemDisc = (parsedItemDisc.total_discount > 0 || (String(item.discount_value || '').trim() !== ''));
-                if (!hasItemDisc) {
-                    eligibleSubtotal += lineTotal;
+                if (res.success) {
+                    activeSaleId = res.sale_id;
+                    openPaymentModal(res.total_amount);
+                } else {
+                    alert("Error preparing payment draft: " + res.message);
                 }
+            })
+            .catch(err => {
+                isPreparingDraft = false;
+                if (payHeroBtn) payHeroBtn.style.opacity = '1';
+                alert("Communication error preparing payment: " + err.message);
             });
-
-            const discStr = summaryDiscountInput.value.trim();
-            const parsedInvDisc = parseDiscountJS(discStr, eligibleSubtotal);
-            const totalDiscount = parsedInvDisc.total_discount;
-            const payableTotal = Math.max(0, subtotal - totalDiscount);
-            activeSaleId = 'OFFLINE_DRAFT';
-            openPaymentModal(payableTotal);
         }
 
         function openPaymentModal(totalAmount) {
@@ -5993,24 +5642,15 @@
                 return;
             }
 
-            if (navigator.onLine) {
-                fetch('pos_api.php?action=get_bank_accounts')
-                    .then(res => res.json())
-                    .then(res => {
-                        if (res.success && res.data) {
-                            activeBankAccounts = res.data;
-                            populateBankDropdown(activeBankAccounts);
-                        }
-                    })
-                    .catch(err => console.error("Error fetching bank accounts:", err));
-            } else if (typeof CurtissOfflinePOS !== 'undefined') {
-                CurtissOfflinePOS.getCachedData('bank_accounts').then(data => {
-                    if (data && data.length > 0) {
-                        activeBankAccounts = data;
+            fetch('pos_api.php?action=get_bank_accounts')
+                .then(res => res.json())
+                .then(res => {
+                    if (res.success && res.data) {
+                        activeBankAccounts = res.data;
                         populateBankDropdown(activeBankAccounts);
                     }
-                });
-            }
+                })
+                .catch(err => console.error("Error fetching bank accounts:", err));
         }
 
         function populateBankDropdown(accounts) {
@@ -6434,109 +6074,7 @@
             if (waBtn) waBtn.disabled = true;
             if (saveBtn) saveBtn.disabled = true;
 
-            // Offline Mode Finalization
-            if (!navigator.onLine || activeSaleId === 'OFFLINE_DRAFT') {
-                if (IS_SPECIAL_USER) {
-                    isFinalizingSale = false;
-                    alert("Special User is restricted from performing offline POS billing.");
-                    if (finalizeBtn) finalizeBtn.disabled = false;
-                    if (printBtn) printBtn.disabled = false;
-                    if (waBtn) waBtn.disabled = false;
-                    if (saveBtn) saveBtn.disabled = false;
-                    return;
-                }
-
-                let subtotal = 0;
-                let eligibleSubtotal = 0;
-                cart.forEach(item => {
-                    const itemSubtotal = item.quantity * item.unit_price;
-                    const parsedItemDisc = parseDiscountJS(item.discount_value, itemSubtotal);
-                    const lineTotal = Math.max(0, itemSubtotal - parsedItemDisc.total_discount);
-                    subtotal += lineTotal;
-
-                    const hasItemDisc = (parsedItemDisc.total_discount > 0 || (String(item.discount_value || '').trim() !== ''));
-                    if (!hasItemDisc) {
-                        eligibleSubtotal += lineTotal;
-                    }
-                });
-
-                const discStr = summaryDiscountInput.value.trim();
-                const parsedInvDisc = parseDiscountJS(discStr, eligibleSubtotal);
-                const totalDiscount = parsedInvDisc.total_discount;
-                const totalAmount = Math.max(0, subtotal - totalDiscount);
-
-                let allocated = getTotalAllocated();
-                const changeAmount = Math.max(0, allocated - totalAmount);
-
-                const offlinePayload = {
-                    branch_id: CURRENT_BRANCH_ID,
-                    user_id: CURRENT_USER_ID,
-                    customer_id: 1,
-                    customer_name: 'Walk-in Customer',
-                    sales_rep_id: null,
-                    sales_rep_name: null,
-                    items: cart.map(item => {
-                        const itemSubtotal = item.quantity * item.unit_price;
-                        const parsedItemDisc = parseDiscountJS(item.discount_value, itemSubtotal);
-                        const lineTotal = Math.max(0, itemSubtotal - parsedItemDisc.total_discount);
-                        return {
-                            product_id: item.product_id,
-                            lot_id: item.lot_id,
-                            quantity: item.quantity,
-                            unit_price: item.unit_price,
-                            discount_type: parsedItemDisc.type,
-                            discount_value: item.discount_value,
-                            discount_amount: parsedItemDisc.total_discount,
-                            line_total: lineTotal,
-                            subtotal: itemSubtotal
-                        };
-                    }),
-                    discount_str: discStr,
-                    customer_facing_discount: parsedInvDisc.customer_facing_text,
-                    subtotal: subtotal,
-                    total_discount: totalDiscount,
-                    total_amount: totalAmount,
-                    payments: paymentAllocations
-                };
-
-                CurtissOfflinePOS.saveOfflineSale(offlinePayload).then(record => {
-                    closeModal('modal-payment');
-                    
-                    lastCompletedSaleData = {
-                        sale_id: null,
-                        offline_ref: record.temp_ref,
-                        invoice_no: record.temp_ref,
-                        total_amount: totalAmount,
-                        change_amount: changeAmount,
-                        payment_method: paymentAllocations.map(p => p.payment_method).join(', ')
-                    };
-
-                    if (postAction === 'print') {
-                        triggerPrintInvoice();
-                    } else if (postAction === 'whatsapp') {
-                        triggerWhatsAppShare();
-                    } else {
-                        showPosToast(`Sale saved successfully! Invoice #${lastCompletedSaleData.invoice_no}`, 'success');
-                    }
-                    clearCartState();
-                    updatePendingBadge();
-                    isFinalizingSale = false;
-                    if (finalizeBtn) finalizeBtn.disabled = false;
-                    if (printBtn) printBtn.disabled = false;
-                    if (waBtn) waBtn.disabled = false;
-                    if (saveBtn) saveBtn.disabled = false;
-                }).catch(err => {
-                    isFinalizingSale = false;
-                    if (finalizeBtn) finalizeBtn.disabled = false;
-                    if (printBtn) printBtn.disabled = false;
-                    if (waBtn) waBtn.disabled = false;
-                    if (saveBtn) saveBtn.disabled = false;
-                    alert("Error saving offline sale: " + err.message);
-                });
-                return;
-            }
-
-            // Online Mode Finalization
+            // Real-Time Server Finalization
             const payload = {
                 action: 'finalize_sale',
                 sale_id: activeSaleId,
@@ -6573,7 +6111,7 @@
                     } else if (postAction === 'whatsapp') {
                         triggerWhatsAppShare();
                     } else {
-                        showPosToast(`Sale saved successfully! Invoice #${res.invoice_no}`, 'success');
+                        showPosToast(`Sale saved successfully! Invoice #${lastCompletedSaleData.invoice_no}`, 'success');
                     }
                     clearCartState();
                 } else {
@@ -6586,9 +6124,9 @@
                 if (printBtn) printBtn.disabled = false;
                 if (waBtn) waBtn.disabled = false;
                 if (saveBtn) saveBtn.disabled = false;
-                console.error("Error finalizing sale", err);
-                alert("Finalization error: " + err.message);
+                alert("Error finalizing sale: " + err.message);
             });
+
         }
 
         // Invoice Complete Screen Handler
@@ -6610,16 +6148,9 @@
         document.getElementById('btn-complete-print').addEventListener('click', triggerPrintInvoice);
 
         function triggerPrintInvoice() {
-            if (!lastCompletedSaleData) return;
-            let receiptUrl = '';
-            if (lastCompletedSaleData.sale_id) {
-                receiptUrl = `receipt.php?sale_id=${lastCompletedSaleData.sale_id}`;
-            } else if (lastCompletedSaleData.offline_ref) {
-                receiptUrl = `receipt.php?offline_ref=${encodeURIComponent(lastCompletedSaleData.offline_ref)}`;
-            }
-            if (receiptUrl) {
-                window.open(receiptUrl, '_blank', 'width=400,height=650');
-            }
+            if (!lastCompletedSaleData || !lastCompletedSaleData.sale_id) return;
+            const receiptUrl = `receipt.php?sale_id=${lastCompletedSaleData.sale_id}`;
+            window.open(receiptUrl, '_blank', 'width=400,height=650');
         }
 
         // Send via WhatsApp Action
