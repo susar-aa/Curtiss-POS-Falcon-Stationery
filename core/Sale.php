@@ -456,6 +456,11 @@ class Sale
                     }
                 }
 
+                // If single lot or fallback lot, ensure its selling_price reflects current master product selling price
+                if (count($lots) === 1 && isset($prod['default_price'])) {
+                    $lots[0]['selling_price'] = (float)$prod['default_price'];
+                }
+
                 $prod['lots'] = $lots;
                 $prod['active_lots_count'] = count($lots);
                 $prod['auto_selected_lot'] = (count($lots) === 1) ? $lots[0] : null;

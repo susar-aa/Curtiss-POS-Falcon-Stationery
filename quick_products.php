@@ -152,6 +152,16 @@ if (isset($_REQUEST['action'])) {
                 ':id'            => $productId
             ]);
 
+            // 1b. Synchronize active product lots with updated selling price
+            Database::execute("
+                UPDATE product_lots 
+                SET selling_price = :selling_price, updated_at = NOW() 
+                WHERE product_id = :id AND status = 'active'
+            ", [
+                ':selling_price' => $sellingPrice,
+                ':id'            => $productId
+            ]);
+
             // 2. Direct Stock Update on branch_inventory
             Database::execute("
                 INSERT INTO branch_inventory (branch_id, product_id, quantity, updated_at)

@@ -688,6 +688,16 @@ class Product
                 ':id'                  => $id
             ]);
 
+            // Synchronize active product lots with updated selling price
+            Database::execute("
+                UPDATE product_lots 
+                SET selling_price = :selling_price, updated_at = NOW() 
+                WHERE product_id = :product_id AND status = 'active'
+            ", [
+                ':selling_price' => $sellingPrice,
+                ':product_id'   => $id
+            ]);
+
             // If expiry tracking is turned on and an expiry date is provided, update stock lots that lack expiry or opening stock lot
             if ($hasExpiry && !empty($expiryDate)) {
                 Database::execute("

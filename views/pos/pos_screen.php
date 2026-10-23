@@ -3979,6 +3979,10 @@
                 existingItem.quantity = newQty;
                 cart.unshift(existingItem);
             } else {
+                const itemPrice = (product.lots && product.lots.length > 1 && parseFloat(selectedLot.selling_price) > 0)
+                    ? parseFloat(selectedLot.selling_price)
+                    : parseFloat(product.default_price || selectedLot.selling_price || 0);
+
                 cart.unshift({
                     product_id: product.product_id,
                     product_name: product.product_name,
@@ -3990,8 +3994,8 @@
                     is_zero_stock: isZeroStock,
                     all_lots: product.lots || [selectedLot],
                     quantity: 1.00,
-                    original_price: parseFloat(selectedLot.selling_price || product.default_price || 0),
-                    unit_price: parseFloat(selectedLot.selling_price || product.default_price || 0),
+                    original_price: itemPrice,
+                    unit_price: itemPrice,
                     discount_value: ''
                 });
             }
