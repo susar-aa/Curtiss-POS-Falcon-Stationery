@@ -3414,9 +3414,9 @@
                 </button>
 
                 <div style="display: flex; align-items: center; gap: 10px;">
-                    <button type="button" class="btn-pay-action btn-pay-save" id="btn-save-sale-only" onclick="finalizeSale('none')" title="Save Bill only without printing or WhatsApp (F10 or Shift + Enter)">
+                    <button type="button" class="btn-pay-action btn-pay-save" id="btn-save-sale-only" onclick="finalizeSale('none')" title="Save Bill without print (Enter)">
                         <i class="fa-solid fa-floppy-disk" style="font-size: 1.15rem;"></i>
-                        <span>Save Only</span>
+                        <span>Save (Enter)</span>
                     </button>
 
                     <button type="button" class="btn-pay-action btn-pay-whatsapp" id="btn-save-whatsapp-sale" onclick="finalizeSale('whatsapp')" title="Save Bill and send via WhatsApp (Alt + Enter)">
@@ -3426,7 +3426,7 @@
 
                     <button type="button" class="btn-pay-action btn-pay-print" id="btn-save-print-sale" onclick="finalizeSale('print')" title="Save Bill and print receipt (Ctrl + Enter)">
                         <i class="fa-solid fa-print" style="font-size: 1.15rem;"></i>
-                        <span>Save & Print Bill</span>
+                        <span>Save & Print (Ctrl+Enter)</span>
                     </button>
                 </div>
             </div>
@@ -6964,17 +6964,18 @@
                     return;
                 }
 
-                // Enter Key Action inside Payment Settlement Modal: Move to Next Field / Trigger Focused Button
+                // Enter Key Action inside Payment Settlement Modal: Direct Save Only
                 if (e.key === 'Enter') {
                     e.preventDefault();
 
-                    // If user is focused on any button, click it!
-                    if (e.target && e.target.tagName === 'BUTTON') {
+                    // If user is focused on Cancel, Quick Cash, or Fill Exact button, trigger that button
+                    if (e.target && (e.target.classList.contains('btn-payment-cancel') || e.target.classList.contains('btn-quick-cash') || e.target.classList.contains('btn-fill-exact'))) {
                         e.target.click();
                         return;
                     }
 
-                    focusNextPaymentField(e.target);
+                    // Direct Enter = Save Bill
+                    finalizeSale('none');
                     return;
                 }
 
